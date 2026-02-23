@@ -190,6 +190,10 @@
     .sync-panel-body[hidden]{
       display:none !important;
     }
+    .sync-panel-body{
+      display:grid;
+      gap:6px;
+    }
     .sync-user{
       color: var(--muted);
       font-family: var(--mono);
@@ -197,17 +201,18 @@
     .sync-sections{
       display:flex;
       flex-direction:column;
-      gap:10px;
+      gap:8px;
+      max-width: 430px;
     }
     .sync-section{
       border:1px solid rgba(255,255,255,.10);
       border-radius:10px;
-      padding:8px;
+      padding:6px 8px;
       background: rgba(255,255,255,.02);
       min-width:0;
     }
     .sync-section h4{
-      margin:0 0 8px;
+      margin:0 0 6px;
       font-size:12px;
       color: var(--muted);
       letter-spacing:.2px;
@@ -220,7 +225,7 @@
     .sync-grid{
       display:grid;
       grid-template-columns: 1fr;
-      gap:8px;
+      gap:6px;
     }
     .sync-grid > div{
       min-width:0;
@@ -233,15 +238,14 @@
     .sync-actions{
       display:flex;
       flex-wrap:wrap;
-      gap:8px;
+      gap:10px 8px;
       align-items:center;
     }
-    .sync-actions #syncConnectBtn{ order:1; }
-    .sync-actions #syncDisconnectBtn{ order:2; }
-    .sync-actions #syncPullBtn{ order:3; }
-    .sync-actions #syncPushBtn{ order:4; }
-    .sync-actions #syncAutoBtn{ order:5; }
-    .sync-actions #syncStatus{ order:6; }
+    .sync-actions #syncDisconnectBtn{ order:1; }
+    .sync-actions #syncPullBtn{ order:2; }
+    .sync-actions #syncPushBtn{ order:3; }
+    .sync-actions #syncAutoBtn{ order:4; }
+    .sync-actions #syncStatus{ order:5; }
     .sync-password-row{
       display:grid;
       grid-template-columns: 1fr auto;
@@ -290,6 +294,28 @@
       gap:8px;
       flex-wrap:wrap;
     }
+    .sync-panel-toggle{
+      border-color: rgba(255,255,255,.22);
+      background: rgba(255,255,255,.05);
+      font-weight:700;
+      box-shadow: none;
+    }
+    .sync-panel-toggle.btn-toggle.on{
+      border-color: rgba(255,255,255,.28);
+      background: rgba(255,255,255,.09);
+      color: var(--text);
+      box-shadow: none;
+      font-weight:700;
+      font-style: normal;
+    }
+    .sync-modal-status{
+      min-height: 18px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .sync-modal-status.error{
+      color: rgba(255,142,142,.95);
+    }
     #syncStatus{
       border-color: rgba(255,255,255,.24);
       color: var(--text);
@@ -309,10 +335,6 @@
     }
     @media (max-width:900px){
       header{ padding-right: 16px; }
-      .logo-power{
-        position: static;
-        margin-left: auto;
-      }
       .sync-grid, .sync-grid-2{ grid-template-columns:1fr; }
     }
 
@@ -442,6 +464,20 @@
       box-shadow: 0 0 0 3px rgba(var(--power-rgb),.12);
     }
     button:active{ transform: translateY(1px); }
+    button:disabled{
+      cursor:not-allowed;
+      opacity:.52;
+      color: var(--muted);
+      border-color: rgba(255,255,255,.14);
+      background: rgba(255,255,255,.03);
+      box-shadow: none;
+      transform: none;
+      pointer-events: none;
+    }
+    button:disabled:hover{
+      border-color: rgba(255,255,255,.14);
+      box-shadow: none;
+    }
 
     .btn-primary{
       background: linear-gradient(180deg, rgba(var(--power-rgb),.26), rgba(var(--power-rgb),.10));
@@ -1289,7 +1325,7 @@
             <strong id="syncPanelTitle">Team Sync</strong>
           </div>
           <div class="sync-top-meta">
-            <button id="syncPanelToggleBtn" class="btn-ghost btn-toggle" type="button" aria-pressed="false" aria-expanded="false" aria-controls="syncPanelBody">Sync/Login</button>
+            <button id="syncPanelToggleBtn" class="btn-ghost btn-toggle sync-panel-toggle" type="button" aria-pressed="false" aria-expanded="false" aria-controls="syncPanelBody">Sync/Login</button>
             <span id="syncConnectionState" class="status-pill sync-conn offline">Disconnected</span>
             <span id="syncRoleBadge" class="status-pill">Role: local</span>
           </div>
@@ -1322,7 +1358,6 @@
           </section>
         </div>
         <div class="sync-actions">
-          <button id="syncConnectBtn" class="btn-ghost" type="button">Open Login</button>
           <button id="syncDisconnectBtn" class="btn-ghost" type="button">Disconnect</button>
           <button id="syncPullBtn" class="btn-ghost" type="button">Pull Latest</button>
           <button id="syncPushBtn" class="btn-ghost" type="button">Push Now</button>
@@ -1642,6 +1677,7 @@
         <button id="syncPasswordToggle" class="btn-ghost" type="button" aria-pressed="false" aria-controls="syncPassword" title="Show or hide password">Show</button>
       </div>
     </div>
+    <div id="syncModalStatus" class="sync-modal-status" role="status" aria-live="polite"></div>
     <div class="sync-login-foot">
       <button id="syncModalConnectBtn" class="btn-primary" type="button">Sign In & Connect</button>
       <button id="syncModalCancelBtn" class="btn-ghost" type="button">Cancel</button>
@@ -2624,6 +2660,7 @@ function setSyncLoginModal(open){
   if(on){
     syncLoginLastFocus = document.activeElement;
     setSyncPasswordVisibility(false);
+    setSyncModalStatus("", false);
     requestAnimationFrame(() => {
       if(ui.syncEmail?.value){
         ui.syncPassword?.focus();
@@ -2634,6 +2671,7 @@ function setSyncLoginModal(open){
   }else{
     if(ui.syncPassword) ui.syncPassword.value = "";
     setSyncPasswordVisibility(false);
+    setSyncModalStatus("", false);
     if(syncLoginLastFocus && typeof syncLoginLastFocus.focus === "function"){
       syncLoginLastFocus.focus();
     }
@@ -2643,6 +2681,7 @@ function setSyncLoginModal(open){
 
 function openSyncLoginModal(){
   clearSyncFieldErrors();
+  setSyncModalStatus("", false);
   setSyncLoginModal(true);
 }
 
@@ -2701,6 +2740,13 @@ function setTeamSyncStatus(text, isError){
   ui.syncStatus.style.background = isError ? "rgba(239,68,68,.12)" : "";
 }
 
+function setSyncModalStatus(text, isError){
+  if(!ui.syncModalStatus) return;
+  const msg = String(text || "").trim();
+  ui.syncModalStatus.textContent = msg;
+  ui.syncModalStatus.classList.toggle("error", !!(isError && msg));
+}
+
 function isTeamSyncPanelOpen(){
   return view.state?.settings?.teamSyncOpen === true;
 }
@@ -2712,7 +2758,7 @@ function renderTeamSyncPanelToggle(){
   }
   if(ui.syncPanelToggleBtn){
     syncToggleBtn(ui.syncPanelToggleBtn, open);
-    ui.syncPanelToggleBtn.textContent = "Sync/Login";
+    ui.syncPanelToggleBtn.textContent = open ? "Hide Sync" : "Sync/Login";
     ui.syncPanelToggleBtn.setAttribute("aria-pressed", open ? "true" : "false");
     ui.syncPanelToggleBtn.setAttribute("aria-expanded", open ? "true" : "false");
     ui.syncPanelToggleBtn.setAttribute("aria-controls", "syncPanelBody");
@@ -2770,9 +2816,6 @@ function renderTeamSyncMeta(){
       ? `${teamSync.userEmail || "Signed in"} | Workspace: ${workspace}`
       : `Not connected. Workspace: ${workspace}`;
   }
-  if(ui.syncConnectBtn){
-    ui.syncConnectBtn.textContent = connected ? "Account" : "Open Login";
-  }
   if(ui.syncOpenLoginBtn){
     ui.syncOpenLoginBtn.textContent = connected ? "Switch Account" : "Open Login";
   }
@@ -2788,7 +2831,6 @@ function applyTeamSyncUiState(){
     ui.syncPanel.setAttribute("aria-busy", busy ? "true" : "false");
   }
   renderTeamSyncPanelToggle();
-  if(ui.syncConnectBtn) ui.syncConnectBtn.disabled = busy;
   if(ui.syncOpenLoginBtn) ui.syncOpenLoginBtn.disabled = busy;
   if(ui.syncDisconnectBtn) ui.syncDisconnectBtn.disabled = !connected || busy;
   if(ui.syncAutoBtn) ui.syncAutoBtn.disabled = busy;
@@ -2988,7 +3030,9 @@ function scheduleTeamSyncSave(reason){
 async function connectTeamSync(opts){
   const options = opts || {};
   const manual = options.manual === true;
+  setSyncModalStatus("", false);
   if(!(window.supabase && typeof window.supabase.createClient === "function")){
+    setSyncModalStatus("Supabase library missing", true);
     setTeamSyncStatus("Supabase library missing", true);
     return;
   }
@@ -2999,19 +3043,28 @@ async function connectTeamSync(opts){
       !cfg.anonKey ? ui.syncSupabaseAnonKey : null,
       !cfg.workspaceId ? ui.syncWorkspaceId : null
     ]);
-    if(manual) setTeamSyncStatus("Fill URL, anon key, and workspace id", true);
+    if(manual){
+      setSyncModalStatus("Fill URL, anon key, and workspace ID", true);
+      setTeamSyncStatus("Local-only mode");
+    }
     return;
   }
   try{
     const parsed = new URL(cfg.url);
     if(parsed.protocol !== "https:"){
       markSyncFieldErrors([ui.syncSupabaseUrl]);
-      if(manual) setTeamSyncStatus("Supabase URL must start with https://", true);
+      if(manual){
+        setSyncModalStatus("Supabase URL must start with https://", true);
+        setTeamSyncStatus("Local-only mode");
+      }
       return;
     }
   }catch{
     markSyncFieldErrors([ui.syncSupabaseUrl]);
-    if(manual) setTeamSyncStatus("Supabase URL is invalid", true);
+    if(manual){
+      setSyncModalStatus("Supabase URL is invalid", true);
+      setTeamSyncStatus("Local-only mode");
+    }
     return;
   }
   clearSyncFieldErrors();
@@ -3031,7 +3084,8 @@ async function connectTeamSync(opts){
     const password = String(ui.syncPassword?.value || "");
     if((email && !password) || (!email && password)){
       markSyncFieldErrors([ui.syncEmail, ui.syncPassword]);
-      setTeamSyncStatus("Enter both email and password", true);
+      setSyncModalStatus("Enter both email and password", true);
+      setTeamSyncStatus("Local-only mode");
       teamSync.connected = false;
       setSyncRole("local");
       applyTeamSyncUiState();
@@ -3048,7 +3102,8 @@ async function connectTeamSync(opts){
     }
     if(!session){
       markSyncFieldErrors([ui.syncEmail, ui.syncPassword]);
-      setTeamSyncStatus("Enter email/password then Connect", true);
+      setSyncModalStatus("Enter email and password", true);
+      setTeamSyncStatus("Local-only mode");
       teamSync.connected = false;
       setSyncRole("local");
       applyTeamSyncUiState();
@@ -3069,6 +3124,7 @@ async function connectTeamSync(opts){
     teamSync.connected = true;
     await pullRemoteState({ quiet:true });
     await subscribeTeamSyncRealtime();
+    setSyncModalStatus("", false);
     closeSyncLoginModal();
 
     setTeamSyncStatus(`Connected: ${teamSync.userEmail || "user"} (${isTeamAutoSyncEnabled() ? "auto on" : "auto off"})`);
@@ -3076,14 +3132,16 @@ async function connectTeamSync(opts){
     const msg = String(err?.message || err || "");
     if(/auth|credential|password|email|invalid/i.test(msg)){
       markSyncFieldErrors([ui.syncEmail, ui.syncPassword]);
+      setSyncModalStatus(msg || "Invalid credentials", true);
     }else{
       clearSyncFieldErrors();
+      setSyncModalStatus("Connect failed. Check workspace settings.", true);
     }
     teamSync.connected = false;
     teamSync.userId = null;
     teamSync.userEmail = "";
     setSyncRole("local");
-    setTeamSyncStatus(`Connect failed: ${err.message || err}`, true);
+    setTeamSyncStatus("Local-only mode");
   }finally{
     if(ui.syncPassword) ui.syncPassword.value = "";
     setSyncPasswordVisibility(false);
@@ -4733,11 +4791,6 @@ function hookUI(){
       setTeamSyncPanelOpen(!isTeamSyncPanelOpen(), true);
     });
   }
-  if(ui.syncConnectBtn){
-    ui.syncConnectBtn.addEventListener("click", () => {
-      openSyncLoginModal();
-    });
-  }
   if(ui.syncOpenLoginBtn){
     ui.syncOpenLoginBtn.addEventListener("click", () => {
       openSyncLoginModal();
@@ -4851,13 +4904,13 @@ function init(){
     syncEmail: document.getElementById("syncEmail"),
     syncPassword: document.getElementById("syncPassword"),
     syncPasswordToggle: document.getElementById("syncPasswordToggle"),
-    syncConnectBtn: document.getElementById("syncConnectBtn"),
     syncDisconnectBtn: document.getElementById("syncDisconnectBtn"),
     syncLoginModal: document.getElementById("syncLoginModal"),
     syncLoginBackdrop: document.getElementById("syncLoginBackdrop"),
     syncModalConnectBtn: document.getElementById("syncModalConnectBtn"),
     syncModalCancelBtn: document.getElementById("syncModalCancelBtn"),
     syncModalCloseBtn: document.getElementById("syncModalCloseBtn"),
+    syncModalStatus: document.getElementById("syncModalStatus"),
     syncAutoBtn: document.getElementById("syncAutoBtn"),
     syncPullBtn: document.getElementById("syncPullBtn"),
     syncPushBtn: document.getElementById("syncPushBtn"),
