@@ -163,113 +163,6 @@
       font-size: 20px;
       line-height:1;
     }
-    html.light-mode{
-      color-scheme: light;
-      --bg0:#edf2f7;
-      --bg1:#ffffff;
-      --line:#d2d9e2;
-      --surface:#ffffff;
-      --surfaceSoft:#f4f7fb;
-      --text:#1f2630;
-      --muted:#5f6b7a;
-      --textDisabled:#8a95a4;
-      --greyout: rgba(241,245,249,.76);
-      --greyoutText: rgba(40,48,60,.58);
-      --shadow: 0 14px 30px rgba(15,23,42,.12);
-    }
-    html.light-mode body{
-      background:
-        radial-gradient(900px 520px at 55% -10%, rgba(var(--power-rgb),.11) 0%, rgba(255,255,255,0) 55%),
-        linear-gradient(180deg, var(--bg1), var(--bg0) 58%);
-    }
-    html.light-mode #matrixRain{
-      opacity: .16;
-      mix-blend-mode: multiply;
-    }
-    html.light-mode header{
-      background: linear-gradient(180deg, rgba(255,255,255,.86), rgba(255,255,255,.68));
-    }
-    html.light-mode .toolbar-sep{
-      background: #d5dde6;
-    }
-    html.light-mode .card{
-      background: linear-gradient(180deg, #ffffff, #f8fafc);
-      border-color: var(--line);
-      box-shadow: var(--shadow);
-    }
-    html.light-mode .card-header{
-      background: linear-gradient(180deg, #fbfdff, #f4f7fb);
-    }
-    html.light-mode button,
-    html.light-mode select,
-    html.light-mode input,
-    html.light-mode textarea{
-      background: linear-gradient(180deg, #ffffff, #f4f7fb);
-      border-color: #cfd6df;
-      color: var(--text);
-      box-shadow: 0 1px 0 rgba(15,23,42,.08);
-    }
-    html.light-mode select{
-      color-scheme: light;
-      background-image:
-        linear-gradient(45deg, transparent 50%, rgba(31,38,48,.68) 50%),
-        linear-gradient(135deg, rgba(31,38,48,.68) 50%, transparent 50%),
-        linear-gradient(to right, rgba(31,38,48,.10), rgba(31,38,48,.04));
-    }
-    html.light-mode select option,
-    html.light-mode select optgroup{
-      background: #ffffff;
-      color: var(--text);
-    }
-    html.light-mode .btn-ghost{
-      background: linear-gradient(180deg, #ffffff, #f3f7fb);
-      border-color: #c9d1db;
-    }
-    html.light-mode .btn-danger{
-      background: linear-gradient(180deg, rgba(255,110,110,.25), rgba(255,110,110,.08));
-      border-color: rgba(224,76,76,.55);
-    }
-    html.light-mode .status-pill{
-      background: rgba(31,38,48,.03);
-      border-color: #d0d8e2;
-      color: #4d5867;
-    }
-    html.light-mode .sync-panel,
-    html.light-mode .sync-section,
-    html.light-mode .helper,
-    html.light-mode .aop-notation,
-    html.light-mode .aop-box,
-    html.light-mode .kpi,
-    html.light-mode .dash-controls,
-    html.light-mode .dash-table,
-    html.light-mode .calendar,
-    html.light-mode .actual-linkbox,
-    html.light-mode .item,
-    html.light-mode .aop-row,
-    html.light-mode .master-notation-panel,
-    html.light-mode .mn-card{
-      background: #ffffff;
-    }
-    html.light-mode .dash-table th{
-      background: rgba(31,38,48,.05);
-      color: #4d5867;
-    }
-    html.light-mode .day{
-      background: linear-gradient(180deg, #ffffff, #f6f9fc);
-    }
-    html.light-mode .day.outside{
-      background: #eef3f8;
-    }
-    html.light-mode .day .num{
-      color: #1f2630;
-    }
-    html.light-mode .day.outside .num{
-      color: #7e8998;
-    }
-    html.light-mode .note-dot{
-      border-color: rgba(255,255,255,.55);
-      box-shadow: 0 1px 0 rgba(15,23,42,.12);
-    }
     .tools-card .section-pad{ padding: 10px 12px; }
     .tools-row + .tools-row{ margin-top: 8px; }
     .sync-panel{
@@ -1492,7 +1385,6 @@
       <div class="tools-row toolbar compact">
         <span class="small">Display</span>
         <select id="themeSelect" title="Select theme">
-          <option value="light">Light</option>
           <option value="ember">Ember</option>
           <option value="ocean">Ocean</option>
           <option value="forest">Forest</option>
@@ -1953,7 +1845,6 @@ const DEFAULT_AREA_VIEW = "pool";
 const DEFAULT_THEME = "ember";
 const DAY_NOTE_AUTOSAVE_MS = 700;
 const COLOR_THEMES = {
-  light:   { power:"#f97600", powerRgb:"249,118,0",   bg0:"#edf2f7", bg1:"#ffffff", rainRgb:"186,120,62", rainAlpha:.22, rainSpeed:"38s", rainSpeed2:"56s" },
   ember:   { power:"#ff7a1a", powerRgb:"255,122,26",   bg0:"#050200", bg1:"#1a0c03", rainRgb:"255,171,98",  rainAlpha:.34, rainSpeed:"34s", rainSpeed2:"52s" },
   ocean:   { power:"#2bc7ff", powerRgb:"43,199,255",   bg0:"#031017", bg1:"#082538", rainRgb:"127,216,255", rainAlpha:.34, rainSpeed:"33s", rainSpeed2:"50s" },
   forest:  { power:"#77d26a", powerRgb:"119,210,106",  bg0:"#050f07", bg1:"#112517", rainRgb:"148,233,142", rainAlpha:.34, rainSpeed:"34s", rainSpeed2:"50s" },
@@ -2024,9 +1915,6 @@ function timeShort(){ return new Date().toLocaleTimeString([], {hour:"2-digit", 
 function currentThemeId(){
   const id = view.state?.settings?.colorTheme;
   return COLOR_THEMES[id] ? id : DEFAULT_THEME;
-}
-function isLightMode(){
-  return currentThemeId() === "light";
 }
 function normalizeAreaId(raw){
   const id = String(raw || "").trim().toLowerCase();
@@ -2127,10 +2015,6 @@ function applyColorTheme(themeId, persist){
   const theme = COLOR_THEMES[safe];
   const root = document.documentElement;
   if(!root || !theme) return;
-  const light = safe === "light";
-
-  root.classList.toggle("light-mode", light);
-  if(document.body) document.body.classList.toggle("light-mode", light);
 
   root.style.setProperty("--power", theme.power);
   root.style.setProperty("--power-rgb", theme.powerRgb);
@@ -2188,7 +2072,7 @@ function resizeMatrixRain(){
   rainFontSize = Math.max(12, Math.min(20, Math.round(w / 92)));
   rainColumns = Math.max(1, Math.floor(w / rainFontSize));
   rainDrops = Array.from({ length: rainColumns }, () => (Math.random() * -30));
-  rainCtx.fillStyle = isLightMode() ? "rgba(255,255,255,1)" : "rgba(0,0,0,1)";
+  rainCtx.fillStyle = "rgba(0,0,0,1)";
   rainCtx.fillRect(0, 0, w, h);
 }
 function stopMatrixRain(){
@@ -2215,7 +2099,7 @@ function drawMatrixRainFrame(){
   const powerRgb = (rootStyle.getPropertyValue("--power-rgb") || rainRgb).trim();
   const baseAlpha = Number((rootStyle.getPropertyValue("--rain-alpha") || "0.42").trim());
   const streamAlpha = Number.isFinite(baseAlpha) ? Math.max(.20, Math.min(.90, baseAlpha)) : .42;
-  const fadeFill = isLightMode() ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.09)";
+  const fadeFill = "rgba(0,0,0,0.09)";
 
   rainCtx.fillStyle = fadeFill;
   rainCtx.fillRect(0, 0, w, h);
@@ -4322,9 +4206,7 @@ function renderCalendar(container, type){
     if(inMonth && hasVisibleMarks && !lockedByRules && !view.diffMode){
       const dominant = visibleColors[0];
       if(dominant){
-        cell.style.background = isLightMode()
-          ? `linear-gradient(180deg, ${hexToRgba(dominant, 0.20)}, rgba(255,255,255,.64))`
-          : `linear-gradient(180deg, ${hexToRgba(dominant, 0.20)}, rgba(0,0,0,.20))`;
+        cell.style.background = `linear-gradient(180deg, ${hexToRgba(dominant, 0.20)}, rgba(0,0,0,.20))`;
       }
     }
 
@@ -4347,9 +4229,7 @@ function renderCalendar(container, type){
       cell.classList.add("selected");
       const active = (view.state.activeAopId && isAopInArea(view.state.activeAopId)) ? resolveAopColor(view.state.activeAopId) : null;
       if(active && !view.diffMode){
-        cell.style.background = isLightMode()
-          ? `linear-gradient(180deg, ${hexToRgba(active, 0.26)}, rgba(255,255,255,.44))`
-          : `linear-gradient(180deg, ${hexToRgba(active, 0.26)}, rgba(0,0,0,.18))`;
+        cell.style.background = `linear-gradient(180deg, ${hexToRgba(active, 0.26)}, rgba(0,0,0,.18))`;
       }
     }
 
@@ -4520,7 +4400,7 @@ function renderEntries(){
   // Day note summary card (always first)
   const dnCard = document.createElement("div");
   dnCard.className = "item";
-  dnCard.style.background = isLightMode() ? "rgba(255,255,255,.82)" : "rgba(0,0,0,.14)";
+  dnCard.style.background = "rgba(0,0,0,.14)";
   dnCard.innerHTML = `
     <div class="item-head">
       <div>
@@ -4543,7 +4423,7 @@ function renderEntries(){
   for(const sec of sections){
     const header = document.createElement("div");
     header.className = "item";
-    header.style.background = isLightMode() ? "rgba(255,255,255,.82)" : "rgba(0,0,0,.14)";
+    header.style.background = "rgba(0,0,0,.14)";
     header.innerHTML = `
       <div class="item-head">
         <div>
