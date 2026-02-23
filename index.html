@@ -11,7 +11,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>POWER - AOP Planner v7</title>
+  <title>AOP Calender R&D</title>
 
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@600;700;800;900&family=Inter+Tight:wght@500;600;700&display=swap');
@@ -162,6 +162,113 @@
       text-shadow: 0 0 14px rgba(255,122,0,.25);
       font-size: 20px;
       line-height:1;
+    }
+    html.light-mode{
+      color-scheme: light;
+      --bg0:#edf2f7;
+      --bg1:#ffffff;
+      --line:#d2d9e2;
+      --surface:#ffffff;
+      --surfaceSoft:#f4f7fb;
+      --text:#1f2630;
+      --muted:#5f6b7a;
+      --textDisabled:#8a95a4;
+      --greyout: rgba(241,245,249,.76);
+      --greyoutText: rgba(40,48,60,.58);
+      --shadow: 0 14px 30px rgba(15,23,42,.12);
+    }
+    html.light-mode body{
+      background:
+        radial-gradient(900px 520px at 55% -10%, rgba(var(--power-rgb),.11) 0%, rgba(255,255,255,0) 55%),
+        linear-gradient(180deg, var(--bg1), var(--bg0) 58%);
+    }
+    html.light-mode #matrixRain{
+      opacity: .16;
+      mix-blend-mode: multiply;
+    }
+    html.light-mode header{
+      background: linear-gradient(180deg, rgba(255,255,255,.86), rgba(255,255,255,.68));
+    }
+    html.light-mode .toolbar-sep{
+      background: #d5dde6;
+    }
+    html.light-mode .card{
+      background: linear-gradient(180deg, #ffffff, #f8fafc);
+      border-color: var(--line);
+      box-shadow: var(--shadow);
+    }
+    html.light-mode .card-header{
+      background: linear-gradient(180deg, #fbfdff, #f4f7fb);
+    }
+    html.light-mode button,
+    html.light-mode select,
+    html.light-mode input,
+    html.light-mode textarea{
+      background: linear-gradient(180deg, #ffffff, #f4f7fb);
+      border-color: #cfd6df;
+      color: var(--text);
+      box-shadow: 0 1px 0 rgba(15,23,42,.08);
+    }
+    html.light-mode select{
+      color-scheme: light;
+      background-image:
+        linear-gradient(45deg, transparent 50%, rgba(31,38,48,.68) 50%),
+        linear-gradient(135deg, rgba(31,38,48,.68) 50%, transparent 50%),
+        linear-gradient(to right, rgba(31,38,48,.10), rgba(31,38,48,.04));
+    }
+    html.light-mode select option,
+    html.light-mode select optgroup{
+      background: #ffffff;
+      color: var(--text);
+    }
+    html.light-mode .btn-ghost{
+      background: linear-gradient(180deg, #ffffff, #f3f7fb);
+      border-color: #c9d1db;
+    }
+    html.light-mode .btn-danger{
+      background: linear-gradient(180deg, rgba(255,110,110,.25), rgba(255,110,110,.08));
+      border-color: rgba(224,76,76,.55);
+    }
+    html.light-mode .status-pill{
+      background: rgba(31,38,48,.03);
+      border-color: #d0d8e2;
+      color: #4d5867;
+    }
+    html.light-mode .sync-panel,
+    html.light-mode .sync-section,
+    html.light-mode .helper,
+    html.light-mode .aop-notation,
+    html.light-mode .aop-box,
+    html.light-mode .kpi,
+    html.light-mode .dash-controls,
+    html.light-mode .dash-table,
+    html.light-mode .calendar,
+    html.light-mode .actual-linkbox,
+    html.light-mode .item,
+    html.light-mode .aop-row,
+    html.light-mode .master-notation-panel,
+    html.light-mode .mn-card{
+      background: #ffffff;
+    }
+    html.light-mode .dash-table th{
+      background: rgba(31,38,48,.05);
+      color: #4d5867;
+    }
+    html.light-mode .day{
+      background: linear-gradient(180deg, #ffffff, #f6f9fc);
+    }
+    html.light-mode .day.outside{
+      background: #eef3f8;
+    }
+    html.light-mode .day .num{
+      color: #1f2630;
+    }
+    html.light-mode .day.outside .num{
+      color: #7e8998;
+    }
+    html.light-mode .note-dot{
+      border-color: rgba(255,255,255,.55);
+      box-shadow: 0 1px 0 rgba(15,23,42,.12);
     }
     .tools-card .section-pad{ padding: 10px 12px; }
     .tools-row + .tools-row{ margin-top: 8px; }
@@ -1350,7 +1457,7 @@
 <header>
   <div class="row">
     <div>
-      <h1><span class="pow">POWER</span> AOP Planner <span style="opacity:.7;">v7</span></h1>
+      <h1>AOP Calender R&D</h1>
       <div class="sub">
         Plan your month (Planned) per AOP. Track execution (Actual), write Day Notes, and use Diff Mode + Dashboard to see adherence.
       </div>
@@ -1385,6 +1492,7 @@
       <div class="tools-row toolbar compact">
         <span class="small">Display</span>
         <select id="themeSelect" title="Select theme">
+          <option value="light">Light</option>
           <option value="ember">Ember</option>
           <option value="ocean">Ocean</option>
           <option value="forest">Forest</option>
@@ -1512,7 +1620,7 @@
       </div>
       <div id="masterNotationPanel" class="master-notation-panel" hidden>
         <div class="master-notation-head">
-          <strong>Master Notation (Actual Outcomes)</strong>
+          <strong>Master Notation (Sprint Outcomes)</strong>
           <div class="master-notation-tools">
             <span id="masterNotationMeta" class="small">-</span>
             <label for="masterNotationSort" class="small" style="margin:0;">Sort</label>
@@ -1588,9 +1696,13 @@
           <strong>AOP Catalog</strong>
           <span>Create and manage AOP playbooks for daily calendar marking.</span>
         </div>
+        <div class="panel-tabs" role="tablist" aria-label="AOP section tabs">
+          <button id="paneCatalogBtn" class="btn-ghost" type="button" role="tab" aria-controls="paneCatalog" aria-selected="false">Catalog</button>
+          <button id="paneNotationBtn" class="btn-ghost on" type="button" role="tab" aria-controls="paneNotation" aria-selected="true">Achieved</button>
+        </div>
       </div>
 
-      <div class="aop-box panel-pane" id="paneCatalog">
+      <div class="aop-box panel-pane" id="paneCatalog" role="tabpanel" aria-labelledby="paneCatalogBtn" hidden>
         <div class="head">
           <div>
             <strong>AOP Catalog</strong>
@@ -1641,16 +1753,24 @@
           <select id="aopSelect"></select>
         </div>
 
+        <div class="aop-list" id="aopList"></div>
+      </div>
+
+      <div class="aop-box panel-pane active" id="paneNotation" role="tabpanel" aria-labelledby="paneNotationBtn">
+        <div class="head">
+          <div>
+            <strong>Achieved During Sprint</strong>
+            <div class="small">Use the active AOP (or pick one from Catalog) and track outcomes for this month.</div>
+          </div>
+        </div>
         <div class="aop-notation">
-          <label for="aopNotation">AOP Notation</label>
-          <textarea id="aopNotation" placeholder="Track outcomes from Actual work using ✅ lines and Existing Blockers:"></textarea>
+          <label for="aopNotation">Achieved during Sprint</label>
+          <textarea id="aopNotation" placeholder="Track sprint outcomes using ✅ lines and Existing Blockers:"></textarea>
           <div class="aop-notation-tools">
-            <button id="aopNotationTemplateBtn" class="btn-ghost" type="button">Use Outcome Model</button>
+            <button id="aopNotationTemplateBtn" class="btn-ghost" type="button">Use Sprint Outcome Model</button>
           </div>
           <div class="hint" id="aopNotationState">Select an AOP to edit notation.</div>
         </div>
-
-        <div class="aop-list" id="aopList"></div>
       </div>
 
       <div class="section-pad panel-pane goals-highlight" id="paneTemplate" hidden>
@@ -1820,7 +1940,7 @@ const STORAGE_KEY = "power_aop_planner_v7";
 const TEAM_SYNC_CONFIG_KEY = "power_aop_team_sync_v1";
 const DOW = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-const AOP_PANES = ["catalog","template"];
+const AOP_PANES = ["catalog","notation"];
 const AREA_VIEWS = [
   { id:"pool", label:"Pool" },
   { id:"sales", label:"Sales" },
@@ -1833,18 +1953,19 @@ const DEFAULT_AREA_VIEW = "pool";
 const DEFAULT_THEME = "ember";
 const DAY_NOTE_AUTOSAVE_MS = 700;
 const COLOR_THEMES = {
-  ember:   { power:"#ff6a00", powerRgb:"255,106,0",   bg0:"#000000", bg1:"#070707", rainRgb:"255,168,84",  rainAlpha:.36, rainSpeed:"32s", rainSpeed2:"48s" },
-  ocean:   { power:"#22c3ff", powerRgb:"34,195,255",  bg0:"#03131c", bg1:"#072333", rainRgb:"130,220,255", rainAlpha:.38, rainSpeed:"30s", rainSpeed2:"46s" },
-  forest:  { power:"#7fd46b", powerRgb:"127,212,107", bg0:"#061208", bg1:"#102014", rainRgb:"140,255,157", rainAlpha:.40, rainSpeed:"30s", rainSpeed2:"44s" },
-  sunset:  { power:"#ff5c7a", powerRgb:"255,92,122",  bg0:"#17070d", bg1:"#260b14", rainRgb:"255,132,150", rainAlpha:.36, rainSpeed:"31s", rainSpeed2:"46s" },
-  matrix:  { power:"#31ff87", powerRgb:"49,255,135",  bg0:"#010705", bg1:"#02140b", rainRgb:"86,255,170",  rainAlpha:.56, rainSpeed:"26s", rainSpeed2:"39s" },
-  slate:   { power:"#9fb3c8", powerRgb:"159,179,200", bg0:"#06080b", bg1:"#111821", rainRgb:"184,202,225", rainAlpha:.34, rainSpeed:"34s", rainSpeed2:"50s" },
-  crimson: { power:"#ff5864", powerRgb:"255,88,100",  bg0:"#0e0508", bg1:"#1d0a10", rainRgb:"255,140,148", rainAlpha:.38, rainSpeed:"30s", rainSpeed2:"45s" }
+  light:   { power:"#f97600", powerRgb:"249,118,0",   bg0:"#edf2f7", bg1:"#ffffff", rainRgb:"186,120,62", rainAlpha:.22, rainSpeed:"38s", rainSpeed2:"56s" },
+  ember:   { power:"#ff7a1a", powerRgb:"255,122,26",   bg0:"#050200", bg1:"#1a0c03", rainRgb:"255,171,98",  rainAlpha:.34, rainSpeed:"34s", rainSpeed2:"52s" },
+  ocean:   { power:"#2bc7ff", powerRgb:"43,199,255",   bg0:"#031017", bg1:"#082538", rainRgb:"127,216,255", rainAlpha:.34, rainSpeed:"33s", rainSpeed2:"50s" },
+  forest:  { power:"#77d26a", powerRgb:"119,210,106",  bg0:"#050f07", bg1:"#112517", rainRgb:"148,233,142", rainAlpha:.34, rainSpeed:"34s", rainSpeed2:"50s" },
+  sunset:  { power:"#ff6f91", powerRgb:"255,111,145",  bg0:"#17080f", bg1:"#2a0e19", rainRgb:"255,153,178", rainAlpha:.33, rainSpeed:"33s", rainSpeed2:"49s" },
+  matrix:  { power:"#4ae68b", powerRgb:"74,230,139",   bg0:"#010705", bg1:"#04150d", rainRgb:"112,244,176", rainAlpha:.46, rainSpeed:"30s", rainSpeed2:"44s" },
+  slate:   { power:"#a7b8cc", powerRgb:"167,184,204",  bg0:"#06090e", bg1:"#141c27", rainRgb:"194,210,228", rainAlpha:.30, rainSpeed:"36s", rainSpeed2:"54s" },
+  crimson: { power:"#ff5f6f", powerRgb:"255,95,111",   bg0:"#100609", bg1:"#220d13", rainRgb:"255,144,156", rainAlpha:.34, rainSpeed:"33s", rainSpeed2:"49s" }
 };
 const AOP_OUTCOME_TEMPLATE = [
-  "✅ Achieved during Actual work: [what was solved]",
-  "✅ Achieved during Actual work: [what improved]",
-  "✅ Achieved during Actual work: [what is now working]",
+  "✅ Achieved during Sprint: [what was solved]",
+  "✅ Achieved during Sprint: [what improved]",
+  "✅ Achieved during Sprint: [what is now working]",
   "",
   "Existing Blockers:",
   "- [blocker 1]",
@@ -1903,6 +2024,9 @@ function timeShort(){ return new Date().toLocaleTimeString([], {hour:"2-digit", 
 function currentThemeId(){
   const id = view.state?.settings?.colorTheme;
   return COLOR_THEMES[id] ? id : DEFAULT_THEME;
+}
+function isLightMode(){
+  return currentThemeId() === "light";
 }
 function normalizeAreaId(raw){
   const id = String(raw || "").trim().toLowerCase();
@@ -2003,6 +2127,10 @@ function applyColorTheme(themeId, persist){
   const theme = COLOR_THEMES[safe];
   const root = document.documentElement;
   if(!root || !theme) return;
+  const light = safe === "light";
+
+  root.classList.toggle("light-mode", light);
+  if(document.body) document.body.classList.toggle("light-mode", light);
 
   root.style.setProperty("--power", theme.power);
   root.style.setProperty("--power-rgb", theme.powerRgb);
@@ -2060,7 +2188,7 @@ function resizeMatrixRain(){
   rainFontSize = Math.max(12, Math.min(20, Math.round(w / 92)));
   rainColumns = Math.max(1, Math.floor(w / rainFontSize));
   rainDrops = Array.from({ length: rainColumns }, () => (Math.random() * -30));
-  rainCtx.fillStyle = "rgba(0,0,0,1)";
+  rainCtx.fillStyle = isLightMode() ? "rgba(255,255,255,1)" : "rgba(0,0,0,1)";
   rainCtx.fillRect(0, 0, w, h);
 }
 function stopMatrixRain(){
@@ -2087,8 +2215,9 @@ function drawMatrixRainFrame(){
   const powerRgb = (rootStyle.getPropertyValue("--power-rgb") || rainRgb).trim();
   const baseAlpha = Number((rootStyle.getPropertyValue("--rain-alpha") || "0.42").trim());
   const streamAlpha = Number.isFinite(baseAlpha) ? Math.max(.20, Math.min(.90, baseAlpha)) : .42;
+  const fadeFill = isLightMode() ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.09)";
 
-  rainCtx.fillStyle = "rgba(0,0,0,0.09)";
+  rainCtx.fillStyle = fadeFill;
   rainCtx.fillRect(0, 0, w, h);
   rainCtx.font = `${rainFontSize}px monospace`;
   rainCtx.textAlign = "center";
@@ -2451,8 +2580,7 @@ function renderSectionVisibility(){
 }
 
 function setAopPane(pane){
-  const templateAvailable = !!(ui.paneTemplate && !ui.paneTemplate.hidden);
-  const safePane = (AOP_PANES.includes(pane) && (pane !== "template" || templateAvailable)) ? pane : "catalog";
+  const safePane = AOP_PANES.includes(pane) ? pane : "notation";
   if(view.state.settings.aopPane === safePane){
     renderAopPane();
     return;
@@ -2464,22 +2592,29 @@ function setAopPane(pane){
 
 function renderAopPane(){
   if(!ui.paneCatalog) return;
-  const hasTemplatePane = !!(ui.paneTemplate && !ui.paneTemplate.hidden);
-  const pane = hasTemplatePane && AOP_PANES.includes(view.state.settings?.aopPane) ? view.state.settings.aopPane : "catalog";
+  const pane = AOP_PANES.includes(view.state.settings?.aopPane) ? view.state.settings.aopPane : "notation";
+  const catalogOn = pane === "catalog";
+  const notationOn = pane === "notation";
 
-  ui.paneCatalog.classList.toggle("active", pane === "catalog");
-  if(ui.paneTemplate){
-    ui.paneTemplate.classList.toggle("active", pane === "template");
+  ui.paneCatalog.classList.toggle("active", catalogOn);
+  ui.paneCatalog.hidden = !catalogOn;
+  if(ui.paneNotation){
+    ui.paneNotation.classList.toggle("active", notationOn);
+    ui.paneNotation.hidden = !notationOn;
   }
-  if(ui.aopNotesCard) ui.aopNotesCard.classList.toggle("goals-focus", hasTemplatePane && pane === "template");
+  if(ui.aopNotesCard) ui.aopNotesCard.classList.toggle("goals-focus", notationOn);
 
   if(ui.paneCatalogBtn){
-    ui.paneCatalogBtn.classList.toggle("on", pane === "catalog");
-    ui.paneCatalogBtn.setAttribute("aria-pressed", pane === "catalog" ? "true" : "false");
+    ui.paneCatalogBtn.classList.toggle("on", catalogOn);
+    ui.paneCatalogBtn.setAttribute("aria-pressed", catalogOn ? "true" : "false");
+    ui.paneCatalogBtn.setAttribute("aria-selected", catalogOn ? "true" : "false");
+    ui.paneCatalogBtn.tabIndex = catalogOn ? 0 : -1;
   }
-  if(ui.paneTemplateBtn){
-    ui.paneTemplateBtn.classList.toggle("on", pane === "template");
-    ui.paneTemplateBtn.setAttribute("aria-pressed", pane === "template" ? "true" : "false");
+  if(ui.paneNotationBtn){
+    ui.paneNotationBtn.classList.toggle("on", notationOn);
+    ui.paneNotationBtn.setAttribute("aria-pressed", notationOn ? "true" : "false");
+    ui.paneNotationBtn.setAttribute("aria-selected", notationOn ? "true" : "false");
+    ui.paneNotationBtn.tabIndex = notationOn ? 0 : -1;
   }
 }
 
@@ -2497,7 +2632,7 @@ function defaultState(){
     version: 7,
     settings: {
       sectionVisibility: { dashboard:true, calendars:true, aopNotes:true, tools:true },
-      aopPane: "catalog",
+      aopPane: "notation",
       areaView: DEFAULT_AREA_VIEW,
       colorTheme: DEFAULT_THEME,
       rainEnabled: true,
@@ -2533,8 +2668,9 @@ function migrateIfNeeded(st){
       tools: st.settings.sectionVisibility.tools !== false
     };
   }
-  if(!["catalog","template"].includes(st.settings.aopPane)){
-    st.settings.aopPane = "catalog";
+  if(st.settings.aopPane === "template") st.settings.aopPane = "notation";
+  if(!["catalog","notation"].includes(st.settings.aopPane)){
+    st.settings.aopPane = "notation";
   }
   st.settings.areaView = normalizeAreaViewId(st.settings.areaView);
   if(!COLOR_THEMES[st.settings.colorTheme]){
@@ -3558,8 +3694,9 @@ function setMasterNotationSort(nextSort, persist){
 function renderMasterNotationPanel(){
   if(!ui.masterNotationPanel || !ui.masterNotationList || !ui.masterNotationMeta) return;
   const isMaster = currentAreaViewId() === MASTER_VIEW_ID;
-  ui.masterNotationPanel.hidden = !isMaster;
-  if(!isMaster) return;
+  const isTeamlead = syncRoleLabel(teamSync?.role) === "teamlead";
+  ui.masterNotationPanel.hidden = !(isMaster && isTeamlead);
+  if(!(isMaster && isTeamlead)) return;
 
   const mk = currentMonthKey();
   const sort = currentMasterNotationSort();
@@ -3624,7 +3761,7 @@ function renderMasterNotationPanel(){
           <span class="status-pill">Updated: ${escapeHtml(fmtIsoShort(row.updatedAt))}</span>
         </div>
         <div class="mn-block">
-          <div class="mn-label">Achieved During Actual Work</div>
+          <div class="mn-label">Achieved During Sprint</div>
           ${achHtml}
         </div>
         <div class="mn-block">
@@ -4185,7 +4322,9 @@ function renderCalendar(container, type){
     if(inMonth && hasVisibleMarks && !lockedByRules && !view.diffMode){
       const dominant = visibleColors[0];
       if(dominant){
-        cell.style.background = `linear-gradient(180deg, ${hexToRgba(dominant, 0.20)}, rgba(0,0,0,.20))`;
+        cell.style.background = isLightMode()
+          ? `linear-gradient(180deg, ${hexToRgba(dominant, 0.20)}, rgba(255,255,255,.64))`
+          : `linear-gradient(180deg, ${hexToRgba(dominant, 0.20)}, rgba(0,0,0,.20))`;
       }
     }
 
@@ -4208,7 +4347,9 @@ function renderCalendar(container, type){
       cell.classList.add("selected");
       const active = (view.state.activeAopId && isAopInArea(view.state.activeAopId)) ? resolveAopColor(view.state.activeAopId) : null;
       if(active && !view.diffMode){
-        cell.style.background = `linear-gradient(180deg, ${hexToRgba(active, 0.26)}, rgba(0,0,0,.18))`;
+        cell.style.background = isLightMode()
+          ? `linear-gradient(180deg, ${hexToRgba(active, 0.26)}, rgba(255,255,255,.44))`
+          : `linear-gradient(180deg, ${hexToRgba(active, 0.26)}, rgba(0,0,0,.18))`;
       }
     }
 
@@ -4379,7 +4520,7 @@ function renderEntries(){
   // Day note summary card (always first)
   const dnCard = document.createElement("div");
   dnCard.className = "item";
-  dnCard.style.background = "rgba(0,0,0,.14)";
+  dnCard.style.background = isLightMode() ? "rgba(255,255,255,.82)" : "rgba(0,0,0,.14)";
   dnCard.innerHTML = `
     <div class="item-head">
       <div>
@@ -4402,7 +4543,7 @@ function renderEntries(){
   for(const sec of sections){
     const header = document.createElement("div");
     header.className = "item";
-    header.style.background = "rgba(0,0,0,.14)";
+    header.style.background = isLightMode() ? "rgba(255,255,255,.82)" : "rgba(0,0,0,.14)";
     header.innerHTML = `
       <div class="item-head">
         <div>
@@ -4958,7 +5099,24 @@ function hookUI(){
   });
 
   if(ui.paneCatalogBtn) ui.paneCatalogBtn.addEventListener("click", () => setAopPane("catalog"));
-  if(ui.paneTemplateBtn) ui.paneTemplateBtn.addEventListener("click", () => setAopPane("template"));
+  if(ui.paneNotationBtn) ui.paneNotationBtn.addEventListener("click", () => setAopPane("notation"));
+  const aopTabButtons = [ui.paneCatalogBtn, ui.paneNotationBtn].filter(Boolean);
+  aopTabButtons.forEach((btn, index) => {
+    btn.addEventListener("keydown", (event) => {
+      if(event.key !== "ArrowLeft" && event.key !== "ArrowRight" && event.key !== "Home" && event.key !== "End") return;
+      event.preventDefault();
+      let nextIndex = index;
+      if(event.key === "Home") nextIndex = 0;
+      else if(event.key === "End") nextIndex = aopTabButtons.length - 1;
+      else if(event.key === "ArrowLeft") nextIndex = (index - 1 + aopTabButtons.length) % aopTabButtons.length;
+      else if(event.key === "ArrowRight") nextIndex = (index + 1) % aopTabButtons.length;
+      const nextBtn = aopTabButtons[nextIndex];
+      if(!nextBtn) return;
+      nextBtn.focus();
+      if(nextBtn === ui.paneCatalogBtn) setAopPane("catalog");
+      if(nextBtn === ui.paneNotationBtn) setAopPane("notation");
+    });
+  });
   ui.openDayNotesBtn.addEventListener("click", () => {
     openDayNotesPanel(true);
     renderAll();
@@ -5264,8 +5422,9 @@ function init(){
     aopSelect: document.getElementById("aopSelect"),
     aopSelectGoals: document.getElementById("aopSelectGoals"),
     paneCatalogBtn: document.getElementById("paneCatalogBtn"),
-    paneTemplateBtn: document.getElementById("paneTemplateBtn"),
+    paneNotationBtn: document.getElementById("paneNotationBtn"),
     paneCatalog: document.getElementById("paneCatalog"),
+    paneNotation: document.getElementById("paneNotation"),
     paneTemplate: document.getElementById("paneTemplate"),
 
     // monthly template
