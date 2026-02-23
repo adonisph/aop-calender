@@ -219,8 +219,11 @@
     }
     .sync-grid{
       display:grid;
-      grid-template-columns: 1.3fr 1.3fr 1fr;
+      grid-template-columns: 1fr;
       gap:8px;
+    }
+    .sync-grid > div{
+      min-width:0;
     }
     .sync-grid-2{
       display:grid;
@@ -233,6 +236,12 @@
       gap:8px;
       align-items:center;
     }
+    .sync-actions #syncConnectBtn{ order:1; }
+    .sync-actions #syncDisconnectBtn{ order:2; }
+    .sync-actions #syncPullBtn{ order:3; }
+    .sync-actions #syncPushBtn{ order:4; }
+    .sync-actions #syncAutoBtn{ order:5; }
+    .sync-actions #syncStatus{ order:6; }
     .sync-password-row{
       display:grid;
       grid-template-columns: 1fr auto;
