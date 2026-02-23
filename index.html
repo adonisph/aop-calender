@@ -2301,8 +2301,10 @@ function applyTeamRoleUi(){
     ui.wipe.title = restricted ? "Only teamlead can clear all while team sync is connected." : "Clear all saved data";
   }
   if(ui.importBtn){
-    ui.importBtn.disabled = restricted;
-    ui.importBtn.title = restricted ? "Only teamlead can import JSON while team sync is connected." : "Import JSON";
+    ui.importBtn.disabled = false;
+    ui.importBtn.title = teamSync.connected
+      ? "Import JSON (updates shared workspace when connected)"
+      : "Import JSON";
   }
 }
 
@@ -3765,6 +3767,13 @@ async function importJson(file){
   if(!isValidImportedState(incoming)) throw new Error("Invalid JSON.");
   view.state = migrateIfNeeded(incoming);
   saveState();
+  if(teamSync.connected && teamSync.supabase){
+    if(teamSyncSaveTimer){
+      clearTimeout(teamSyncSaveTimer);
+      teamSyncSaveTimer = null;
+    }
+    await pushRemoteState({ manual:true, reason:"import" });
+  }
 
   // Keep view coherent
   renderAll();
