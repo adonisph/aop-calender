@@ -1631,7 +1631,7 @@ function drawMatrixRainFrame(){
     rainCtx.fillStyle = `rgba(${rainRgb},${Math.max(.16, streamAlpha - .06)})`;
     rainCtx.fillText(matrixGlyph(), x, y - rainFontSize);
 
-    const speed = 0.24 + (Math.random() * 0.30);
+    const speed = 0.24 + (Math.random() * 0.20);
     rainDrops[i] += speed;
     if((y > h + (Math.random() * 420)) && Math.random() > 0.985){
       rainDrops[i] = Math.random() * -28;
@@ -4253,6 +4253,7 @@ init();
 </script>
 </body>
 </html>
+
 
 
 
