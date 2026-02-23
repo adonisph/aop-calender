@@ -1,4 +1,4 @@
-﻿<!-- POWER Planner v7 (single-file HTML)
+<!-- POWER Planner v7 (single-file HTML)
      Current highlights:
      - Monthly dashboard with planned/actual/adherence
      - Planned vs Actual strict matching (same AOP + same day)
@@ -1058,6 +1058,7 @@
         <div class="sync-actions">
           <button id="syncConnectBtn" class="btn-primary" type="button">Connect</button>
           <button id="syncDisconnectBtn" class="btn-ghost" type="button">Disconnect</button>
+          <button id="syncAutoBtn" class="btn-ghost btn-toggle on" type="button" aria-pressed="true" title="Toggle automatic team sync for local edits">Auto Sync: ON</button>
           <button id="syncPullBtn" class="btn-ghost" type="button">Pull Latest</button>
           <button id="syncPushBtn" class="btn-ghost" type="button">Push Now</button>
           <span id="syncStatus" class="status-pill">Local-only mode</span>
@@ -1631,7 +1632,7 @@ function drawMatrixRainFrame(){
     rainCtx.fillStyle = `rgba(${rainRgb},${Math.max(.16, streamAlpha - .06)})`;
     rainCtx.fillText(matrixGlyph(), x, y - rainFontSize);
 
-    const speed = 0.24 + (Math.random() * 0.20);
+    const speed = 0.34 + (Math.random() * 0.30);
     rainDrops[i] += speed;
     if((y > h + (Math.random() * 420)) && Math.random() > 0.985){
       rainDrops[i] = Math.random() * -28;
@@ -2186,7 +2187,7 @@ function saveState(){
 }
 
 function loadTeamSyncConfig(){
-  const base = { url:"", anonKey:"", workspaceId:"nordics-team", email:"" };
+  const base = { url:"", anonKey:"", workspaceId:"nordics-team", email:"", autoSync:true };
   try{
     const raw = localStorage.getItem(TEAM_SYNC_CONFIG_KEY);
     if(!raw) return base;
@@ -2195,7 +2196,8 @@ function loadTeamSyncConfig(){
       url: String(p?.url || ""),
       anonKey: String(p?.anonKey || ""),
       workspaceId: normalizeWorkspaceId(p?.workspaceId || base.workspaceId),
-      email: String(p?.email || "")
+      email: String(p?.email || ""),
+      autoSync: p?.autoSync !== false
     };
   }catch{
     return base;
@@ -2207,10 +2209,32 @@ function saveTeamSyncConfig(cfg){
     url: String(cfg?.url || "").trim(),
     anonKey: String(cfg?.anonKey || "").trim(),
     workspaceId: normalizeWorkspaceId(cfg?.workspaceId || "nordics-team"),
-    email: String(cfg?.email || "").trim()
+    email: String(cfg?.email || "").trim(),
+    autoSync: cfg?.autoSync !== false
   };
   teamSync.config = next;
   localStorage.setItem(TEAM_SYNC_CONFIG_KEY, JSON.stringify(next));
+}
+
+function isTeamAutoSyncEnabled(){
+  return teamSync.config?.autoSync !== false;
+}
+
+function renderTeamAutoSyncBtn(){
+  if(!ui.syncAutoBtn) return;
+  const on = isTeamAutoSyncEnabled();
+  syncToggleBtn(ui.syncAutoBtn, on);
+  ui.syncAutoBtn.textContent = on ? "Auto Sync: ON" : "Auto Sync: OFF";
+}
+
+function setTeamAutoSync(enabled, persist){
+  const nextCfg = { ...(teamSync.config || {}), autoSync: enabled !== false };
+  teamSync.config = nextCfg;
+  if(persist !== false) saveTeamSyncConfig(nextCfg);
+  renderTeamAutoSyncBtn();
+  if(teamSync.connected){
+    setTeamSyncStatus(enabled !== false ? "Connected (auto sync on)" : "Connected (auto sync off)");
+  }
 }
 
 function normalizeWorkspaceId(raw){
@@ -2244,7 +2268,8 @@ function readTeamSyncInputs(){
     url: String(ui.syncSupabaseUrl?.value || "").trim(),
     anonKey: String(ui.syncSupabaseAnonKey?.value || "").trim(),
     workspaceId: normalizeWorkspaceId(ui.syncWorkspaceId?.value || ""),
-    email: String(ui.syncEmail?.value || "").trim()
+    email: String(ui.syncEmail?.value || "").trim(),
+    autoSync: isTeamAutoSyncEnabled()
   };
 }
 
@@ -2254,6 +2279,7 @@ function applyTeamSyncConfigToInputs(){
   if(ui.syncSupabaseAnonKey) ui.syncSupabaseAnonKey.value = cfg.anonKey || "";
   if(ui.syncWorkspaceId) ui.syncWorkspaceId.value = normalizeWorkspaceId(cfg.workspaceId || "nordics-team");
   if(ui.syncEmail) ui.syncEmail.value = cfg.email || "";
+  renderTeamAutoSyncBtn();
 }
 
 function applyTeamSyncUiState(){
@@ -2261,8 +2287,10 @@ function applyTeamSyncUiState(){
   const busy = !!teamSyncBusy;
   if(ui.syncConnectBtn) ui.syncConnectBtn.disabled = busy;
   if(ui.syncDisconnectBtn) ui.syncDisconnectBtn.disabled = !connected || busy;
+  if(ui.syncAutoBtn) ui.syncAutoBtn.disabled = busy;
   if(ui.syncPullBtn) ui.syncPullBtn.disabled = !connected || busy;
   if(ui.syncPushBtn) ui.syncPushBtn.disabled = !connected || busy;
+  renderTeamAutoSyncBtn();
   applyTeamRoleUi();
 }
 
@@ -2423,6 +2451,7 @@ async function pushRemoteState(opts){
 function scheduleTeamSyncSave(reason){
   if(teamSyncSuppressPush) return;
   if(!teamSync.connected || !teamSync.supabase) return;
+  if(!isTeamAutoSyncEnabled()) return;
   if(teamSyncSaveTimer) clearTimeout(teamSyncSaveTimer);
   teamSyncSaveTimer = setTimeout(() => {
     teamSyncSaveTimer = null;
@@ -2490,7 +2519,7 @@ async function connectTeamSync(opts){
     await pullRemoteState({ quiet:true });
     await subscribeTeamSyncRealtime();
 
-    setTeamSyncStatus(`Connected: ${teamSync.userEmail || "user"}`);
+    setTeamSyncStatus(`Connected: ${teamSync.userEmail || "user"} (${isTeamAutoSyncEnabled() ? "auto on" : "auto off"})`);
   }catch(err){
     teamSync.connected = false;
     teamSync.userId = null;
@@ -4045,6 +4074,11 @@ function hookUI(){
       disconnectTeamSync();
     });
   }
+  if(ui.syncAutoBtn){
+    ui.syncAutoBtn.addEventListener("click", () => {
+      setTeamAutoSync(!isTeamAutoSyncEnabled(), true);
+    });
+  }
   if(ui.syncPullBtn){
     ui.syncPullBtn.addEventListener("click", async () => {
       try{
@@ -4102,6 +4136,7 @@ function init(){
     syncPassword: document.getElementById("syncPassword"),
     syncConnectBtn: document.getElementById("syncConnectBtn"),
     syncDisconnectBtn: document.getElementById("syncDisconnectBtn"),
+    syncAutoBtn: document.getElementById("syncAutoBtn"),
     syncPullBtn: document.getElementById("syncPullBtn"),
     syncPushBtn: document.getElementById("syncPushBtn"),
     syncStatus: document.getElementById("syncStatus"),
@@ -4253,8 +4288,6 @@ init();
 </script>
 </body>
 </html>
-
-
 
 
 
