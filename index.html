@@ -1534,9 +1534,17 @@ function ensureActiveAopInView(){
   if(order.includes(view.state.activeAopId)) return;
   view.state.activeAopId = order[0] || null;
 }
+function canAccessMasterView(){
+  return syncRoleLabel(teamSync?.role) === "teamlead";
+}
 function setAreaView(areaId, persist){
   const safe = normalizeAreaViewId(areaId);
   if(!view.state?.settings) return;
+  if(safe === MASTER_VIEW_ID && !canAccessMasterView()){
+    if(ui.areaViewSelect) ui.areaViewSelect.value = currentAreaViewId() === MASTER_VIEW_ID ? DEFAULT_AREA_VIEW : currentAreaViewId();
+    setTeamSyncStatus("Master view is teamlead-only", true);
+    return;
+  }
   view.state.settings.areaView = safe;
   ensureActiveAopInView();
   if(persist) saveState();
@@ -1919,10 +1927,6 @@ function renderDayActualLinks(){
 }
 
 function addActualFromDayNotes(){
-  if(currentAreaViewId() === MASTER_VIEW_ID){
-    setActualLinkState("Master view is calendar-only");
-    return;
-  }
   const status = dayNoteEditStatus();
   if(!status.canEdit){
     setActualLinkState(status.reason);
@@ -1993,10 +1997,7 @@ function syncToggleBtn(btn, on){
 function renderSectionVisibility(){
   if(!ui.dashboardCard || !ui.calCard || !ui.aopNotesCard || !ui.dayNotesCard || !ui.mainGrid) return;
   const vis = normalizedSectionVisibility();
-  const isMaster = currentAreaViewId() === MASTER_VIEW_ID;
-  const effective = isMaster
-    ? { dashboard:true, calendars:true, aopNotes:false, tools:false }
-    : vis;
+  const effective = vis;
   const gridVisible = effective.calendars || effective.aopNotes;
 
   ui.dashboardCard.style.display = effective.dashboard ? "" : "none";
@@ -2004,26 +2005,19 @@ function renderSectionVisibility(){
   ui.calCard.style.display = effective.calendars ? "" : "none";
   ui.aopNotesCard.style.display = effective.aopNotes ? "" : "none";
   if(ui.utilityCard) ui.utilityCard.style.display = effective.tools ? "" : "none";
-  ui.dayNotesCard.style.display = isMaster ? "none" : "";
-  if(ui.allDayNotesCard) ui.allDayNotesCard.style.display = isMaster ? "none" : "";
+  ui.dayNotesCard.style.display = "";
+  if(ui.allDayNotesCard) ui.allDayNotesCard.style.display = "";
   ui.mainGrid.classList.toggle("single", effective.calendars !== effective.aopNotes);
-  if(isMaster) dayNotesDrawerOpen = false;
   ui.dayNotesCard.classList.toggle("open", dayNotesDrawerOpen);
   if(ui.dayNotesBackdrop){
     ui.dayNotesBackdrop.classList.toggle("open", dayNotesDrawerOpen);
     ui.dayNotesBackdrop.setAttribute("aria-hidden", dayNotesDrawerOpen ? "false" : "true");
-  }
-  if(ui.openDayNotesBtn){
-    ui.openDayNotesBtn.disabled = isMaster;
   }
 
   syncToggleBtn(ui.toggleDashboard, effective.dashboard);
   syncToggleBtn(ui.toggleCalendars, effective.calendars);
   syncToggleBtn(ui.toggleAopNotes, effective.aopNotes);
   syncToggleBtn(ui.toggleTools, effective.tools);
-  [ui.toggleDashboard, ui.toggleCalendars, ui.toggleAopNotes, ui.toggleTools, ui.showAllSections]
-    .filter(Boolean)
-    .forEach(btn => { btn.disabled = isMaster; });
 }
 
 function setAopPane(pane){
@@ -2060,11 +2054,6 @@ function renderAopPane(){
 }
 
 function openDayNotesPanel(focusEditor){
-  if(currentAreaViewId() === MASTER_VIEW_ID){
-    setDayNoteSaveState("Master view shows calendars only");
-    setDayNotesDrawer(false, false);
-    return;
-  }
   ensureNoteSelection();
   if((view.selectedCalendar || "planned") !== "actual"){
     setDayNoteSaveState("Switch to Actual to open day notes");
@@ -2291,6 +2280,29 @@ function hasPrivilegedSyncRole(role){
   return safe === "teamlead" || safe === "ai specialist";
 }
 
+function applyMasterViewAccessControl(){
+  const allowed = canAccessMasterView();
+  if(ui.areaViewSelect){
+    const masterOption = ui.areaViewSelect.querySelector(`option[value="${MASTER_VIEW_ID}"]`);
+    if(masterOption){
+      masterOption.disabled = !allowed;
+      masterOption.hidden = !allowed;
+    }
+  }
+  if(!allowed && currentAreaViewId() === MASTER_VIEW_ID){
+    view.state.settings.areaView = DEFAULT_AREA_VIEW;
+    ensureActiveAopInView();
+    saveState();
+    if(ui.areaViewSelect) ui.areaViewSelect.value = DEFAULT_AREA_VIEW;
+    setTeamSyncStatus("Master view is teamlead-only", true);
+    renderAll();
+    loadMonthlyTemplate();
+    loadDayNoteUI();
+    renderEntries();
+    renderDashboard();
+  }
+}
+
 function setSyncRole(role){
   const safe = syncRoleLabel(role);
   teamSync.role = safe;
@@ -2354,6 +2366,7 @@ function renderTeamSyncConnectionState(){
 
 function applyTeamRoleUi(){
   const restricted = teamSync.connected && !hasPrivilegedSyncRole(teamSync.role);
+  applyMasterViewAccessControl();
   if(ui.wipe){
     ui.wipe.disabled = restricted;
     ui.wipe.title = restricted ? "Only teamlead or AI specialist can clear all while team sync is connected." : "Clear all saved data";
@@ -3377,10 +3390,6 @@ function syncSelectedInfo(){
 
 /* --- Mark Day (calendar stamp) --- */
 function markSelectedDay(){
-  if(currentAreaViewId() === MASTER_VIEW_ID){
-    setDayNoteSaveState("Master view is read-only");
-    return;
-  }
   if(!view.selectedDate){ alert("Select a day on a calendar first."); return; }
   const type = view.selectedCalendar || "planned";
   const aopId = selectedAopId();
@@ -3419,10 +3428,6 @@ function markSelectedDay(){
   showUndoToast(`${type === "planned" ? "Planned" : "Actual"} mark added.`, () => deleteMark(targetDateKey, type, entry.id, { skipToast:true }));
 }
 function removeSelectedDayMark(){
-  if(currentAreaViewId() === MASTER_VIEW_ID){
-    setDayNoteSaveState("Master view is read-only");
-    return;
-  }
   if(!view.selectedDate) return;
   const type = view.selectedCalendar || "planned";
   const bucket = view.state.entries[view.selectedDate];
