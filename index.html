@@ -187,13 +187,16 @@
       gap:8px;
       flex-wrap:wrap;
     }
+    .sync-panel-body[hidden]{
+      display:none !important;
+    }
     .sync-user{
       color: var(--muted);
       font-family: var(--mono);
     }
     .sync-sections{
-      display:grid;
-      grid-template-columns: 1fr;
+      display:flex;
+      flex-direction:column;
       gap:10px;
     }
     .sync-section{
@@ -301,7 +304,6 @@
         position: static;
         margin-left: auto;
       }
-      .sync-sections{ grid-template-columns:1fr; }
       .sync-grid, .sync-grid-2{ grid-template-columns:1fr; }
     }
 
@@ -1061,7 +1063,8 @@
     @media (max-width: 560px){ .aop-form{ grid-template-columns: 1fr; } }
     input[type="color"]{ padding: 6px; height: 40px; }
     .aop-row .actions select{
-      min-width: 116px;
+      min-width: 98px;
+      width: 98px;
       padding: 6px 28px 6px 8px;
       font-size: 12px;
       border-radius: 10px;
@@ -1091,20 +1094,22 @@
     .aop-row .name{
       font-size: 12px; color: var(--text);
       overflow:hidden; text-overflow: ellipsis; white-space:nowrap;
-      max-width: 320px;
+      width:100%;
+      max-width: 100%;
       font-weight:650;
     }
     .aop-row .actions{
       display:flex;
       align-items:center;
-      gap:8px;
+      gap:6px;
       flex: 0 0 auto;
       justify-self:end;
     }
     .aop-row .actions .btn-danger{
-      min-width: 88px;
+      min-width: 76px;
       text-align: center;
-      padding: 8px 12px;
+      padding: 8px 10px;
+      font-size: 12px;
     }
     .chip{
       font-size: 11px; color: var(--muted);
@@ -1240,9 +1245,6 @@
       <button id="showAllSections" class="btn-ghost" type="button">Show All</button>
     </div>
   </div>
-  <div class="logo-power" aria-label="POWER logo" role="img">
-    <span>POWER</span>
-  </div>
 </header>
 
 <main>
@@ -1278,10 +1280,12 @@
             <strong id="syncPanelTitle">Team Sync</strong>
           </div>
           <div class="sync-top-meta">
+            <button id="syncPanelToggleBtn" class="btn-ghost btn-toggle" type="button" aria-pressed="false" aria-expanded="false" aria-controls="syncPanelBody">Sync/Login</button>
             <span id="syncConnectionState" class="status-pill sync-conn offline">Disconnected</span>
             <span id="syncRoleBadge" class="status-pill">Role: local</span>
           </div>
         </div>
+        <div id="syncPanelBody" class="sync-panel-body" hidden>
         <div id="syncUserMeta" class="small sync-user">Not signed in.</div>
         <div class="sync-sections">
           <section class="sync-section" aria-label="Workspace settings">
@@ -1311,12 +1315,13 @@
         <div class="sync-actions">
           <button id="syncConnectBtn" class="btn-ghost" type="button">Open Login</button>
           <button id="syncDisconnectBtn" class="btn-ghost" type="button">Disconnect</button>
-          <button id="syncAutoBtn" class="btn-ghost btn-toggle on" type="button" aria-pressed="true" title="Toggle automatic team sync for local edits">Auto Sync: ON</button>
           <button id="syncPullBtn" class="btn-ghost" type="button">Pull Latest</button>
           <button id="syncPushBtn" class="btn-ghost" type="button">Push Now</button>
+          <button id="syncAutoBtn" class="btn-ghost btn-toggle on" type="button" aria-pressed="true" title="Toggle automatic team sync for local edits">Auto Sync: ON</button>
           <span id="syncStatus" class="status-pill" role="status" aria-live="polite" aria-atomic="true">Local-only mode</span>
         </div>
         <div id="syncWarning" class="small sync-warning" role="alert" aria-live="assertive" aria-atomic="true">Offline: local mode.</div>
+        </div>
       </div>
     </div>
   </section>
@@ -2331,6 +2336,7 @@ function defaultState(){
       areaView: DEFAULT_AREA_VIEW,
       colorTheme: DEFAULT_THEME,
       rainEnabled: true,
+      teamSyncOpen: false,
       dayNoteFilters: { thisMonth:false },
       calendarUI: { compact:false, markedOnly:false, activeOnly:false, focus:"both" }
     },
@@ -2369,6 +2375,7 @@ function migrateIfNeeded(st){
     st.settings.colorTheme = DEFAULT_THEME;
   }
   st.settings.rainEnabled = st.settings.rainEnabled !== false;
+  st.settings.teamSyncOpen = st.settings.teamSyncOpen === true;
   const nf = st.settings.dayNoteFilters || {};
   st.settings.dayNoteFilters = {
     thisMonth: nf.thisMonth === true
@@ -2685,6 +2692,33 @@ function setTeamSyncStatus(text, isError){
   ui.syncStatus.style.background = isError ? "rgba(239,68,68,.12)" : "";
 }
 
+function isTeamSyncPanelOpen(){
+  return view.state?.settings?.teamSyncOpen === true;
+}
+
+function renderTeamSyncPanelToggle(){
+  const open = isTeamSyncPanelOpen();
+  if(ui.syncPanelBody){
+    ui.syncPanelBody.hidden = !open;
+  }
+  if(ui.syncPanelToggleBtn){
+    syncToggleBtn(ui.syncPanelToggleBtn, open);
+    ui.syncPanelToggleBtn.textContent = "Sync/Login";
+    ui.syncPanelToggleBtn.setAttribute("aria-pressed", open ? "true" : "false");
+    ui.syncPanelToggleBtn.setAttribute("aria-expanded", open ? "true" : "false");
+    ui.syncPanelToggleBtn.setAttribute("aria-controls", "syncPanelBody");
+  }
+}
+
+function setTeamSyncPanelOpen(open, persist){
+  if(!view.state?.settings) return;
+  view.state.settings.teamSyncOpen = open === true;
+  if(persist !== false){
+    saveStateLocal();
+  }
+  renderTeamSyncPanelToggle();
+}
+
 function readTeamSyncInputs(){
   return {
     url: normalizeSupabaseUrl(ui.syncSupabaseUrl?.value || ""),
@@ -2744,6 +2778,7 @@ function applyTeamSyncUiState(){
   if(ui.syncPanel){
     ui.syncPanel.setAttribute("aria-busy", busy ? "true" : "false");
   }
+  renderTeamSyncPanelToggle();
   if(ui.syncConnectBtn) ui.syncConnectBtn.disabled = busy;
   if(ui.syncOpenLoginBtn) ui.syncOpenLoginBtn.disabled = busy;
   if(ui.syncDisconnectBtn) ui.syncDisconnectBtn.disabled = !connected || busy;
@@ -4684,6 +4719,11 @@ function hookUI(){
 
   ui.csvExport.addEventListener("click", exportCsvForMonth);
   ui.printBtn.addEventListener("click", printView);
+  if(ui.syncPanelToggleBtn){
+    ui.syncPanelToggleBtn.addEventListener("click", () => {
+      setTeamSyncPanelOpen(!isTeamSyncPanelOpen(), true);
+    });
+  }
   if(ui.syncConnectBtn){
     ui.syncConnectBtn.addEventListener("click", () => {
       openSyncLoginModal();
@@ -4793,6 +4833,8 @@ function init(){
     printBtn: document.getElementById("printBtn"),
     wipe: document.getElementById("wipe"),
     syncPanel: document.getElementById("syncPanel"),
+    syncPanelBody: document.getElementById("syncPanelBody"),
+    syncPanelToggleBtn: document.getElementById("syncPanelToggleBtn"),
     syncSupabaseUrl: document.getElementById("syncSupabaseUrl"),
     syncSupabaseAnonKey: document.getElementById("syncSupabaseAnonKey"),
     syncWorkspaceId: document.getElementById("syncWorkspaceId"),
