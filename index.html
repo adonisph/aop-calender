@@ -193,7 +193,7 @@
     }
     .sync-sections{
       display:grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr;
       gap:10px;
     }
     .sync-section{
@@ -542,9 +542,14 @@
       border: 1px solid rgba(255,255,255,.10);
       border-radius: 12px;
       background: #141414;
+      display:grid;
+      gap: 6px;
     }
     .aop-notation textarea{
       min-height: 86px;
+      width: 100%;
+      display: block;
+      box-sizing: border-box;
     }
     .aop-notation .hint{
       margin-top: 6px;
@@ -1056,7 +1061,7 @@
     @media (max-width: 560px){ .aop-form{ grid-template-columns: 1fr; } }
     input[type="color"]{ padding: 6px; height: 40px; }
     .aop-row .actions select{
-      min-width: 128px;
+      min-width: 116px;
       padding: 6px 28px 6px 8px;
       font-size: 12px;
       border-radius: 10px;
@@ -1064,7 +1069,10 @@
 
     .aop-list{ margin-top: 10px; display:grid; gap: 8px; }
     .aop-row{
-      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      display:grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items:center;
+      gap:10px;
       padding: 8px 10px; border: 1px solid var(--line); border-radius: 14px;
       background: #161616;
       cursor: pointer;
@@ -1086,7 +1094,18 @@
       max-width: 320px;
       font-weight:650;
     }
-    .aop-row .actions{ display:flex; align-items:center; gap:8px; flex: 0 0 auto; }
+    .aop-row .actions{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      flex: 0 0 auto;
+      justify-self:end;
+    }
+    .aop-row .actions .btn-danger{
+      min-width: 88px;
+      text-align: center;
+      padding: 8px 12px;
+    }
     .chip{
       font-size: 11px; color: var(--muted);
       border: 1px solid var(--line);
@@ -1253,18 +1272,16 @@
         <button id="printBtn" type="button" title="Print / Save as PDF">Print</button>
         <button id="wipe" class="btn-danger" type="button" title="Clear all saved data">Clear All</button>
       </div>
-      <div class="sync-panel" id="syncPanel" role="region" aria-labelledby="syncPanelTitle" aria-describedby="syncHelp syncWarning" aria-busy="false">
+      <div class="sync-panel" id="syncPanel" role="region" aria-labelledby="syncPanelTitle" aria-describedby="syncWarning" aria-busy="false">
         <div class="sync-topline">
           <div>
             <strong id="syncPanelTitle">Team Sync</strong>
-            <div class="small">Shared workspace via Supabase. One source of truth for your team.</div>
           </div>
           <div class="sync-top-meta">
             <span id="syncConnectionState" class="status-pill sync-conn offline">Disconnected</span>
             <span id="syncRoleBadge" class="status-pill">Role: local</span>
           </div>
         </div>
-        <div id="syncHelp" class="small sync-help">Connect once. Keep Auto Sync ON for instant team updates, or OFF to draft locally then use Push Now.</div>
         <div id="syncUserMeta" class="small sync-user">Not signed in.</div>
         <div class="sync-sections">
           <section class="sync-section" aria-label="Workspace settings">
@@ -1287,7 +1304,6 @@
           <section class="sync-section" aria-label="Login settings">
             <h4>Account</h4>
             <div class="sync-login-trigger">
-              <div class="small sync-help">Login opens in a focused popout for faster sign-in.</div>
               <button id="syncOpenLoginBtn" class="btn-primary" type="button">Open Login</button>
             </div>
           </section>
@@ -1300,7 +1316,7 @@
           <button id="syncPushBtn" class="btn-ghost" type="button">Push Now</button>
           <span id="syncStatus" class="status-pill" role="status" aria-live="polite" aria-atomic="true">Local-only mode</span>
         </div>
-        <div id="syncWarning" class="small sync-warning" role="alert" aria-live="assertive" aria-atomic="true">Offline mode: changes are local only until you connect.</div>
+        <div id="syncWarning" class="small sync-warning" role="alert" aria-live="assertive" aria-atomic="true">Offline: local mode.</div>
       </div>
     </div>
   </section>
@@ -1476,7 +1492,7 @@
 
         <div class="aop-notation">
           <label for="aopNotation">AOP Notation</label>
-          <textarea id="aopNotation" placeholder="Add reusable notation for this AOP (applies across days and months)..."></textarea>
+          <textarea id="aopNotation" placeholder="Add notation for this AOP in the selected month..."></textarea>
           <div class="hint" id="aopNotationState">Select an AOP to edit notation.</div>
         </div>
 
@@ -1593,11 +1609,10 @@
   </div>
 </main>
 <div id="syncLoginBackdrop" class="sync-login-backdrop" aria-hidden="true"></div>
-<section id="syncLoginModal" class="sync-login-modal" role="dialog" aria-modal="true" aria-labelledby="syncLoginTitle" aria-describedby="syncFormHint syncStatus" aria-hidden="true">
+<section id="syncLoginModal" class="sync-login-modal" role="dialog" aria-modal="true" aria-labelledby="syncLoginTitle" aria-hidden="true">
   <div class="sync-login-head">
     <div>
       <h3 id="syncLoginTitle">Team Login</h3>
-      <div class="small">Sign in and connect this browser to your team workspace.</div>
     </div>
     <button id="syncModalCloseBtn" class="btn-ghost" type="button" aria-label="Close login">Close</button>
   </div>
@@ -1613,7 +1628,6 @@
         <button id="syncPasswordToggle" class="btn-ghost" type="button" aria-pressed="false" aria-controls="syncPassword" title="Show or hide password">Show</button>
       </div>
     </div>
-    <div id="syncFormHint" class="small sync-help">Leave password empty to reuse an existing saved session.</div>
     <div class="sync-login-foot">
       <button id="syncModalConnectBtn" class="btn-primary" type="button">Sign In & Connect</button>
       <button id="syncModalCancelBtn" class="btn-ghost" type="button">Cancel</button>
@@ -1633,9 +1647,10 @@
  *     dayNoteFilters:{thisMonth:boolean},
  *     calendarUI:{compact:boolean,markedOnly:boolean,activeOnly:boolean,focus:"both"|"planned"|"actual"}
  *   }
- * - aops: {id:{id,name,color,area,notation,notation_updated_at}}
+ * - aops: {id:{id,name,color,area}}
  * - aopMonthly: { [aopId]: { [YYYY-MM]: {
  *      goal, comments, required:boolean,
+ *      notation, notation_updated_at,
  *      created_at, updated_at,
  *      goal_created_at, goal_updated_at,
  *      comments_created_at, comments_updated_at,
@@ -2371,13 +2386,13 @@ function migrateIfNeeded(st){
   st.entries = st.entries || {};
   st.aopMonthly = st.aopMonthly || {};
   st.dayNotes = st.dayNotes || {};
+  const now = new Date();
+  const nowMonthKey = ymKey(now.getFullYear(), now.getMonth());
   for(const aopId of Object.keys(st.aops)){
     const a = st.aops[aopId] || {};
     st.aops[aopId] = {
       ...a,
-      area: normalizeAreaId(a.area),
-      notation: typeof a.notation === "string" ? a.notation : "",
-      notation_updated_at: typeof a.notation_updated_at === "string" ? a.notation_updated_at : ""
+      area: normalizeAreaId(a.area)
     };
   }
 
@@ -2392,6 +2407,9 @@ function migrateIfNeeded(st){
       // Backwards compatibility: "notes" -> comments
       const comments = (typeof t.comments === "string") ? t.comments : (typeof t.notes === "string" ? t.notes : "");
       const goal = (typeof t.goal === "string") ? t.goal : "";
+      const notation = (typeof t.notation === "string") ? t.notation : "";
+      const notation_updated_at =
+        (typeof t.notation_updated_at === "string") ? t.notation_updated_at : (notation ? updated_at : "");
 
       const required = !!t.required;
 
@@ -2399,6 +2417,8 @@ function migrateIfNeeded(st){
         goal,
         comments,
         required,
+        notation,
+        notation_updated_at,
         created_at,
         updated_at,
 
@@ -2412,6 +2432,31 @@ function migrateIfNeeded(st){
         required_updated_at: t.required_updated_at || (required ? updated_at : "")
       };
     }
+
+    // Legacy migration: move old global notation into current month once.
+    const legacyNotation = typeof st.aops[aopId]?.notation === "string" ? st.aops[aopId].notation.trim() : "";
+    const legacyNotationUpdated = typeof st.aops[aopId]?.notation_updated_at === "string" ? st.aops[aopId].notation_updated_at : "";
+    const months = Object.keys(st.aopMonthly[aopId] || {});
+    const hasMonthlyNotation = months.some(mk => String(st.aopMonthly[aopId]?.[mk]?.notation || "").trim().length > 0);
+    if(legacyNotation && !hasMonthlyNotation){
+      const t = nowIso();
+      if(!st.aopMonthly[aopId][nowMonthKey]){
+        st.aopMonthly[aopId][nowMonthKey] = {
+          goal:"", comments:"", required:false,
+          notation: "", notation_updated_at: "",
+          created_at: t, updated_at: t,
+          goal_created_at:"", goal_updated_at:"",
+          comments_created_at:"", comments_updated_at:"",
+          required_created_at:"", required_updated_at:""
+        };
+      }
+      st.aopMonthly[aopId][nowMonthKey].notation = legacyNotation;
+      st.aopMonthly[aopId][nowMonthKey].notation_updated_at = legacyNotationUpdated || t;
+      st.aopMonthly[aopId][nowMonthKey].updated_at = legacyNotationUpdated || t;
+    }
+
+    delete st.aops[aopId].notation;
+    delete st.aops[aopId].notation_updated_at;
   }
 
   // Normalize dayNotes:
@@ -2581,11 +2626,6 @@ function setSyncLoginModal(open){
 }
 
 function openSyncLoginModal(){
-  if(!hasSyncCoreConfig()){
-    markSyncFieldErrors([ui.syncSupabaseUrl, ui.syncSupabaseAnonKey, ui.syncWorkspaceId]);
-    setTeamSyncStatus("Fill workspace settings first", true);
-    return;
-  }
   clearSyncFieldErrors();
   setSyncLoginModal(true);
 }
@@ -2704,13 +2744,13 @@ function applyTeamSyncUiState(){
   if(ui.syncPanel){
     ui.syncPanel.setAttribute("aria-busy", busy ? "true" : "false");
   }
-  if(ui.syncConnectBtn) ui.syncConnectBtn.disabled = busy || !hasSyncCoreConfig();
-  if(ui.syncOpenLoginBtn) ui.syncOpenLoginBtn.disabled = busy || !hasSyncCoreConfig();
+  if(ui.syncConnectBtn) ui.syncConnectBtn.disabled = busy;
+  if(ui.syncOpenLoginBtn) ui.syncOpenLoginBtn.disabled = busy;
   if(ui.syncDisconnectBtn) ui.syncDisconnectBtn.disabled = !connected || busy;
   if(ui.syncAutoBtn) ui.syncAutoBtn.disabled = busy;
   if(ui.syncPullBtn) ui.syncPullBtn.disabled = !connected || busy;
   if(ui.syncPushBtn) ui.syncPushBtn.disabled = !connected || busy;
-  if(ui.syncModalConnectBtn) ui.syncModalConnectBtn.disabled = busy || !hasSyncCoreConfig();
+  if(ui.syncModalConnectBtn) ui.syncModalConnectBtn.disabled = busy;
   if(ui.syncModalCancelBtn) ui.syncModalCancelBtn.disabled = busy;
   if(ui.syncModalCloseBtn) ui.syncModalCloseBtn.disabled = busy;
   if(ui.syncPasswordToggle) ui.syncPasswordToggle.disabled = busy;
@@ -2945,6 +2985,14 @@ async function connectTeamSync(opts){
     let session = null;
     const email = String(ui.syncEmail?.value || "").trim();
     const password = String(ui.syncPassword?.value || "");
+    if((email && !password) || (!email && password)){
+      markSyncFieldErrors([ui.syncEmail, ui.syncPassword]);
+      setTeamSyncStatus("Enter both email and password", true);
+      teamSync.connected = false;
+      setSyncRole("local");
+      applyTeamSyncUiState();
+      return;
+    }
     if(email && password){
       const { data, error } = await teamSync.supabase.auth.signInWithPassword({ email, password });
       if(error) throw error;
@@ -3060,6 +3108,7 @@ function ensureMonthly(aopId, monthKey){
     const t = nowIso();
     view.state.aopMonthly[aopId][monthKey] = {
       goal:"", comments:"", required:false,
+      notation:"", notation_updated_at:"",
       created_at: t, updated_at: t,
       goal_created_at:"", goal_updated_at:"",
       comments_created_at:"", comments_updated_at:"",
@@ -3207,6 +3256,16 @@ function selectedAopForNotation(){
   const id = selectedAopId();
   return (id && view.state.aops[id] && isAopInArea(id)) ? id : null;
 }
+function selectedNotationMonthKey(){
+  return currentMonthKey();
+}
+function readAopMonthlyNotation(aopId, monthKey){
+  const month = view.state.aopMonthly?.[aopId]?.[monthKey];
+  return {
+    notation: typeof month?.notation === "string" ? month.notation : "",
+    notation_updated_at: typeof month?.notation_updated_at === "string" ? month.notation_updated_at : ""
+  };
+}
 
 function setAopNotationState(msg){
   if(ui.aopNotationState) ui.aopNotationState.textContent = msg || "";
@@ -3215,33 +3274,36 @@ function setAopNotationState(msg){
 function loadAopNotationUI(){
   if(!ui.aopNotation) return;
   const aopId = selectedAopForNotation();
+  const monthKey = selectedNotationMonthKey();
   if(!aopId){
     ui.aopNotation.value = "";
     ui.aopNotation.disabled = true;
     setAopNotationState("Select an AOP to edit notation.");
     return;
   }
-  const a = view.state.aops[aopId];
+  const monthData = readAopMonthlyNotation(aopId, monthKey);
   ui.aopNotation.disabled = false;
-  ui.aopNotation.value = (a?.notation || "");
-  setAopNotationState(`Last updated: ${fmtIsoShort(a?.notation_updated_at || "")}`);
+  ui.aopNotation.value = monthData.notation || "";
+  setAopNotationState(`${monthKey} | Last updated: ${fmtIsoShort(monthData.notation_updated_at || "")}`);
 }
 
-function persistAopNotation(aopId, rawText){
+function persistAopNotation(aopId, monthKey, rawText){
   if(!aopId || !view.state.aops[aopId]) return false;
-  const a = view.state.aops[aopId];
+  const month = ensureMonthly(aopId, monthKey);
   const normalized = String(rawText || "").replace(/\r\n/g, "\n");
   const next = normalized.trim().length ? normalized : "";
-  if((a.notation || "") === next){
-    if(selectedAopForNotation() === aopId){
+  if((month.notation || "") === next){
+    if(selectedAopForNotation() === aopId && selectedNotationMonthKey() === monthKey){
       setAopNotationState(`Saved ${timeShort()}`);
     }
     return false;
   }
-  a.notation = next;
-  a.notation_updated_at = next ? nowIso() : "";
+  const t = nowIso();
+  month.notation = next;
+  month.notation_updated_at = next ? t : "";
+  month.updated_at = t;
   saveState();
-  if(selectedAopForNotation() === aopId){
+  if(selectedAopForNotation() === aopId && selectedNotationMonthKey() === monthKey){
     setAopNotationState(`Saved ${timeShort()}`);
   }
   renderAopCatalog();
@@ -3251,13 +3313,15 @@ function persistAopNotation(aopId, rawText){
 function saveAopNotation(){
   if(!ui.aopNotation) return;
   const aopId = selectedAopForNotation();
+  const monthKey = selectedNotationMonthKey();
   if(!aopId) return;
-  persistAopNotation(aopId, ui.aopNotation.value || "");
+  persistAopNotation(aopId, monthKey, ui.aopNotation.value || "");
 }
 
 function scheduleAopNotationSave(){
   if(!ui.aopNotation) return;
   const aopId = selectedAopForNotation();
+  const monthKey = selectedNotationMonthKey();
   if(!aopId) return;
   const snapshot = ui.aopNotation.value || "";
   if(aopNotationSaveTimer){
@@ -3266,7 +3330,7 @@ function scheduleAopNotationSave(){
   setAopNotationState("Saving...");
   aopNotationSaveTimer = setTimeout(() => {
     aopNotationSaveTimer = null;
-    persistAopNotation(aopId, snapshot);
+    persistAopNotation(aopId, monthKey, snapshot);
   }, 450);
 }
 
@@ -3274,6 +3338,7 @@ function scheduleAopNotationSave(){
 function renderAopCatalog(){
   const order = visibleAopOrder();
   const q = (ui.aopSearch?.value || "").trim().toLowerCase();
+  const monthKey = currentMonthKey();
   ui.aopList.innerHTML = "";
   if(ui.areaViewSelect) ui.areaViewSelect.value = currentAreaViewId();
   if(ui.aopNewArea) ui.aopNewArea.value = suggestedAreaForNewAop();
@@ -3337,7 +3402,8 @@ function renderAopCatalog(){
 
       const name = document.createElement("div");
       name.className = "name";
-      const notePreview = String(a.notation || "").trim();
+      const monthNotation = readAopMonthlyNotation(id, monthKey);
+      const notePreview = String(monthNotation.notation || "").trim();
       const clipped = notePreview.length > 80 ? `${notePreview.slice(0, 80)}...` : notePreview;
       name.innerHTML = notePreview
         ? `${escapeHtml(a.name)}<div class="small" style="margin-top:4px;">${escapeHtml(clipped)}</div>`
@@ -3361,8 +3427,7 @@ function renderAopCatalog(){
 
       const del = document.createElement("button");
       del.type = "button";
-      del.className = "btn-danger";
-      del.style.padding = "8px 10px";
+      del.className = "btn-danger aop-remove-btn";
       del.textContent = "Remove";
       del.addEventListener("click", (event) => {
         event.stopPropagation();
@@ -3414,9 +3479,7 @@ function addAop(name, color, areaId){
     id,
     name: clean,
     color: color || theme.power,
-    area: normalizeAreaId(areaId || suggestedAreaForNewAop()),
-    notation: "",
-    notation_updated_at: ""
+    area: normalizeAreaId(areaId || suggestedAreaForNewAop())
   };
   view.state.aopOrder = [...(view.state.aopOrder||[]), id];
   view.state.activeAopId = id;
@@ -4749,7 +4812,6 @@ function init(){
     syncPushBtn: document.getElementById("syncPushBtn"),
     syncConnectionState: document.getElementById("syncConnectionState"),
     syncUserMeta: document.getElementById("syncUserMeta"),
-    syncFormHint: document.getElementById("syncFormHint"),
     syncStatus: document.getElementById("syncStatus"),
     syncWarning: document.getElementById("syncWarning"),
     syncRoleBadge: document.getElementById("syncRoleBadge"),
@@ -4876,9 +4938,7 @@ function init(){
         id,
         name: s.name,
         color: s.color,
-        area: DEFAULT_AREA_VIEW,
-        notation: "",
-        notation_updated_at: ""
+        area: DEFAULT_AREA_VIEW
       };
       view.state.aopOrder.push(id);
       view.state.aopMonthly[id] = view.state.aopMonthly[id] || {};
