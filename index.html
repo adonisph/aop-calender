@@ -139,6 +139,42 @@
       display: grid;
       gap: 8px;
     }
+    .sync-topline{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    .sync-top-meta{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+    .sync-user{
+      color: var(--muted);
+      font-family: var(--mono);
+    }
+    .sync-sections{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:10px;
+    }
+    .sync-section{
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:10px;
+      padding:8px;
+      background: rgba(255,255,255,.02);
+      min-width:0;
+    }
+    .sync-section h4{
+      margin:0 0 8px;
+      font-size:12px;
+      color: var(--muted);
+      letter-spacing:.2px;
+      text-transform: uppercase;
+    }
     .sync-panel:focus-within{
       border-color: rgba(var(--power-rgb),.70);
       box-shadow: 0 0 0 3px rgba(var(--power-rgb),.14);
@@ -158,6 +194,34 @@
       flex-wrap:wrap;
       gap:8px;
       align-items:center;
+    }
+    .sync-password-row{
+      display:grid;
+      grid-template-columns: 1fr auto;
+      gap:6px;
+      align-items:center;
+    }
+    .sync-panel input[aria-invalid="true"]{
+      border-color: rgba(239,68,68,.78);
+      box-shadow: 0 0 0 3px rgba(239,68,68,.18);
+    }
+    .sync-conn{
+      font-weight: 700;
+    }
+    .sync-conn.online{
+      border-color: rgba(34,197,94,.60);
+      color: rgba(148,255,186,.98);
+      background: rgba(34,197,94,.14);
+    }
+    .sync-conn.offline{
+      border-color: rgba(239,68,68,.62);
+      color: rgba(255,154,154,.98);
+      background: rgba(239,68,68,.16);
+    }
+    .sync-conn.busy{
+      border-color: rgba(245,158,11,.65);
+      color: rgba(255,204,123,.98);
+      background: rgba(245,158,11,.16);
     }
     .sync-panel.disconnected{
       border-color: rgba(239,68,68,.78);
@@ -190,6 +254,7 @@
       border:0;
     }
     @media (max-width:900px){
+      .sync-sections{ grid-template-columns:1fr; }
       .sync-grid, .sync-grid-2{ grid-template-columns:1fr; }
     }
 
@@ -1058,40 +1123,56 @@
         <button id="wipe" class="btn-danger" type="button" title="Clear all saved data">Clear All</button>
       </div>
       <div class="sync-panel" id="syncPanel" role="region" aria-labelledby="syncPanelTitle" aria-describedby="syncHelp syncWarning" aria-busy="false">
-        <div class="item-head" style="margin:0;">
+        <div class="sync-topline">
           <div>
             <strong id="syncPanelTitle">Team Sync</strong>
             <div class="small">Shared workspace via Supabase. One source of truth for your team.</div>
           </div>
-          <span id="syncRoleBadge" class="status-pill">Role: local</span>
+          <div class="sync-top-meta">
+            <span id="syncConnectionState" class="status-pill sync-conn offline">Disconnected</span>
+            <span id="syncRoleBadge" class="status-pill">Role: local</span>
+          </div>
         </div>
         <div id="syncHelp" class="small sync-help">Connect once. Keep Auto Sync ON for instant team updates, or OFF to draft locally then use Push Now.</div>
-        <div class="sync-grid">
-          <div>
-            <label for="syncSupabaseUrl">Supabase URL</label>
-            <input id="syncSupabaseUrl" placeholder="https://YOUR_PROJECT.supabase.co" autocomplete="url" spellcheck="false" />
-          </div>
-          <div>
-            <label for="syncSupabaseAnonKey">Supabase Anon Key</label>
-            <input id="syncSupabaseAnonKey" placeholder="eyJ..." autocomplete="off" spellcheck="false" />
-          </div>
-          <div>
-            <label for="syncWorkspaceId">Workspace ID</label>
-            <input id="syncWorkspaceId" placeholder="nordics-team" autocomplete="off" spellcheck="false" />
-          </div>
-        </div>
-        <div class="sync-grid-2">
-          <div>
-            <label for="syncEmail">Email</label>
-            <input id="syncEmail" type="email" placeholder="you@company.com" autocomplete="username" />
-          </div>
-          <div>
-            <label for="syncPassword">Password</label>
-            <input id="syncPassword" type="password" placeholder="Password" autocomplete="current-password" />
-          </div>
+        <div id="syncUserMeta" class="small sync-user">Not signed in.</div>
+        <div class="sync-sections">
+          <section class="sync-section" aria-label="Workspace settings">
+            <h4>Workspace</h4>
+            <div class="sync-grid">
+              <div>
+                <label for="syncSupabaseUrl">Supabase URL</label>
+                <input id="syncSupabaseUrl" placeholder="https://YOUR_PROJECT.supabase.co" autocomplete="url" spellcheck="false" />
+              </div>
+              <div>
+                <label for="syncSupabaseAnonKey">Supabase Anon Key</label>
+                <input id="syncSupabaseAnonKey" placeholder="eyJ..." autocomplete="off" spellcheck="false" />
+              </div>
+              <div>
+                <label for="syncWorkspaceId">Workspace ID</label>
+                <input id="syncWorkspaceId" placeholder="nordics-team" autocomplete="off" spellcheck="false" />
+              </div>
+            </div>
+          </section>
+          <section class="sync-section" aria-label="Login settings">
+            <h4>Account</h4>
+            <div class="sync-grid-2">
+              <div>
+                <label for="syncEmail">Email</label>
+                <input id="syncEmail" type="email" placeholder="you@company.com" autocomplete="username" />
+              </div>
+              <div>
+                <label for="syncPassword">Password</label>
+                <div class="sync-password-row">
+                  <input id="syncPassword" type="password" placeholder="Password" autocomplete="current-password" />
+                  <button id="syncPasswordToggle" class="btn-ghost" type="button" aria-pressed="false" aria-controls="syncPassword" title="Show or hide password">Show</button>
+                </div>
+              </div>
+            </div>
+            <div id="syncFormHint" class="small sync-help" style="margin-top:8px;">Leave password empty to reuse an existing saved session.</div>
+          </section>
         </div>
         <div class="sync-actions">
-          <button id="syncConnectBtn" class="btn-primary" type="button">Connect</button>
+          <button id="syncConnectBtn" class="btn-primary" type="button">Sign In & Connect</button>
           <button id="syncDisconnectBtn" class="btn-ghost" type="button">Disconnect</button>
           <button id="syncAutoBtn" class="btn-ghost btn-toggle on" type="button" aria-pressed="true" title="Toggle automatic team sync for local edits">Auto Sync: ON</button>
           <button id="syncPullBtn" class="btn-ghost" type="button">Pull Latest</button>
@@ -1546,6 +1627,12 @@ function setAreaView(areaId, persist){
     return;
   }
   view.state.settings.areaView = safe;
+  if(safe === MASTER_VIEW_ID){
+    const vis = normalizedSectionVisibility();
+    if(!vis.tools){
+      view.state.settings.sectionVisibility = { ...vis, tools:true };
+    }
+  }
   ensureActiveAopInView();
   if(persist) saveState();
   renderAll();
@@ -2218,7 +2305,7 @@ function loadTeamSyncConfig(){
     if(!raw) return base;
     const p = JSON.parse(raw);
     return {
-      url: String(p?.url || ""),
+      url: normalizeSupabaseUrl(p?.url || ""),
       anonKey: String(p?.anonKey || ""),
       workspaceId: normalizeWorkspaceId(p?.workspaceId || base.workspaceId),
       email: String(p?.email || ""),
@@ -2231,7 +2318,7 @@ function loadTeamSyncConfig(){
 
 function saveTeamSyncConfig(cfg){
   const next = {
-    url: String(cfg?.url || "").trim(),
+    url: normalizeSupabaseUrl(cfg?.url || ""),
     anonKey: String(cfg?.anonKey || "").trim(),
     workspaceId: normalizeWorkspaceId(cfg?.workspaceId || "nordics-team"),
     email: String(cfg?.email || "").trim(),
@@ -2265,6 +2352,41 @@ function setTeamAutoSync(enabled, persist){
 function normalizeWorkspaceId(raw){
   const id = String(raw || "").trim().toLowerCase().replace(/[^a-z0-9_-]/g, "-").replace(/-+/g, "-");
   return id || "nordics-team";
+}
+
+function normalizeSupabaseUrl(raw){
+  return String(raw || "").trim().replace(/\/+$/g, "");
+}
+
+function setSyncPasswordVisibility(visible){
+  const on = visible === true;
+  if(ui.syncPassword){
+    ui.syncPassword.type = on ? "text" : "password";
+  }
+  if(ui.syncPasswordToggle){
+    ui.syncPasswordToggle.textContent = on ? "Hide" : "Show";
+    ui.syncPasswordToggle.setAttribute("aria-pressed", on ? "true" : "false");
+  }
+}
+
+function clearSyncFieldErrors(){
+  [ui.syncSupabaseUrl, ui.syncSupabaseAnonKey, ui.syncWorkspaceId, ui.syncEmail, ui.syncPassword]
+    .filter(Boolean)
+    .forEach(el => el.setAttribute("aria-invalid", "false"));
+}
+
+function markSyncFieldErrors(fields){
+  clearSyncFieldErrors();
+  (fields || []).filter(Boolean).forEach(el => el.setAttribute("aria-invalid", "true"));
+  const first = (fields || []).find(Boolean);
+  if(first && typeof first.focus === "function") first.focus();
+}
+
+function hasSyncCoreConfig(){
+  const url = normalizeSupabaseUrl(ui.syncSupabaseUrl?.value || "");
+  const anon = String(ui.syncSupabaseAnonKey?.value || "").trim();
+  const workspace = normalizeWorkspaceId(ui.syncWorkspaceId?.value || "");
+  return !!(url && anon && workspace);
 }
 
 function syncRoleLabel(role){
@@ -2320,7 +2442,7 @@ function setTeamSyncStatus(text, isError){
 
 function readTeamSyncInputs(){
   return {
-    url: String(ui.syncSupabaseUrl?.value || "").trim(),
+    url: normalizeSupabaseUrl(ui.syncSupabaseUrl?.value || ""),
     anonKey: String(ui.syncSupabaseAnonKey?.value || "").trim(),
     workspaceId: normalizeWorkspaceId(ui.syncWorkspaceId?.value || ""),
     email: String(ui.syncEmail?.value || "").trim(),
@@ -2334,7 +2456,35 @@ function applyTeamSyncConfigToInputs(){
   if(ui.syncSupabaseAnonKey) ui.syncSupabaseAnonKey.value = cfg.anonKey || "";
   if(ui.syncWorkspaceId) ui.syncWorkspaceId.value = normalizeWorkspaceId(cfg.workspaceId || "nordics-team");
   if(ui.syncEmail) ui.syncEmail.value = cfg.email || "";
+  setSyncPasswordVisibility(false);
   renderTeamAutoSyncBtn();
+}
+
+function renderTeamSyncMeta(){
+  const connected = !!teamSync.connected;
+  const busy = !!teamSyncBusy;
+  const workspace = normalizeWorkspaceId(teamSync.config?.workspaceId || "nordics-team");
+  if(ui.syncConnectionState){
+    ui.syncConnectionState.classList.remove("online", "offline", "busy");
+    if(busy){
+      ui.syncConnectionState.classList.add("busy");
+      ui.syncConnectionState.textContent = connected ? "Syncing..." : "Connecting...";
+    }else if(connected){
+      ui.syncConnectionState.classList.add("online");
+      ui.syncConnectionState.textContent = "Connected";
+    }else{
+      ui.syncConnectionState.classList.add("offline");
+      ui.syncConnectionState.textContent = "Disconnected";
+    }
+  }
+  if(ui.syncUserMeta){
+    ui.syncUserMeta.textContent = connected
+      ? `${teamSync.userEmail || "Signed in"} | Workspace: ${workspace}`
+      : `Not connected. Workspace: ${workspace}`;
+  }
+  if(ui.syncConnectBtn){
+    ui.syncConnectBtn.textContent = connected ? "Reconnect" : "Sign In & Connect";
+  }
 }
 
 function applyTeamSyncUiState(){
@@ -2343,13 +2493,15 @@ function applyTeamSyncUiState(){
   if(ui.syncPanel){
     ui.syncPanel.setAttribute("aria-busy", busy ? "true" : "false");
   }
-  if(ui.syncConnectBtn) ui.syncConnectBtn.disabled = busy;
+  if(ui.syncConnectBtn) ui.syncConnectBtn.disabled = busy || !hasSyncCoreConfig();
   if(ui.syncDisconnectBtn) ui.syncDisconnectBtn.disabled = !connected || busy;
   if(ui.syncAutoBtn) ui.syncAutoBtn.disabled = busy;
   if(ui.syncPullBtn) ui.syncPullBtn.disabled = !connected || busy;
   if(ui.syncPushBtn) ui.syncPushBtn.disabled = !connected || busy;
+  if(ui.syncPasswordToggle) ui.syncPasswordToggle.disabled = busy;
   renderTeamAutoSyncBtn();
   renderTeamSyncConnectionState();
+  renderTeamSyncMeta();
   applyTeamRoleUi();
 }
 
@@ -2543,9 +2695,27 @@ async function connectTeamSync(opts){
   }
   const cfg = readTeamSyncInputs();
   if(!cfg.url || !cfg.anonKey || !cfg.workspaceId){
+    markSyncFieldErrors([
+      !cfg.url ? ui.syncSupabaseUrl : null,
+      !cfg.anonKey ? ui.syncSupabaseAnonKey : null,
+      !cfg.workspaceId ? ui.syncWorkspaceId : null
+    ]);
     if(manual) setTeamSyncStatus("Fill URL, anon key, and workspace id", true);
     return;
   }
+  try{
+    const parsed = new URL(cfg.url);
+    if(parsed.protocol !== "https:"){
+      markSyncFieldErrors([ui.syncSupabaseUrl]);
+      if(manual) setTeamSyncStatus("Supabase URL must start with https://", true);
+      return;
+    }
+  }catch{
+    markSyncFieldErrors([ui.syncSupabaseUrl]);
+    if(manual) setTeamSyncStatus("Supabase URL is invalid", true);
+    return;
+  }
+  clearSyncFieldErrors();
   saveTeamSyncConfig(cfg);
   setTeamSyncStatus("Connecting...");
   unsubscribeTeamSync();
@@ -2570,6 +2740,7 @@ async function connectTeamSync(opts){
       session = data?.session || null;
     }
     if(!session){
+      markSyncFieldErrors([ui.syncEmail, ui.syncPassword]);
       setTeamSyncStatus("Enter email/password then Connect", true);
       teamSync.connected = false;
       setSyncRole("local");
@@ -2594,6 +2765,12 @@ async function connectTeamSync(opts){
 
     setTeamSyncStatus(`Connected: ${teamSync.userEmail || "user"} (${isTeamAutoSyncEnabled() ? "auto on" : "auto off"})`);
   }catch(err){
+    const msg = String(err?.message || err || "");
+    if(/auth|credential|password|email|invalid/i.test(msg)){
+      markSyncFieldErrors([ui.syncEmail, ui.syncPassword]);
+    }else{
+      clearSyncFieldErrors();
+    }
     teamSync.connected = false;
     teamSync.userId = null;
     teamSync.userEmail = "";
@@ -2601,6 +2778,7 @@ async function connectTeamSync(opts){
     setTeamSyncStatus(`Connect failed: ${err.message || err}`, true);
   }finally{
     if(ui.syncPassword) ui.syncPassword.value = "";
+    setSyncPasswordVisibility(false);
     applyTeamSyncUiState();
   }
 }
@@ -2619,6 +2797,8 @@ async function disconnectTeamSync(){
   teamSync.userId = null;
   teamSync.userEmail = "";
   teamSync.lastRemoteUpdatedAt = "";
+  clearSyncFieldErrors();
+  setSyncPasswordVisibility(false);
   setSyncRole("local");
   setTeamSyncStatus("Disconnected. Local-only mode.");
   applyTeamSyncUiState();
@@ -4146,6 +4326,13 @@ function hookUI(){
       disconnectTeamSync();
     });
   }
+  if(ui.syncPasswordToggle){
+    ui.syncPasswordToggle.addEventListener("click", () => {
+      const visible = ui.syncPassword?.type !== "text";
+      setSyncPasswordVisibility(visible);
+      if(ui.syncPassword) ui.syncPassword.focus();
+    });
+  }
   if(ui.syncAutoBtn){
     ui.syncAutoBtn.addEventListener("click", () => {
       setTeamAutoSync(!isTeamAutoSyncEnabled(), true);
@@ -4166,10 +4353,22 @@ function hookUI(){
     });
   }
 
-  const persistSyncCfg = () => saveTeamSyncConfig(readTeamSyncInputs());
+  const syncInputs = [ui.syncSupabaseUrl, ui.syncSupabaseAnonKey, ui.syncWorkspaceId, ui.syncEmail, ui.syncPassword].filter(Boolean);
+  const persistSyncCfg = () => {
+    saveTeamSyncConfig(readTeamSyncInputs());
+    applyTeamSyncUiState();
+  };
+  syncInputs.forEach(el => el.addEventListener("change", persistSyncCfg));
   [ui.syncSupabaseUrl, ui.syncSupabaseAnonKey, ui.syncWorkspaceId, ui.syncEmail]
     .filter(Boolean)
-    .forEach(el => el.addEventListener("change", persistSyncCfg));
+    .forEach(el => el.addEventListener("input", persistSyncCfg));
+  [ui.syncEmail, ui.syncPassword].filter(Boolean).forEach(el => {
+    el.addEventListener("keydown", (event) => {
+      if(event.key !== "Enter") return;
+      event.preventDefault();
+      connectTeamSync({ manual:true });
+    });
+  });
 
   ui.wipe.addEventListener("click", () => {
     if(!confirm("Clear ALL saved AOPs + month templates + items + day notes + settings? This cannot be undone.")) return;
@@ -4206,11 +4405,15 @@ function init(){
     syncWorkspaceId: document.getElementById("syncWorkspaceId"),
     syncEmail: document.getElementById("syncEmail"),
     syncPassword: document.getElementById("syncPassword"),
+    syncPasswordToggle: document.getElementById("syncPasswordToggle"),
     syncConnectBtn: document.getElementById("syncConnectBtn"),
     syncDisconnectBtn: document.getElementById("syncDisconnectBtn"),
     syncAutoBtn: document.getElementById("syncAutoBtn"),
     syncPullBtn: document.getElementById("syncPullBtn"),
     syncPushBtn: document.getElementById("syncPushBtn"),
+    syncConnectionState: document.getElementById("syncConnectionState"),
+    syncUserMeta: document.getElementById("syncUserMeta"),
+    syncFormHint: document.getElementById("syncFormHint"),
     syncStatus: document.getElementById("syncStatus"),
     syncWarning: document.getElementById("syncWarning"),
     syncRoleBadge: document.getElementById("syncRoleBadge"),
