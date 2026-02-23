@@ -14,6 +14,8 @@
   <title>POWER - AOP Planner v7</title>
 
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@600;700;800;900&family=Inter+Tight:wght@500;600;700&display=swap');
+
     :root{
       --bg0:#000000;
       --bg1:#070707;
@@ -25,8 +27,9 @@
       --surface:#101010;
       --surfaceSoft:#171717;
 
-      --text:#ffffff;
-      --muted:#c9c9c9;
+      --text:#e6e6e6;
+      --muted:#b3b3b3;
+      --textDisabled:#7a7a7a;
 
       --power:#ff6a00;
       --power-rgb:255,106,0;
@@ -37,7 +40,8 @@
       --shadow: 0 18px 40px rgba(0,0,0,.55);
       --radius: 16px;
       --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      --sans: "Inter Tight", ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      --heading: "Inter", "Inter Tight", ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
 
       /* Diff mode colors */
       --diffGreen: rgba(34,197,94,.20);
@@ -87,6 +91,7 @@
 
     header{
       padding:12px 16px;
+      padding-right: 132px;
       border-bottom: 1px solid var(--line);
       background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,0));
       position: sticky;
@@ -104,6 +109,7 @@
     }
 
     h1{
+      font-family: var(--heading);
       font-size:16px;
       margin:0;
       letter-spacing: .4px;
@@ -127,6 +133,35 @@
       height:26px;
       background: var(--line);
       margin: 0 2px;
+    }
+    .logo-power{
+      position:absolute;
+      right:16px;
+      top:10px;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      min-width:108px;
+      height:36px;
+      padding:0 14px;
+      background: linear-gradient(135deg, #2a2a2a, #101010 62%);
+      border:1px solid #2e2e2e;
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.06),
+        0 0 0 3px rgba(0,0,0,.28);
+      transform: skewX(-14deg);
+      border-radius: 2px;
+    }
+    .logo-power span{
+      transform: skewX(14deg);
+      font-family: var(--heading);
+      font-weight:900;
+      letter-spacing: .8px;
+      font-style: italic;
+      color:#ff7a00;
+      text-shadow: 0 0 14px rgba(255,122,0,.25);
+      font-size: 20px;
+      line-height:1;
     }
     .tools-card .section-pad{ padding: 10px 12px; }
     .tools-row + .tools-row{ margin-top: 8px; }
@@ -236,6 +271,13 @@
     .sync-help{
       color: var(--muted);
     }
+    .sync-login-trigger{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:8px;
+      flex-wrap:wrap;
+    }
     #syncStatus{
       border-color: rgba(255,255,255,.24);
       color: var(--text);
@@ -254,8 +296,79 @@
       border:0;
     }
     @media (max-width:900px){
+      header{ padding-right: 16px; }
+      .logo-power{
+        position: static;
+        margin-left: auto;
+      }
       .sync-sections{ grid-template-columns:1fr; }
       .sync-grid, .sync-grid-2{ grid-template-columns:1fr; }
+    }
+
+    .sync-login-backdrop{
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.62);
+      backdrop-filter: blur(3px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .15s ease;
+      z-index: 86;
+    }
+    .sync-login-backdrop.open{
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .sync-login-modal{
+      position: fixed;
+      width: min(520px, calc(100vw - 20px));
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -46%) scale(.98);
+      opacity: 0;
+      pointer-events: none;
+      z-index: 87;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: linear-gradient(180deg, #1b1b1b, #111111);
+      box-shadow: 0 28px 68px rgba(0,0,0,.62);
+      transition: transform .18s ease, opacity .18s ease;
+      overflow:hidden;
+    }
+    .sync-login-modal.open{
+      transform: translate(-50%, -50%) scale(1);
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .sync-login-head{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:10px;
+      padding:14px 14px 12px;
+      border-bottom:1px solid var(--line);
+      background: linear-gradient(180deg, rgba(var(--power-rgb),.15), rgba(255,255,255,.01));
+    }
+    .sync-login-head h3{
+      margin:0;
+      font-family: var(--heading);
+      font-weight:800;
+      letter-spacing:.2px;
+      font-size:16px;
+      font-style: italic;
+    }
+    .sync-login-body{
+      padding: 12px 14px 14px;
+      display:grid;
+      gap:10px;
+    }
+    .sync-login-foot{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      flex-wrap:wrap;
+      gap:8px;
+      padding-top: 4px;
     }
 
     button, select, input, textarea{
@@ -422,6 +535,21 @@
       font-size: 12px;
       color: var(--muted);
       line-height: 1.35;
+    }
+    .aop-notation{
+      margin-top: 10px;
+      padding: 10px;
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: 12px;
+      background: #141414;
+    }
+    .aop-notation textarea{
+      min-height: 86px;
+    }
+    .aop-notation .hint{
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 11px;
     }
     .inline-controls{
       display:flex;
@@ -1051,7 +1179,7 @@
     /* Print styles */
     @media print{
       header{ position: static; backdrop-filter:none; }
-      .toolbar, .cal-toolbar, #focusCard, #utilityCard, .pillbar button, .pillbar select, .focus-tabs button, .panel-tabs button, #aopAdd, #wipe, #export, #importBtn, #csvExport, #printBtn, #dayNotesBackdrop, #dayNotesCard, #undoToast { display:none !important; }
+      .toolbar, .cal-toolbar, #focusCard, #utilityCard, .pillbar button, .pillbar select, .focus-tabs button, .panel-tabs button, #aopAdd, #wipe, #export, #importBtn, #csvExport, #printBtn, #dayNotesBackdrop, #dayNotesCard, #undoToast, #syncLoginBackdrop, #syncLoginModal { display:none !important; }
       .card{ box-shadow:none; }
       body{ background:#fff; color:#000; }
       #matrixRain{ display:none !important; }
@@ -1092,6 +1220,9 @@
       <button id="toggleTools" class="btn-ghost focus-tab" type="button" aria-pressed="true">Display/Data</button>
       <button id="showAllSections" class="btn-ghost" type="button">Show All</button>
     </div>
+  </div>
+  <div class="logo-power" aria-label="POWER logo" role="img">
+    <span>POWER</span>
   </div>
 </header>
 
@@ -1155,24 +1286,14 @@
           </section>
           <section class="sync-section" aria-label="Login settings">
             <h4>Account</h4>
-            <div class="sync-grid-2">
-              <div>
-                <label for="syncEmail">Email</label>
-                <input id="syncEmail" type="email" placeholder="you@company.com" autocomplete="username" />
-              </div>
-              <div>
-                <label for="syncPassword">Password</label>
-                <div class="sync-password-row">
-                  <input id="syncPassword" type="password" placeholder="Password" autocomplete="current-password" />
-                  <button id="syncPasswordToggle" class="btn-ghost" type="button" aria-pressed="false" aria-controls="syncPassword" title="Show or hide password">Show</button>
-                </div>
-              </div>
+            <div class="sync-login-trigger">
+              <div class="small sync-help">Login opens in a focused popout for faster sign-in.</div>
+              <button id="syncOpenLoginBtn" class="btn-primary" type="button">Open Login</button>
             </div>
-            <div id="syncFormHint" class="small sync-help" style="margin-top:8px;">Leave password empty to reuse an existing saved session.</div>
           </section>
         </div>
         <div class="sync-actions">
-          <button id="syncConnectBtn" class="btn-primary" type="button">Sign In & Connect</button>
+          <button id="syncConnectBtn" class="btn-ghost" type="button">Open Login</button>
           <button id="syncDisconnectBtn" class="btn-ghost" type="button">Disconnect</button>
           <button id="syncAutoBtn" class="btn-ghost btn-toggle on" type="button" aria-pressed="true" title="Toggle automatic team sync for local edits">Auto Sync: ON</button>
           <button id="syncPullBtn" class="btn-ghost" type="button">Pull Latest</button>
@@ -1353,6 +1474,12 @@
           <select id="aopSelect"></select>
         </div>
 
+        <div class="aop-notation">
+          <label for="aopNotation">AOP Notation</label>
+          <textarea id="aopNotation" placeholder="Add reusable notation for this AOP (applies across days and months)..."></textarea>
+          <div class="hint" id="aopNotationState">Select an AOP to edit notation.</div>
+        </div>
+
         <div class="aop-list" id="aopList"></div>
       </div>
 
@@ -1465,6 +1592,34 @@
     <button id="undoToastBtn" class="btn-ghost" type="button">Undo</button>
   </div>
 </main>
+<div id="syncLoginBackdrop" class="sync-login-backdrop" aria-hidden="true"></div>
+<section id="syncLoginModal" class="sync-login-modal" role="dialog" aria-modal="true" aria-labelledby="syncLoginTitle" aria-describedby="syncFormHint syncStatus" aria-hidden="true">
+  <div class="sync-login-head">
+    <div>
+      <h3 id="syncLoginTitle">Team Login</h3>
+      <div class="small">Sign in and connect this browser to your team workspace.</div>
+    </div>
+    <button id="syncModalCloseBtn" class="btn-ghost" type="button" aria-label="Close login">Close</button>
+  </div>
+  <div class="sync-login-body">
+    <div>
+      <label for="syncEmail">Email</label>
+      <input id="syncEmail" type="email" placeholder="you@company.com" autocomplete="username" />
+    </div>
+    <div>
+      <label for="syncPassword">Password</label>
+      <div class="sync-password-row">
+        <input id="syncPassword" type="password" placeholder="Password" autocomplete="current-password" />
+        <button id="syncPasswordToggle" class="btn-ghost" type="button" aria-pressed="false" aria-controls="syncPassword" title="Show or hide password">Show</button>
+      </div>
+    </div>
+    <div id="syncFormHint" class="small sync-help">Leave password empty to reuse an existing saved session.</div>
+    <div class="sync-login-foot">
+      <button id="syncModalConnectBtn" class="btn-primary" type="button">Sign In & Connect</button>
+      <button id="syncModalCancelBtn" class="btn-ghost" type="button">Cancel</button>
+    </div>
+  </div>
+</section>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
@@ -1478,7 +1633,7 @@
  *     dayNoteFilters:{thisMonth:boolean},
  *     calendarUI:{compact:boolean,markedOnly:boolean,activeOnly:boolean,focus:"both"|"planned"|"actual"}
  *   }
- * - aops: {id:{id,name,color,area}}
+ * - aops: {id:{id,name,color,area,notation,notation_updated_at}}
  * - aopMonthly: { [aopId]: { [YYYY-MM]: {
  *      goal, comments, required:boolean,
  *      created_at, updated_at,
@@ -1518,9 +1673,12 @@ const COLOR_THEMES = {
 
 let ui = {};
 let dayNoteAutosaveTimer = null;
+let aopNotationSaveTimer = null;
 let dayNotesDrawerOpen = false;
 let undoToastTimer = null;
 let undoMarkAction = null;
+let syncLoginModalOpen = false;
+let syncLoginLastFocus = null;
 const MAX_MARK_BARS = 4;
 const TEAM_SYNC_TABLE = "planner_workspaces";
 const TEAM_SYNC_SAVE_DEBOUNCE_MS = 450;
@@ -2215,7 +2373,12 @@ function migrateIfNeeded(st){
   st.dayNotes = st.dayNotes || {};
   for(const aopId of Object.keys(st.aops)){
     const a = st.aops[aopId] || {};
-    st.aops[aopId] = { ...a, area: normalizeAreaId(a.area) };
+    st.aops[aopId] = {
+      ...a,
+      area: normalizeAreaId(a.area),
+      notation: typeof a.notation === "string" ? a.notation : "",
+      notation_updated_at: typeof a.notation_updated_at === "string" ? a.notation_updated_at : ""
+    };
   }
 
   // Normalize monthly templates
@@ -2389,6 +2552,48 @@ function hasSyncCoreConfig(){
   return !!(url && anon && workspace);
 }
 
+function setSyncLoginModal(open){
+  const on = open === true;
+  if(!ui.syncLoginModal || !ui.syncLoginBackdrop) return;
+  syncLoginModalOpen = on;
+  ui.syncLoginModal.classList.toggle("open", on);
+  ui.syncLoginBackdrop.classList.toggle("open", on);
+  ui.syncLoginModal.setAttribute("aria-hidden", on ? "false" : "true");
+  ui.syncLoginBackdrop.setAttribute("aria-hidden", on ? "false" : "true");
+  if(on){
+    syncLoginLastFocus = document.activeElement;
+    setSyncPasswordVisibility(false);
+    requestAnimationFrame(() => {
+      if(ui.syncEmail?.value){
+        ui.syncPassword?.focus();
+      }else{
+        ui.syncEmail?.focus();
+      }
+    });
+  }else{
+    if(ui.syncPassword) ui.syncPassword.value = "";
+    setSyncPasswordVisibility(false);
+    if(syncLoginLastFocus && typeof syncLoginLastFocus.focus === "function"){
+      syncLoginLastFocus.focus();
+    }
+    syncLoginLastFocus = null;
+  }
+}
+
+function openSyncLoginModal(){
+  if(!hasSyncCoreConfig()){
+    markSyncFieldErrors([ui.syncSupabaseUrl, ui.syncSupabaseAnonKey, ui.syncWorkspaceId]);
+    setTeamSyncStatus("Fill workspace settings first", true);
+    return;
+  }
+  clearSyncFieldErrors();
+  setSyncLoginModal(true);
+}
+
+function closeSyncLoginModal(){
+  setSyncLoginModal(false);
+}
+
 function syncRoleLabel(role){
   const raw = String(role || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
   if(raw === "teamlead" || raw === "admin") return "teamlead";
@@ -2483,7 +2688,13 @@ function renderTeamSyncMeta(){
       : `Not connected. Workspace: ${workspace}`;
   }
   if(ui.syncConnectBtn){
-    ui.syncConnectBtn.textContent = connected ? "Reconnect" : "Sign In & Connect";
+    ui.syncConnectBtn.textContent = connected ? "Account" : "Open Login";
+  }
+  if(ui.syncOpenLoginBtn){
+    ui.syncOpenLoginBtn.textContent = connected ? "Switch Account" : "Open Login";
+  }
+  if(ui.syncModalConnectBtn){
+    ui.syncModalConnectBtn.textContent = connected ? "Reconnect Account" : "Sign In & Connect";
   }
 }
 
@@ -2494,10 +2705,14 @@ function applyTeamSyncUiState(){
     ui.syncPanel.setAttribute("aria-busy", busy ? "true" : "false");
   }
   if(ui.syncConnectBtn) ui.syncConnectBtn.disabled = busy || !hasSyncCoreConfig();
+  if(ui.syncOpenLoginBtn) ui.syncOpenLoginBtn.disabled = busy || !hasSyncCoreConfig();
   if(ui.syncDisconnectBtn) ui.syncDisconnectBtn.disabled = !connected || busy;
   if(ui.syncAutoBtn) ui.syncAutoBtn.disabled = busy;
   if(ui.syncPullBtn) ui.syncPullBtn.disabled = !connected || busy;
   if(ui.syncPushBtn) ui.syncPushBtn.disabled = !connected || busy;
+  if(ui.syncModalConnectBtn) ui.syncModalConnectBtn.disabled = busy || !hasSyncCoreConfig();
+  if(ui.syncModalCancelBtn) ui.syncModalCancelBtn.disabled = busy;
+  if(ui.syncModalCloseBtn) ui.syncModalCloseBtn.disabled = busy;
   if(ui.syncPasswordToggle) ui.syncPasswordToggle.disabled = busy;
   renderTeamAutoSyncBtn();
   renderTeamSyncConnectionState();
@@ -2762,6 +2977,7 @@ async function connectTeamSync(opts){
     teamSync.connected = true;
     await pullRemoteState({ quiet:true });
     await subscribeTeamSyncRealtime();
+    closeSyncLoginModal();
 
     setTeamSyncStatus(`Connected: ${teamSync.userEmail || "user"} (${isTeamAutoSyncEnabled() ? "auto on" : "auto off"})`);
   }catch(err){
@@ -2797,6 +3013,7 @@ async function disconnectTeamSync(){
   teamSync.userId = null;
   teamSync.userEmail = "";
   teamSync.lastRemoteUpdatedAt = "";
+  closeSyncLoginModal();
   clearSyncFieldErrors();
   setSyncPasswordVisibility(false);
   setSyncRole("local");
@@ -2986,6 +3203,73 @@ function syncAopSelectors(id){
   if(ui.aopSelectGoals) ui.aopSelectGoals.value = safe;
 }
 
+function selectedAopForNotation(){
+  const id = selectedAopId();
+  return (id && view.state.aops[id] && isAopInArea(id)) ? id : null;
+}
+
+function setAopNotationState(msg){
+  if(ui.aopNotationState) ui.aopNotationState.textContent = msg || "";
+}
+
+function loadAopNotationUI(){
+  if(!ui.aopNotation) return;
+  const aopId = selectedAopForNotation();
+  if(!aopId){
+    ui.aopNotation.value = "";
+    ui.aopNotation.disabled = true;
+    setAopNotationState("Select an AOP to edit notation.");
+    return;
+  }
+  const a = view.state.aops[aopId];
+  ui.aopNotation.disabled = false;
+  ui.aopNotation.value = (a?.notation || "");
+  setAopNotationState(`Last updated: ${fmtIsoShort(a?.notation_updated_at || "")}`);
+}
+
+function persistAopNotation(aopId, rawText){
+  if(!aopId || !view.state.aops[aopId]) return false;
+  const a = view.state.aops[aopId];
+  const normalized = String(rawText || "").replace(/\r\n/g, "\n");
+  const next = normalized.trim().length ? normalized : "";
+  if((a.notation || "") === next){
+    if(selectedAopForNotation() === aopId){
+      setAopNotationState(`Saved ${timeShort()}`);
+    }
+    return false;
+  }
+  a.notation = next;
+  a.notation_updated_at = next ? nowIso() : "";
+  saveState();
+  if(selectedAopForNotation() === aopId){
+    setAopNotationState(`Saved ${timeShort()}`);
+  }
+  renderAopCatalog();
+  return true;
+}
+
+function saveAopNotation(){
+  if(!ui.aopNotation) return;
+  const aopId = selectedAopForNotation();
+  if(!aopId) return;
+  persistAopNotation(aopId, ui.aopNotation.value || "");
+}
+
+function scheduleAopNotationSave(){
+  if(!ui.aopNotation) return;
+  const aopId = selectedAopForNotation();
+  if(!aopId) return;
+  const snapshot = ui.aopNotation.value || "";
+  if(aopNotationSaveTimer){
+    clearTimeout(aopNotationSaveTimer);
+  }
+  setAopNotationState("Saving...");
+  aopNotationSaveTimer = setTimeout(() => {
+    aopNotationSaveTimer = null;
+    persistAopNotation(aopId, snapshot);
+  }, 450);
+}
+
 /* --- AOP catalog UI --- */
 function renderAopCatalog(){
   const order = visibleAopOrder();
@@ -3053,7 +3337,11 @@ function renderAopCatalog(){
 
       const name = document.createElement("div");
       name.className = "name";
-      name.textContent = a.name;
+      const notePreview = String(a.notation || "").trim();
+      const clipped = notePreview.length > 80 ? `${notePreview.slice(0, 80)}...` : notePreview;
+      name.innerHTML = notePreview
+        ? `${escapeHtml(a.name)}<div class="small" style="margin-top:4px;">${escapeHtml(clipped)}</div>`
+        : escapeHtml(a.name);
 
       left.appendChild(sw);
       left.appendChild(name);
@@ -3114,6 +3402,7 @@ function renderAopCatalog(){
     ui.activeAopLabel.style.background = "rgba(255,255,255,.03)";
     ui.activeAopLabel.style.color = "var(--muted)";
   }
+  loadAopNotationUI();
 }
 
 function addAop(name, color, areaId){
@@ -3121,7 +3410,14 @@ function addAop(name, color, areaId){
   if(!clean){ alert("Enter an AOP name."); return; }
   const theme = COLOR_THEMES[currentThemeId()] || COLOR_THEMES[DEFAULT_THEME];
   const id = uuid();
-  view.state.aops[id] = { id, name: clean, color: color || theme.power, area: normalizeAreaId(areaId || suggestedAreaForNewAop()) };
+  view.state.aops[id] = {
+    id,
+    name: clean,
+    color: color || theme.power,
+    area: normalizeAreaId(areaId || suggestedAreaForNewAop()),
+    notation: "",
+    notation_updated_at: ""
+  };
   view.state.aopOrder = [...(view.state.aopOrder||[]), id];
   view.state.activeAopId = id;
   if(!view.state.aopMonthly[id]) view.state.aopMonthly[id] = {};
@@ -4129,6 +4425,11 @@ function handleGlobalShortcuts(event){
     return;
   }
   if(key === "escape"){
+    if(syncLoginModalOpen){
+      event.preventDefault();
+      closeSyncLoginModal();
+      return;
+    }
     if(dayNotesDrawerOpen){
       event.preventDefault();
       setDayNotesDrawer(false, false);
@@ -4259,6 +4560,10 @@ function hookUI(){
     ui.aopNewName.value = "";
   });
   ui.aopSearch.addEventListener("input", renderAopCatalog);
+  if(ui.aopNotation){
+    ui.aopNotation.addEventListener("input", scheduleAopNotationSave);
+    ui.aopNotation.addEventListener("blur", saveAopNotation);
+  }
 
   const onAopSelectionChange = (nextId) => {
     const id = nextId || "";
@@ -4318,12 +4623,37 @@ function hookUI(){
   ui.printBtn.addEventListener("click", printView);
   if(ui.syncConnectBtn){
     ui.syncConnectBtn.addEventListener("click", () => {
-      connectTeamSync({ manual:true });
+      openSyncLoginModal();
+    });
+  }
+  if(ui.syncOpenLoginBtn){
+    ui.syncOpenLoginBtn.addEventListener("click", () => {
+      openSyncLoginModal();
     });
   }
   if(ui.syncDisconnectBtn){
     ui.syncDisconnectBtn.addEventListener("click", () => {
       disconnectTeamSync();
+    });
+  }
+  if(ui.syncModalConnectBtn){
+    ui.syncModalConnectBtn.addEventListener("click", () => {
+      connectTeamSync({ manual:true });
+    });
+  }
+  if(ui.syncModalCancelBtn){
+    ui.syncModalCancelBtn.addEventListener("click", () => {
+      closeSyncLoginModal();
+    });
+  }
+  if(ui.syncModalCloseBtn){
+    ui.syncModalCloseBtn.addEventListener("click", () => {
+      closeSyncLoginModal();
+    });
+  }
+  if(ui.syncLoginBackdrop){
+    ui.syncLoginBackdrop.addEventListener("click", () => {
+      closeSyncLoginModal();
     });
   }
   if(ui.syncPasswordToggle){
@@ -4403,11 +4733,17 @@ function init(){
     syncSupabaseUrl: document.getElementById("syncSupabaseUrl"),
     syncSupabaseAnonKey: document.getElementById("syncSupabaseAnonKey"),
     syncWorkspaceId: document.getElementById("syncWorkspaceId"),
+    syncOpenLoginBtn: document.getElementById("syncOpenLoginBtn"),
     syncEmail: document.getElementById("syncEmail"),
     syncPassword: document.getElementById("syncPassword"),
     syncPasswordToggle: document.getElementById("syncPasswordToggle"),
     syncConnectBtn: document.getElementById("syncConnectBtn"),
     syncDisconnectBtn: document.getElementById("syncDisconnectBtn"),
+    syncLoginModal: document.getElementById("syncLoginModal"),
+    syncLoginBackdrop: document.getElementById("syncLoginBackdrop"),
+    syncModalConnectBtn: document.getElementById("syncModalConnectBtn"),
+    syncModalCancelBtn: document.getElementById("syncModalCancelBtn"),
+    syncModalCloseBtn: document.getElementById("syncModalCloseBtn"),
     syncAutoBtn: document.getElementById("syncAutoBtn"),
     syncPullBtn: document.getElementById("syncPullBtn"),
     syncPushBtn: document.getElementById("syncPushBtn"),
@@ -4471,6 +4807,8 @@ function init(){
     activeAopPill: document.getElementById("activeAopPill"),
     aopList: document.getElementById("aopList"),
     activeAopLabel: document.getElementById("activeAopLabel"),
+    aopNotation: document.getElementById("aopNotation"),
+    aopNotationState: document.getElementById("aopNotationState"),
     aopSelect: document.getElementById("aopSelect"),
     aopSelectGoals: document.getElementById("aopSelectGoals"),
     paneCatalogBtn: document.getElementById("paneCatalogBtn"),
@@ -4512,6 +4850,7 @@ function init(){
   buildSelectors();
   renderDows();
   applyTeamSyncConfigToInputs();
+  setSyncLoginModal(false);
   setSyncRole("local");
   setTeamSyncStatus("Local-only mode");
   applyTeamSyncUiState();
@@ -4533,7 +4872,14 @@ function init(){
     ];
     for(const s of seeds){
       const id = uuid();
-      view.state.aops[id] = { id, name: s.name, color: s.color, area: DEFAULT_AREA_VIEW };
+      view.state.aops[id] = {
+        id,
+        name: s.name,
+        color: s.color,
+        area: DEFAULT_AREA_VIEW,
+        notation: "",
+        notation_updated_at: ""
+      };
       view.state.aopOrder.push(id);
       view.state.aopMonthly[id] = view.state.aopMonthly[id] || {};
       ensureMonthly(id, ymKey(now.getFullYear(), now.getMonth()));
@@ -4564,7 +4910,3 @@ init();
 </script>
 </body>
 </html>
-
-
-
-
