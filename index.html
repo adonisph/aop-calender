@@ -139,6 +139,10 @@
       display: grid;
       gap: 8px;
     }
+    .sync-panel:focus-within{
+      border-color: rgba(var(--power-rgb),.70);
+      box-shadow: 0 0 0 3px rgba(var(--power-rgb),.14);
+    }
     .sync-grid{
       display:grid;
       grid-template-columns: 1.3fr 1.3fr 1fr;
@@ -154,6 +158,36 @@
       flex-wrap:wrap;
       gap:8px;
       align-items:center;
+    }
+    .sync-panel.disconnected{
+      border-color: rgba(239,68,68,.78);
+      background: rgba(239,68,68,.09);
+      box-shadow: 0 0 0 3px rgba(239,68,68,.14);
+    }
+    .sync-warning{
+      color: rgba(255,142,142,.96);
+      font-weight: 700;
+      display: none;
+    }
+    .sync-help{
+      color: var(--muted);
+    }
+    #syncStatus{
+      border-color: rgba(255,255,255,.24);
+      color: var(--text);
+      background: rgba(255,255,255,.06);
+      font-weight: 700;
+    }
+    .sr-only{
+      position:absolute !important;
+      width:1px;
+      height:1px;
+      padding:0;
+      margin:-1px;
+      overflow:hidden;
+      clip:rect(0,0,0,0);
+      white-space:nowrap;
+      border:0;
     }
     @media (max-width:900px){
       .sync-grid, .sync-grid-2{ grid-template-columns:1fr; }
@@ -1023,35 +1057,36 @@
         <button id="printBtn" type="button" title="Print / Save as PDF">Print</button>
         <button id="wipe" class="btn-danger" type="button" title="Clear all saved data">Clear All</button>
       </div>
-      <div class="sync-panel" id="syncPanel">
+      <div class="sync-panel" id="syncPanel" role="region" aria-labelledby="syncPanelTitle" aria-describedby="syncHelp syncWarning" aria-busy="false">
         <div class="item-head" style="margin:0;">
           <div>
-            <strong>Team Sync</strong>
+            <strong id="syncPanelTitle">Team Sync</strong>
             <div class="small">Shared workspace via Supabase. One source of truth for your team.</div>
           </div>
           <span id="syncRoleBadge" class="status-pill">Role: local</span>
         </div>
+        <div id="syncHelp" class="small sync-help">Connect once. Keep Auto Sync ON for instant team updates, or OFF to draft locally then use Push Now.</div>
         <div class="sync-grid">
           <div>
-            <label>Supabase URL</label>
-            <input id="syncSupabaseUrl" placeholder="https://YOUR_PROJECT.supabase.co" autocomplete="off" />
+            <label for="syncSupabaseUrl">Supabase URL</label>
+            <input id="syncSupabaseUrl" placeholder="https://YOUR_PROJECT.supabase.co" autocomplete="url" spellcheck="false" />
           </div>
           <div>
-            <label>Supabase Anon Key</label>
-            <input id="syncSupabaseAnonKey" placeholder="eyJ..." autocomplete="off" />
+            <label for="syncSupabaseAnonKey">Supabase Anon Key</label>
+            <input id="syncSupabaseAnonKey" placeholder="eyJ..." autocomplete="off" spellcheck="false" />
           </div>
           <div>
-            <label>Workspace ID</label>
-            <input id="syncWorkspaceId" placeholder="nordics-team" autocomplete="off" />
+            <label for="syncWorkspaceId">Workspace ID</label>
+            <input id="syncWorkspaceId" placeholder="nordics-team" autocomplete="off" spellcheck="false" />
           </div>
         </div>
         <div class="sync-grid-2">
           <div>
-            <label>Email</label>
+            <label for="syncEmail">Email</label>
             <input id="syncEmail" type="email" placeholder="you@company.com" autocomplete="username" />
           </div>
           <div>
-            <label>Password</label>
+            <label for="syncPassword">Password</label>
             <input id="syncPassword" type="password" placeholder="Password" autocomplete="current-password" />
           </div>
         </div>
@@ -1061,8 +1096,9 @@
           <button id="syncAutoBtn" class="btn-ghost btn-toggle on" type="button" aria-pressed="true" title="Toggle automatic team sync for local edits">Auto Sync: ON</button>
           <button id="syncPullBtn" class="btn-ghost" type="button">Pull Latest</button>
           <button id="syncPushBtn" class="btn-ghost" type="button">Push Now</button>
-          <span id="syncStatus" class="status-pill">Local-only mode</span>
+          <span id="syncStatus" class="status-pill" role="status" aria-live="polite" aria-atomic="true">Local-only mode</span>
         </div>
+        <div id="syncWarning" class="small sync-warning" role="alert" aria-live="assertive" aria-atomic="true">Offline mode: changes are local only until you connect.</div>
       </div>
     </div>
   </section>
@@ -1390,13 +1426,13 @@ const DEFAULT_AREA_VIEW = "pool";
 const DEFAULT_THEME = "ember";
 const DAY_NOTE_AUTOSAVE_MS = 700;
 const COLOR_THEMES = {
-  ember:   { power:"#ff6a00", powerRgb:"255,106,0",   bg0:"#000000", bg1:"#070707", rainRgb:"255,168,84",  rainAlpha:.36, rainSpeed:"24s", rainSpeed2:"38s" },
-  ocean:   { power:"#22c3ff", powerRgb:"34,195,255",  bg0:"#03131c", bg1:"#072333", rainRgb:"130,220,255", rainAlpha:.38, rainSpeed:"22s", rainSpeed2:"34s" },
-  forest:  { power:"#7fd46b", powerRgb:"127,212,107", bg0:"#061208", bg1:"#102014", rainRgb:"140,255,157", rainAlpha:.40, rainSpeed:"21s", rainSpeed2:"32s" },
-  sunset:  { power:"#ff5c7a", powerRgb:"255,92,122",  bg0:"#17070d", bg1:"#260b14", rainRgb:"255,132,150", rainAlpha:.36, rainSpeed:"23s", rainSpeed2:"35s" },
-  matrix:  { power:"#31ff87", powerRgb:"49,255,135",  bg0:"#010705", bg1:"#02140b", rainRgb:"86,255,170",  rainAlpha:.56, rainSpeed:"17s", rainSpeed2:"27s" },
-  slate:   { power:"#9fb3c8", powerRgb:"159,179,200", bg0:"#06080b", bg1:"#111821", rainRgb:"184,202,225", rainAlpha:.34, rainSpeed:"26s", rainSpeed2:"40s" },
-  crimson: { power:"#ff5864", powerRgb:"255,88,100",  bg0:"#0e0508", bg1:"#1d0a10", rainRgb:"255,140,148", rainAlpha:.38, rainSpeed:"22s", rainSpeed2:"34s" }
+  ember:   { power:"#ff6a00", powerRgb:"255,106,0",   bg0:"#000000", bg1:"#070707", rainRgb:"255,168,84",  rainAlpha:.36, rainSpeed:"32s", rainSpeed2:"48s" },
+  ocean:   { power:"#22c3ff", powerRgb:"34,195,255",  bg0:"#03131c", bg1:"#072333", rainRgb:"130,220,255", rainAlpha:.38, rainSpeed:"30s", rainSpeed2:"46s" },
+  forest:  { power:"#7fd46b", powerRgb:"127,212,107", bg0:"#061208", bg1:"#102014", rainRgb:"140,255,157", rainAlpha:.40, rainSpeed:"30s", rainSpeed2:"44s" },
+  sunset:  { power:"#ff5c7a", powerRgb:"255,92,122",  bg0:"#17070d", bg1:"#260b14", rainRgb:"255,132,150", rainAlpha:.36, rainSpeed:"31s", rainSpeed2:"46s" },
+  matrix:  { power:"#31ff87", powerRgb:"49,255,135",  bg0:"#010705", bg1:"#02140b", rainRgb:"86,255,170",  rainAlpha:.56, rainSpeed:"26s", rainSpeed2:"39s" },
+  slate:   { power:"#9fb3c8", powerRgb:"159,179,200", bg0:"#06080b", bg1:"#111821", rainRgb:"184,202,225", rainAlpha:.34, rainSpeed:"34s", rainSpeed2:"50s" },
+  crimson: { power:"#ff5864", powerRgb:"255,88,100",  bg0:"#0e0508", bg1:"#1d0a10", rainRgb:"255,140,148", rainAlpha:.38, rainSpeed:"30s", rainSpeed2:"45s" }
 };
 
 let ui = {};
@@ -1632,7 +1668,7 @@ function drawMatrixRainFrame(){
     rainCtx.fillStyle = `rgba(${rainRgb},${Math.max(.16, streamAlpha - .06)})`;
     rainCtx.fillText(matrixGlyph(), x, y - rainFontSize);
 
-    const speed = 0.34 + (Math.random() * 0.30);
+    const speed = 0.18 + (Math.random() * 0.14);
     rainDrops[i] += speed;
     if((y > h + (Math.random() * 420)) && Math.random() > 0.985){
       rainDrops[i] = Math.random() * -28;
@@ -2243,9 +2279,16 @@ function normalizeWorkspaceId(raw){
 }
 
 function syncRoleLabel(role){
-  if(role === "teamlead" || role === "admin") return "teamlead";
-  if(role === "member") return "member";
+  const raw = String(role || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if(raw === "teamlead" || raw === "admin") return "teamlead";
+  if(raw === "ai_specialist" || raw === "aispecialist") return "ai specialist";
+  if(raw === "member") return "member";
   return "local";
+}
+
+function hasPrivilegedSyncRole(role){
+  const safe = syncRoleLabel(role);
+  return safe === "teamlead" || safe === "ai specialist";
 }
 
 function setSyncRole(role){
@@ -2285,20 +2328,35 @@ function applyTeamSyncConfigToInputs(){
 function applyTeamSyncUiState(){
   const connected = !!teamSync.connected;
   const busy = !!teamSyncBusy;
+  if(ui.syncPanel){
+    ui.syncPanel.setAttribute("aria-busy", busy ? "true" : "false");
+  }
   if(ui.syncConnectBtn) ui.syncConnectBtn.disabled = busy;
   if(ui.syncDisconnectBtn) ui.syncDisconnectBtn.disabled = !connected || busy;
   if(ui.syncAutoBtn) ui.syncAutoBtn.disabled = busy;
   if(ui.syncPullBtn) ui.syncPullBtn.disabled = !connected || busy;
   if(ui.syncPushBtn) ui.syncPushBtn.disabled = !connected || busy;
   renderTeamAutoSyncBtn();
+  renderTeamSyncConnectionState();
   applyTeamRoleUi();
 }
 
+function renderTeamSyncConnectionState(){
+  const disconnected = !teamSync.connected;
+  if(ui.syncPanel){
+    ui.syncPanel.classList.toggle("disconnected", disconnected);
+  }
+  if(ui.syncWarning){
+    ui.syncWarning.style.display = disconnected ? "block" : "none";
+    ui.syncWarning.setAttribute("aria-hidden", disconnected ? "false" : "true");
+  }
+}
+
 function applyTeamRoleUi(){
-  const restricted = teamSync.connected && teamSync.role !== "teamlead";
+  const restricted = teamSync.connected && !hasPrivilegedSyncRole(teamSync.role);
   if(ui.wipe){
     ui.wipe.disabled = restricted;
-    ui.wipe.title = restricted ? "Only teamlead can clear all while team sync is connected." : "Clear all saved data";
+    ui.wipe.title = restricted ? "Only teamlead or AI specialist can clear all while team sync is connected." : "Clear all saved data";
   }
   if(ui.importBtn){
     ui.importBtn.disabled = false;
@@ -4149,6 +4207,7 @@ function init(){
     syncPullBtn: document.getElementById("syncPullBtn"),
     syncPushBtn: document.getElementById("syncPushBtn"),
     syncStatus: document.getElementById("syncStatus"),
+    syncWarning: document.getElementById("syncWarning"),
     syncRoleBadge: document.getElementById("syncRoleBadge"),
     toggleDashboard: document.getElementById("toggleDashboard"),
     toggleCalendars: document.getElementById("toggleCalendars"),
