@@ -397,10 +397,12 @@
     .customize-popout{
       position:absolute;
       top: calc(100% + 8px);
-      left:0;
+      right:0;
+      left:auto;
       z-index: 65;
       min-width: min(520px, calc(100vw - 32px));
       max-width: min(720px, calc(100vw - 32px));
+      max-height: min(78vh, 720px);
       border:1px solid var(--line);
       border-radius: 12px;
       background: linear-gradient(180deg, #141414, #101010);
@@ -408,6 +410,12 @@
       padding: 10px;
       display:grid;
       gap:10px;
+      overflow:auto;
+      overflow-x:hidden;
+    }
+    #headerRow.topbar-side-left .customize-popout{
+      left:0;
+      right:auto;
     }
     .customize-popout[hidden]{ display:none !important; }
     .customize-grid{
