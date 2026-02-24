@@ -2541,6 +2541,9 @@ let undoToastTimer = null;
 let undoMarkAction = null;
 let customizeOpen = false;
 let paletteLabSyncing = false;
+let customColorPickerActive = false;
+let customColorPickerTimer = null;
+let lastAppliedTopbarOrderKey = "";
 let syncLoginModalOpen = false;
 let syncLoginLastFocus = null;
 let onboardingAutoDismissBound = false;
@@ -3101,8 +3104,19 @@ function setUiPrefs(next, persist){
   };
   view.state.settings.uiPrefs = safe;
   if(persist) saveState();
+  const keepCustomizeScroll = customizeOpen && !!ui.customizePopout && ui.customizePopout.hidden !== true;
+  const popoutScrollTop = keepCustomizeScroll ? ui.customizePopout.scrollTop : 0;
+  const popoutScrollLeft = keepCustomizeScroll ? ui.customizePopout.scrollLeft : 0;
+  const pageScrollY = window.scrollY;
   applyUiPrefs();
   renderRainToggle();
+  if(keepCustomizeScroll && ui.customizePopout){
+    ui.customizePopout.scrollTop = popoutScrollTop;
+    ui.customizePopout.scrollLeft = popoutScrollLeft;
+  }
+  if(window.scrollY !== pageScrollY){
+    window.scrollTo({ top: pageScrollY, left: window.scrollX, behavior:"auto" });
+  }
 }
 function applyUiPrefs(){
   const prefs = normalizedUiPrefs();
@@ -3195,6 +3209,8 @@ function topbarItems(){
 function applyTopbarOrder(order){
   if(!ui.topbarToolbar) return;
   const safeOrder = normalizeTopbarOrder(order);
+  const nextKey = safeOrder.join("|");
+  if(nextKey === lastAppliedTopbarOrderKey) return;
   const byKey = new Map(topbarItems().map(el => [String(el.dataset.tbKey || ""), el]));
   for(const key of safeOrder){
     const item = byKey.get(key);
@@ -3203,6 +3219,7 @@ function applyTopbarOrder(order){
   for(const item of byKey.values()){
     if(item.parentElement !== ui.topbarToolbar) ui.topbarToolbar.appendChild(item);
   }
+  lastAppliedTopbarOrderKey = nextKey;
 }
 function setTopbarMoreOpen(open){
   const next = open === true;
@@ -3211,12 +3228,45 @@ function setTopbarMoreOpen(open){
 }
 function setCustomizeOpen(open){
   customizeOpen = open === true;
+  if(!customizeOpen){
+    customColorPickerActive = false;
+    if(customColorPickerTimer){
+      clearTimeout(customColorPickerTimer);
+      customColorPickerTimer = null;
+    }
+  }
   if(ui.customizePopout) ui.customizePopout.hidden = !customizeOpen;
   if(ui.customizeToggleBtn){
     syncToggleBtn(ui.customizeToggleBtn, customizeOpen);
     ui.customizeToggleBtn.setAttribute("aria-expanded", customizeOpen ? "true" : "false");
     ui.customizeToggleBtn.textContent = customizeOpen ? "Customize: ON" : "Customize";
   }
+}
+function setCustomColorPickerActive(active, delayMs){
+  if(customColorPickerTimer){
+    clearTimeout(customColorPickerTimer);
+    customColorPickerTimer = null;
+  }
+  if(active){
+    customColorPickerActive = true;
+    return;
+  }
+  const delay = Number.isFinite(delayMs) ? Math.max(0, delayMs) : 0;
+  if(delay > 0){
+    customColorPickerTimer = setTimeout(() => {
+      customColorPickerActive = false;
+      customColorPickerTimer = null;
+    }, delay);
+    return;
+  }
+  customColorPickerActive = false;
+}
+function isCustomColorPickerActive(){
+  const active = document.activeElement;
+  const focusedColorInput =
+    active instanceof HTMLInputElement &&
+    (active.type || "").toLowerCase() === "color";
+  return customColorPickerActive || focusedColorInput;
 }
 function applyLayoutPreset(presetId, persist){
   const preset = ["focus","review","sync","dashboard"].includes(presetId) ? presetId : "custom";
@@ -6390,12 +6440,7 @@ function hookUI(){
     document.addEventListener("pointerdown", (event) => {
       const target = event.target;
       if(!(target instanceof Node)) return;
-      const active = document.activeElement;
-      const colorPickerOpen =
-        customizeOpen &&
-        active instanceof HTMLInputElement &&
-        (active.type || "").toLowerCase() === "color";
-      if(colorPickerOpen) return;
+      if(customizeOpen && isCustomColorPickerActive()) return;
       if(ui.topbarMoreWrap?.contains(target)) return;
       if(ui.customizeWrap?.contains(target)) return;
       setTopbarMoreOpen(false);
@@ -6506,18 +6551,24 @@ function hookUI(){
   const bindCustomColorInput = (el, key) => {
     if(!el) return;
     el.addEventListener("pointerdown", (event) => {
+      setCustomColorPickerActive(true);
       event.stopPropagation();
     });
+    el.addEventListener("focus", () => setCustomColorPickerActive(true));
+    el.addEventListener("click", () => setCustomColorPickerActive(true));
     el.addEventListener("input", () => {
+      setCustomColorPickerActive(true);
       const cur = normalizedUiPrefs();
       const nextColors = { ...cur.customColors, [key]: normalizeHexColor(el.value, cur.customColors[key]) };
       setUiPrefs({ ...cur, customColorsEnabled:true, customColors: nextColors }, false);
     });
     el.addEventListener("change", () => {
+      setCustomColorPickerActive(false, 220);
       const cur = normalizedUiPrefs();
       const nextColors = { ...cur.customColors, [key]: normalizeHexColor(el.value, cur.customColors[key]) };
       setUiPrefs({ ...cur, customColorsEnabled:true, customColors: nextColors }, true);
     });
+    el.addEventListener("blur", () => setCustomColorPickerActive(false, 220));
   };
   bindCustomColorInput(ui.customColorPower, "power");
   bindCustomColorInput(ui.customColorBg0, "bg0");
