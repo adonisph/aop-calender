@@ -464,9 +464,61 @@
       cursor:not-allowed;
       opacity:.55;
     }
+    .customize-palette-lab{
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:10px;
+      background: rgba(255,255,255,.02);
+      padding:8px;
+      display:grid;
+      gap:8px;
+    }
+    .customize-palette-head{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+    .customize-palette-head label{
+      margin:0;
+      min-width: 72px;
+    }
+    .customize-palette-head select{
+      min-width: 180px;
+      flex: 1 1 180px;
+    }
+    .customize-palette-preview{
+      width: 34px;
+      height: 26px;
+      border-radius: 8px;
+      border:1px solid var(--line);
+      background: var(--power);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
+    }
+    .customize-palette-grid{
+      display:grid;
+      grid-template-columns: repeat(3, minmax(120px, 1fr));
+      gap:8px;
+    }
+    .customize-palette-slider{
+      display:grid;
+      gap:4px;
+    }
+    .customize-palette-slider .small{
+      color: var(--muted);
+      font-size: 11px;
+    }
+    .customize-palette-slider input[type="range"]{
+      width:100%;
+      accent-color: var(--power);
+    }
+    .customize-palette-slider input[type="range"]:disabled{
+      opacity:.55;
+      cursor:not-allowed;
+    }
     @media (max-width: 760px){
       .customize-grid{ grid-template-columns: 1fr; }
       .customize-color-grid{ grid-template-columns: repeat(2, minmax(120px, 1fr)); }
+      .customize-palette-grid{ grid-template-columns: 1fr; }
     }
     .sync-panel{
       margin-top: 10px;
@@ -1882,6 +1934,37 @@
                   <div class="customize-color-item"><label for="customColorMuted">Muted Text</label><input id="customColorMuted" type="color" value="#b3b3b3" /></div>
                   <div class="customize-color-item"><label for="customColorRain">Rain</label><input id="customColorRain" type="color" value="#ffab62" /></div>
                 </div>
+                <div class="customize-palette-lab">
+                  <div class="customize-palette-head">
+                    <label for="paletteTargetSelect">Palette Lab</label>
+                    <select id="paletteTargetSelect" title="Select color target">
+                      <option value="power">Accent</option>
+                      <option value="bg0">Background Base</option>
+                      <option value="bg1">Background Glow</option>
+                      <option value="surface">Surface</option>
+                      <option value="surfaceSoft">Surface Soft</option>
+                      <option value="line">Border</option>
+                      <option value="text">Text</option>
+                      <option value="muted">Muted Text</option>
+                      <option value="rain">Rain</option>
+                    </select>
+                    <span id="palettePreviewSwatch" class="customize-palette-preview" aria-hidden="true"></span>
+                  </div>
+                  <div class="customize-palette-grid">
+                    <div class="customize-palette-slider">
+                      <label for="paletteHueRange">Hue <span id="paletteHueVal" class="small">0</span></label>
+                      <input id="paletteHueRange" type="range" min="0" max="360" step="1" value="0" />
+                    </div>
+                    <div class="customize-palette-slider">
+                      <label for="paletteSatRange">Saturation <span id="paletteSatVal" class="small">0%</span></label>
+                      <input id="paletteSatRange" type="range" min="0" max="100" step="1" value="0" />
+                    </div>
+                    <div class="customize-palette-slider">
+                      <label for="paletteLightRange">Lightness <span id="paletteLightVal" class="small">0%</span></label>
+                      <input id="paletteLightRange" type="range" min="0" max="100" step="1" value="0" />
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -2418,6 +2501,7 @@ let dayNotesDrawerOpen = false;
 let undoToastTimer = null;
 let undoMarkAction = null;
 let customizeOpen = false;
+let paletteLabSyncing = false;
 let syncLoginModalOpen = false;
 let syncLoginLastFocus = null;
 let onboardingAutoDismissBound = false;
@@ -2589,6 +2673,67 @@ function rgbCsvToHex(raw, fallback){
   const [r,g,b] = parts.map(v => Math.max(0, Math.min(255, Math.round(v))));
   return `#${r.toString(16).padStart(2,"0")}${g.toString(16).padStart(2,"0")}${b.toString(16).padStart(2,"0")}`;
 }
+function clampNumber(value, min, max){
+  const n = Number(value);
+  if(!Number.isFinite(n)) return min;
+  return Math.min(max, Math.max(min, n));
+}
+function hexToHsl(hex){
+  const safe = normalizeHexColor(hex, "#000000").slice(1);
+  let r = parseInt(safe.slice(0,2), 16) / 255;
+  let g = parseInt(safe.slice(2,4), 16) / 255;
+  let b = parseInt(safe.slice(4,6), 16) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  let h = 0;
+  let s = 0;
+  if(max !== min){
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch(max){
+      case r: h = ((g - b) / d) + (g < b ? 6 : 0); break;
+      case g: h = ((b - r) / d) + 2; break;
+      default: h = ((r - g) / d) + 4; break;
+    }
+    h /= 6;
+  }
+  return {
+    h: Math.round(h * 360),
+    s: Math.round(s * 100),
+    l: Math.round(l * 100)
+  };
+}
+function hslToHex(h, s, l){
+  const hh = clampNumber(h, 0, 360) / 360;
+  const ss = clampNumber(s, 0, 100) / 100;
+  const ll = clampNumber(l, 0, 100) / 100;
+  let r, g, b;
+  if(ss === 0){
+    r = g = b = ll;
+  }else{
+    const hue2rgb = (p, q, t) => {
+      let tt = t;
+      if(tt < 0) tt += 1;
+      if(tt > 1) tt -= 1;
+      if(tt < 1/6) return p + (q - p) * 6 * tt;
+      if(tt < 1/2) return q;
+      if(tt < 2/3) return p + (q - p) * (2/3 - tt) * 6;
+      return p;
+    };
+    const q = ll < 0.5 ? ll * (1 + ss) : ll + ss - ll * ss;
+    const p = 2 * ll - q;
+    r = hue2rgb(p, q, hh + 1/3);
+    g = hue2rgb(p, q, hh);
+    b = hue2rgb(p, q, hh - 1/3);
+  }
+  return `#${Math.round(r * 255).toString(16).padStart(2,"0")}${Math.round(g * 255).toString(16).padStart(2,"0")}${Math.round(b * 255).toString(16).padStart(2,"0")}`;
+}
+function normalizePaletteTarget(raw){
+  const key = String(raw || "").trim();
+  const allowed = new Set(colorInputBindings().map(([k]) => k));
+  return allowed.has(key) ? key : "power";
+}
 function baseUiColors(themeId){
   const safeTheme = COLOR_THEMES[themeId] ? themeId : DEFAULT_THEME;
   const theme = COLOR_THEMES[safeTheme];
@@ -2651,6 +2796,56 @@ function colorInputBindings(){
     ["rain", ui.customColorRain]
   ];
 }
+function paletteLabControls(){
+  return [ui.paletteTargetSelect, ui.paletteHueRange, ui.paletteSatRange, ui.paletteLightRange];
+}
+function readPaletteHsl(){
+  return {
+    h: clampNumber(ui.paletteHueRange?.value ?? 0, 0, 360),
+    s: clampNumber(ui.paletteSatRange?.value ?? 0, 0, 100),
+    l: clampNumber(ui.paletteLightRange?.value ?? 0, 0, 100)
+  };
+}
+function setPaletteHslValues(hsl){
+  if(!ui.paletteHueRange || !ui.paletteSatRange || !ui.paletteLightRange) return;
+  paletteLabSyncing = true;
+  ui.paletteHueRange.value = String(Math.round(clampNumber(hsl?.h, 0, 360)));
+  ui.paletteSatRange.value = String(Math.round(clampNumber(hsl?.s, 0, 100)));
+  ui.paletteLightRange.value = String(Math.round(clampNumber(hsl?.l, 0, 100)));
+  paletteLabSyncing = false;
+}
+function renderPaletteLabValues(){
+  if(ui.paletteHueVal) ui.paletteHueVal.textContent = String(Math.round(clampNumber(ui.paletteHueRange?.value ?? 0, 0, 360)));
+  if(ui.paletteSatVal) ui.paletteSatVal.textContent = `${Math.round(clampNumber(ui.paletteSatRange?.value ?? 0, 0, 100))}%`;
+  if(ui.paletteLightVal) ui.paletteLightVal.textContent = `${Math.round(clampNumber(ui.paletteLightRange?.value ?? 0, 0, 100))}%`;
+}
+function setPalettePreviewColor(hex){
+  if(!ui.palettePreviewSwatch) return;
+  ui.palettePreviewSwatch.style.background = normalizeHexColor(hex, "#000000");
+}
+function syncPaletteLabFromTarget(){
+  const target = normalizePaletteTarget(ui.paletteTargetSelect?.value);
+  if(ui.paletteTargetSelect && ui.paletteTargetSelect.value !== target){
+    ui.paletteTargetSelect.value = target;
+  }
+  const prefs = normalizedUiPrefs();
+  const base = baseUiColors(currentThemeId());
+  const color = normalizeHexColor(prefs.customColors?.[target], base[target]);
+  setPaletteHslValues(hexToHsl(color));
+  renderPaletteLabValues();
+  setPalettePreviewColor(color);
+}
+function applyPaletteLabToTarget(persist){
+  if(paletteLabSyncing) return;
+  const target = normalizePaletteTarget(ui.paletteTargetSelect?.value);
+  const hsl = readPaletteHsl();
+  const hex = hslToHex(hsl.h, hsl.s, hsl.l);
+  const cur = normalizedUiPrefs();
+  const nextColors = { ...cur.customColors, [target]: hex };
+  setUiPrefs({ ...cur, customColorsEnabled:true, customColors: nextColors }, persist === true);
+  renderPaletteLabValues();
+  setPalettePreviewColor(hex);
+}
 function renderCustomColorControls(){
   const prefs = normalizedUiPrefs();
   const on = prefs.customColorsEnabled;
@@ -2664,6 +2859,10 @@ function renderCustomColorControls(){
     if(el.value.toLowerCase() !== val) el.value = val;
     el.disabled = !on;
   }
+  for(const control of paletteLabControls()){
+    if(control) control.disabled = !on;
+  }
+  syncPaletteLabFromTarget();
 }
 function applyColorTheme(themeId, persist){
   const safe = COLOR_THEMES[themeId] ? themeId : DEFAULT_THEME;
@@ -6172,6 +6371,25 @@ function hookUI(){
   bindCustomColorInput(ui.customColorText, "text");
   bindCustomColorInput(ui.customColorMuted, "muted");
   bindCustomColorInput(ui.customColorRain, "rain");
+  if(ui.paletteTargetSelect){
+    ui.paletteTargetSelect.addEventListener("change", () => {
+      syncPaletteLabFromTarget();
+    });
+  }
+  const bindPaletteRange = (el) => {
+    if(!el) return;
+    el.addEventListener("input", () => {
+      renderPaletteLabValues();
+      applyPaletteLabToTarget(false);
+    });
+    el.addEventListener("change", () => {
+      renderPaletteLabValues();
+      applyPaletteLabToTarget(true);
+    });
+  };
+  bindPaletteRange(ui.paletteHueRange);
+  bindPaletteRange(ui.paletteSatRange);
+  bindPaletteRange(ui.paletteLightRange);
   if(ui.uiDensitySelect){
     ui.uiDensitySelect.addEventListener("change", () => {
       const cur = normalizedUiPrefs();
@@ -6441,6 +6659,14 @@ function init(){
     customColorText: document.getElementById("customColorText"),
     customColorMuted: document.getElementById("customColorMuted"),
     customColorRain: document.getElementById("customColorRain"),
+    paletteTargetSelect: document.getElementById("paletteTargetSelect"),
+    palettePreviewSwatch: document.getElementById("palettePreviewSwatch"),
+    paletteHueRange: document.getElementById("paletteHueRange"),
+    paletteSatRange: document.getElementById("paletteSatRange"),
+    paletteLightRange: document.getElementById("paletteLightRange"),
+    paletteHueVal: document.getElementById("paletteHueVal"),
+    paletteSatVal: document.getElementById("paletteSatVal"),
+    paletteLightVal: document.getElementById("paletteLightVal"),
     uiDensitySelect: document.getElementById("uiDensitySelect"),
     uiTextScaleSelect: document.getElementById("uiTextScaleSelect"),
     uiCornersSelect: document.getElementById("uiCornersSelect"),
