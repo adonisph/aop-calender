@@ -584,7 +584,7 @@
       opacity: 0;
       pointer-events: none;
       transition: opacity .15s ease;
-      z-index: 86;
+      z-index: 126;
     }
     .sync-login-backdrop.open{
       opacity: 1;
@@ -598,7 +598,7 @@
       transform: translate(-50%, -46%) scale(.98);
       opacity: 0;
       pointer-events: none;
-      z-index: 87;
+      z-index: 127;
       border: 1px solid var(--line);
       border-radius: 16px;
       background: linear-gradient(180deg, #1b1b1b, #111111);
@@ -1722,43 +1722,7 @@
         <option value="aftersales">Aftersales</option>
         <option value="others_some">Others/SoMe</option>
       </select></div>
-      <div class="tb-item tb-extra" data-tb-key="sep"><span class="toolbar-sep" aria-hidden="true"></span></div>
-      <div class="tb-item tb-extra" data-tb-key="dashboard"><button id="toggleDashboard" class="btn-ghost focus-tab" type="button" aria-pressed="true">Dashboard</button></div>
-      <div class="tb-item tb-extra" data-tb-key="calendars"><button id="toggleCalendars" class="btn-ghost focus-tab" type="button" aria-pressed="true">Calendars</button></div>
-      <div class="tb-item tb-extra" data-tb-key="aop"><button id="toggleAopNotes" class="btn-ghost focus-tab" type="button" aria-pressed="true">AOP Catalog</button></div>
-      <div class="tb-item tb-extra" data-tb-key="tools"><button id="toggleTools" class="btn-ghost focus-tab" type="button" aria-pressed="true">Display/Data</button></div>
-      <div class="tb-item tb-extra" data-tb-key="showall"><button id="showAllSections" class="btn-ghost" type="button">Show All</button></div>
-      <div class="tb-item topbar-more-wrap" data-tb-key="more" id="topbarMoreWrap">
-        <button id="topbarMoreBtn" class="btn-ghost" type="button" aria-expanded="false" aria-controls="topbarMoreMenu">More</button>
-        <div id="topbarMoreMenu" class="topbar-more-menu" hidden>
-          <button id="moreToggleDashboard" class="btn-ghost" type="button">Dashboard</button>
-          <button id="moreToggleCalendars" class="btn-ghost" type="button">Calendars</button>
-          <button id="moreToggleAopNotes" class="btn-ghost" type="button">AOP Catalog</button>
-          <button id="moreToggleTools" class="btn-ghost" type="button">Display/Data</button>
-          <button id="moreShowAllSections" class="btn-ghost" type="button">Show All</button>
-        </div>
-      </div>
-    </div>
-  </div>
-</header>
-
-<main>
-
-  <section class="card onboarding-card" id="onboardingCard">
-    <div class="onboarding-body">
-      <div class="onboarding-tips">
-        <span class="badge">1. Select month + view</span>
-        <span class="badge">2. Mark Planned / Actual</span>
-        <span class="badge">3. Review Dashboard + Notation</span>
-      </div>
-      <button id="dismissOnboardingBtn" class="btn-ghost" type="button">Dismiss</button>
-    </div>
-  </section>
-
-  <section class="card tools-card section-tools" id="utilityCard">
-    <div class="section-pad">
-      <div class="tools-row toolbar compact">
-        <span class="small">Display</span>
+      <div class="tb-item" data-tb-key="customize">
         <div class="customize-wrap" id="customizeWrap">
           <button id="customizeToggleBtn" class="btn-ghost btn-toggle" type="button" aria-expanded="false" aria-controls="customizePopout">Customize</button>
           <div id="customizePopout" class="customize-popout" hidden>
@@ -1817,6 +1781,41 @@
           </div>
         </div>
       </div>
+      <div class="tb-item tb-extra" data-tb-key="sep"><span class="toolbar-sep" aria-hidden="true"></span></div>
+      <div class="tb-item tb-extra" data-tb-key="dashboard"><button id="toggleDashboard" class="btn-ghost focus-tab" type="button" aria-pressed="true">Dashboard</button></div>
+      <div class="tb-item tb-extra" data-tb-key="calendars"><button id="toggleCalendars" class="btn-ghost focus-tab" type="button" aria-pressed="true">Calendars</button></div>
+      <div class="tb-item tb-extra" data-tb-key="aop"><button id="toggleAopNotes" class="btn-ghost focus-tab" type="button" aria-pressed="true">AOP Catalog</button></div>
+      <div class="tb-item tb-extra" data-tb-key="tools"><button id="toggleTools" class="btn-ghost focus-tab" type="button" aria-pressed="true">Display/Data</button></div>
+      <div class="tb-item tb-extra" data-tb-key="showall"><button id="showAllSections" class="btn-ghost" type="button">Show All</button></div>
+      <div class="tb-item topbar-more-wrap" data-tb-key="more" id="topbarMoreWrap">
+        <button id="topbarMoreBtn" class="btn-ghost" type="button" aria-expanded="false" aria-controls="topbarMoreMenu">More</button>
+        <div id="topbarMoreMenu" class="topbar-more-menu" hidden>
+          <button id="moreToggleDashboard" class="btn-ghost" type="button">Dashboard</button>
+          <button id="moreToggleCalendars" class="btn-ghost" type="button">Calendars</button>
+          <button id="moreToggleAopNotes" class="btn-ghost" type="button">AOP Catalog</button>
+          <button id="moreToggleTools" class="btn-ghost" type="button">Display/Data</button>
+          <button id="moreShowAllSections" class="btn-ghost" type="button">Show All</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <section class="card onboarding-card" id="onboardingCard">
+    <div class="onboarding-body">
+      <div class="onboarding-tips">
+        <span class="badge">1. Select month + view</span>
+        <span class="badge">2. Mark Planned / Actual</span>
+        <span class="badge">3. Review Dashboard + Notation</span>
+      </div>
+      <button id="dismissOnboardingBtn" class="btn-ghost" type="button">Dismiss</button>
+    </div>
+  </section>
+
+  <section class="card tools-card section-tools" id="utilityCard">
+    <div class="section-pad">
       <div class="tools-row toolbar compact">
         <span class="small">Data</span>
         <button id="export" type="button" title="Export JSON">Export JSON</button>
@@ -2268,7 +2267,7 @@ const TEAM_SYNC_CONFIG_KEY = "power_aop_team_sync_v1";
 const DOW = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const AOP_PANES = ["catalog","notation"];
-const DEFAULT_TOPBAR_ORDER = ["today","month","year","area","sep","dashboard","calendars","aop","tools","showall","more"];
+const DEFAULT_TOPBAR_ORDER = ["today","month","year","area","customize","sep","dashboard","calendars","aop","tools","showall","more"];
 const AREA_VIEWS = [
   { id:"pool", label:"Pool" },
   { id:"sales", label:"Sales" },
@@ -2770,6 +2769,7 @@ function applyLayoutPreset(presetId, persist){
   }else if(preset === "sync"){
     setCalendarUI({ ...curCal, focus:"both", activeOnly:false, markedOnly:false }, false);
     setTeamSyncPanelOpen(true, false);
+    if(!teamSync.connected) openSyncLoginModal();
   }else{
     setCalendarUI({ ...curCal, focus:"both", activeOnly:false, markedOnly:false }, false);
     view.diffMode = true;
@@ -3557,7 +3557,7 @@ function renderTeamSyncPanelToggle(){
   }
   if(ui.syncPanelToggleBtn){
     syncToggleBtn(ui.syncPanelToggleBtn, open);
-    ui.syncPanelToggleBtn.textContent = open ? "Hide Sync" : "Sync/Login";
+    ui.syncPanelToggleBtn.textContent = "Sync/Login";
     ui.syncPanelToggleBtn.setAttribute("aria-pressed", open ? "true" : "false");
     ui.syncPanelToggleBtn.setAttribute("aria-expanded", open ? "true" : "false");
     ui.syncPanelToggleBtn.setAttribute("aria-controls", "syncPanelBody");
@@ -5546,7 +5546,11 @@ function buildCommandPaletteCommands(){
     { id:"calendar-focus-actual", label: cal.focus === "actual" ? "Calendar Focus: Actual (active)" : "Calendar Focus: Actual", hint:"Actual only", run: () => { setCalendarUI({ ...cal, focus:"actual" }, true); renderAll(); } },
     { id:"toggle-rain", label: isRainEnabled() ? "Disable Rain" : "Enable Rain", hint:"Background", run: () => ui.rainToggle?.click() },
     { id:"toggle-diff", label: view.diffMode ? "Disable Diff Mode" : "Enable Diff Mode", hint:"Planned vs actual", run: () => ui.diffToggle?.click() },
-    { id:"toggle-sync-panel", label: syncOpen ? "Hide Team Sync" : "Show Team Sync", hint:"Sync/Login", run: () => setTeamSyncPanelOpen(!syncOpen, true) },
+    { id:"toggle-sync-panel", label: syncOpen ? "Hide Team Sync" : "Show Team Sync", hint:"Sync/Login", run: () => {
+      const next = !syncOpen;
+      setTeamSyncPanelOpen(next, true);
+      if(next && !teamSync.connected) openSyncLoginModal();
+    } },
     { id:"layout-focus", label:"Layout Preset: Focus", hint:"Actual execution", run: () => applyLayoutPreset("focus", true) },
     { id:"layout-review", label:"Layout Preset: Review", hint:"Review month", run: () => applyLayoutPreset("review", true) },
     { id:"layout-sync", label:"Layout Preset: Team Sync", hint:"Sync controls", run: () => applyLayoutPreset("sync", true) },
@@ -5983,7 +5987,8 @@ function hookUI(){
   ui.printBtn.addEventListener("click", printView);
   if(ui.syncPanelToggleBtn){
     ui.syncPanelToggleBtn.addEventListener("click", () => {
-      setTeamSyncPanelOpen(!isTeamSyncPanelOpen(), true);
+      setTeamSyncPanelOpen(true, true);
+      openSyncLoginModal();
     });
   }
   if(ui.syncOpenLoginBtn){
