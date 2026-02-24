@@ -61,8 +61,13 @@
     }
 
     *{box-sizing:border-box}
+    html{
+      min-height:100%;
+      background: var(--bg0);
+    }
     body{
       margin:0;
+      min-height:100vh;
       font-family: var(--sans);
       font-size: calc(16px * var(--ui-font-scale));
       color: var(--text);
@@ -101,12 +106,50 @@
       z-index: 98;
       display:none;
     }
+    #preloginPrompt{
+      position: fixed;
+      left: 50%;
+      top: 42%;
+      transform: translate(-50%, -50%);
+      z-index: 97;
+      display:none;
+      min-width: min(520px, calc(100vw - 28px));
+      max-width: min(720px, calc(100vw - 28px));
+      border:1px solid var(--line);
+      border-radius: 14px;
+      background: linear-gradient(180deg, rgba(22,22,22,.96), rgba(10,10,10,.96));
+      box-shadow: var(--shadow);
+      padding: 18px 16px;
+      text-align:center;
+    }
+    #preloginPrompt strong{
+      display:block;
+      font-family: var(--heading);
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: .2px;
+      margin-bottom: 6px;
+      color: var(--text);
+    }
+    #preloginPrompt .small{
+      color: var(--muted);
+      font-size: 13px;
+    }
     body.prelogin-lock header,
     body.prelogin-lock main{
       display:none !important;
     }
     body.prelogin-lock #matrixRain{
       display:none !important;
+    }
+    body.prelogin-lock{
+      background:
+        radial-gradient(900px 520px at 55% -10%, rgba(var(--power-rgb),.18) 0%, rgba(0,0,0,0) 55%),
+        linear-gradient(180deg, var(--bg1), var(--bg0) 55%);
+      min-height:100vh;
+    }
+    body.prelogin-lock #preloginPrompt{
+      display:block;
     }
     body.prelogin-lock #preloginTopRightBtn{
       display:inline-flex;
@@ -1649,6 +1692,10 @@
 <body>
 <canvas id="matrixRain" aria-hidden="true"></canvas>
 <button id="preloginTopRightBtn" class="btn-primary" type="button">Login</button>
+<section id="preloginPrompt" aria-live="polite">
+  <strong>Please sign in to continue</strong>
+  <div class="small">Use the Login button in the top right.</div>
+</section>
 <header>
   <div class="row">
     <div>
