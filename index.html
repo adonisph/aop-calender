@@ -140,6 +140,181 @@
     #monthSelect{ min-width: 10.2em; }
     #yearSelect{ min-width: 6.2em; }
     #areaViewSelect{ min-width: 11.6em; }
+    .tb-extra{ display:inline-flex; }
+    .topbar-more-wrap{
+      position: relative;
+      display:none;
+    }
+    .tb-item{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      min-width:0;
+    }
+    .tb-grip{
+      display:none;
+      width:24px;
+      height:24px;
+      border-radius:8px;
+      border:1px dashed var(--line);
+      background: rgba(255,255,255,.02);
+      color: var(--muted);
+      align-items:center;
+      justify-content:center;
+      font-size: 11px;
+      font-weight:900;
+      cursor:grab;
+      padding:0;
+      flex:0 0 auto;
+    }
+    .tb-grip:active{ cursor:grabbing; }
+    html.topbar-arrange #topbarToolbar{
+      border:1px dashed rgba(var(--power-rgb),.40);
+      border-radius: 12px;
+      padding:6px;
+      background: rgba(var(--power-rgb),.06);
+    }
+    html.topbar-arrange #topbarToolbar .tb-item{
+      border:1px dashed rgba(var(--power-rgb),.45);
+      border-radius: 10px;
+      padding:2px;
+      background: rgba(255,255,255,.02);
+    }
+    html.topbar-arrange #topbarToolbar .tb-grip{
+      display:inline-flex;
+    }
+    html.topbar-arrange #topbarToolbar .tb-item.dragging{
+      opacity:.72;
+      border-color: rgba(var(--power-rgb),.75);
+      box-shadow: 0 0 0 2px rgba(var(--power-rgb),.18);
+    }
+    html.topbar-arrange #topbarToolbar .tb-item > button:not(.tb-grip),
+    html.topbar-arrange #topbarToolbar .tb-item > select{
+      pointer-events:none;
+    }
+    .topbar-more-menu{
+      position:absolute;
+      top: calc(100% + 8px);
+      right:0;
+      min-width: 220px;
+      display:grid;
+      gap:8px;
+      padding:10px;
+      border:1px solid var(--line);
+      border-radius: 12px;
+      background: linear-gradient(180deg, #151515, #101010);
+      box-shadow: var(--shadow);
+      z-index: 60;
+    }
+    .topbar-more-menu[hidden]{ display:none !important; }
+    .cmdk-backdrop{
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.55);
+      backdrop-filter: blur(2px);
+      z-index: 90;
+      display:none;
+    }
+    .cmdk-backdrop.open{ display:block; }
+    .cmdk-modal{
+      position: fixed;
+      left: 50%;
+      top: 14vh;
+      transform: translateX(-50%);
+      width: min(700px, calc(100vw - 24px));
+      border:1px solid var(--line);
+      border-radius: 14px;
+      background: linear-gradient(180deg, #161616, #0e0e0e);
+      box-shadow: var(--shadow);
+      z-index: 95;
+      padding: 10px;
+      display:none;
+    }
+    .cmdk-modal.open{ display:block; }
+    .cmdk-head{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      margin-bottom:8px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .cmdk-head kbd{
+      border:1px solid var(--line);
+      border-radius:8px;
+      padding:2px 8px;
+      font-family: var(--mono);
+      background: rgba(255,255,255,.04);
+      color: var(--text);
+    }
+    .cmdk-input{
+      width:100%;
+      border:1px solid var(--line);
+      border-radius:10px;
+      padding:10px;
+      background:#0b0d10;
+      color: var(--text);
+      font: inherit;
+      margin-bottom:8px;
+    }
+    .cmdk-list{
+      max-height: 360px;
+      overflow:auto;
+      display:grid;
+      gap:6px;
+    }
+    .cmdk-item{
+      width:100%;
+      border:1px solid var(--line);
+      border-radius:10px;
+      background: rgba(255,255,255,.02);
+      color: var(--text);
+      padding:9px 10px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      text-align:left;
+      cursor:pointer;
+      font: inherit;
+    }
+    .cmdk-item small{
+      color: var(--muted);
+      font-size: 11px;
+    }
+    .cmdk-item.active,
+    .cmdk-item:hover{
+      border-color: rgba(var(--power-rgb),.65);
+      box-shadow: 0 0 0 2px rgba(var(--power-rgb),.18);
+      background: rgba(var(--power-rgb),.12);
+    }
+    .cmdk-empty{
+      border:1px dashed var(--line);
+      border-radius:10px;
+      color: var(--muted);
+      padding:10px;
+      font-size: 12px;
+    }
+    .context-pills{
+      margin-top: 8px;
+      display:flex;
+      align-items:center;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+    .context-pill{
+      font-size: 11px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255,255,255,.03);
+      color: var(--muted);
+      padding: 5px 8px;
+      font-family: var(--mono);
+    }
+    @media (max-width: 1260px){
+      .tb-extra{ display:none !important; }
+      .topbar-more-wrap{ display:inline-flex; }
+    }
     .toolbar-sep{
       width:1px;
       height:26px;
@@ -545,6 +720,96 @@
       border-radius: var(--radius);
       box-shadow: var(--shadow);
       overflow:hidden;
+    }
+    .card.section-dashboard{ box-shadow: inset 0 2px 0 rgba(43,199,255,.45), var(--shadow); }
+    .card.section-calendars{ box-shadow: inset 0 2px 0 rgba(var(--power-rgb),.55), var(--shadow); }
+    .card.section-aop{ box-shadow: inset 0 2px 0 rgba(119,210,106,.45), var(--shadow); }
+    .card.section-tools{ box-shadow: inset 0 2px 0 rgba(167,184,204,.45), var(--shadow); }
+    .onboarding-card{
+      margin-bottom: 12px;
+      border-color: rgba(var(--power-rgb),.48);
+      background: linear-gradient(180deg, rgba(var(--power-rgb),.16), rgba(var(--power-rgb),.05));
+    }
+    .onboarding-body{
+      padding: 10px 12px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    .onboarding-tips{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+    .cmd-backdrop{
+      position: fixed;
+      inset:0;
+      background: rgba(0,0,0,.64);
+      backdrop-filter: blur(6px);
+      z-index: 118;
+      display:none;
+    }
+    .cmd-backdrop.open{ display:block; }
+    .cmd-modal{
+      position: fixed;
+      top: 14%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(740px, calc(100vw - 24px));
+      border:1px solid var(--line);
+      border-radius: 14px;
+      background: linear-gradient(180deg, #161616, #101010);
+      box-shadow: var(--shadow);
+      z-index: 120;
+      display:none;
+      overflow:hidden;
+    }
+    .cmd-modal.open{ display:block; }
+    .cmd-head{
+      padding:10px;
+      border-bottom:1px solid var(--line);
+    }
+    .cmd-head input{
+      width:100%;
+      font-size:14px;
+    }
+    .cmd-list{
+      max-height: 380px;
+      overflow:auto;
+      display:grid;
+      gap:4px;
+      padding:8px;
+    }
+    .cmd-item{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      border:1px solid transparent;
+      border-radius: 10px;
+      padding:9px 10px;
+      background: rgba(255,255,255,.02);
+      color: var(--text);
+      cursor:pointer;
+      text-align:left;
+    }
+    .cmd-item:hover,
+    .cmd-item.active{
+      border-color: rgba(var(--power-rgb),.65);
+      box-shadow: 0 0 0 2px rgba(var(--power-rgb),.12);
+      background: rgba(var(--power-rgb),.10);
+    }
+    .cmd-key{
+      font-family: var(--mono);
+      font-size:11px;
+      color: var(--muted);
+      border:1px solid var(--line);
+      border-radius: 999px;
+      padding:2px 8px;
+      white-space:nowrap;
     }
 
     .card-header{
@@ -1368,7 +1633,7 @@
     /* Print styles */
     @media print{
       header{ position: static; backdrop-filter:none; }
-      .toolbar, .cal-toolbar, #focusCard, #utilityCard, .pillbar button, .pillbar select, .focus-tabs button, .panel-tabs button, #aopAdd, #wipe, #export, #importBtn, #csvExport, #printBtn, #dayNotesBackdrop, #dayNotesCard, #undoToast, #syncLoginBackdrop, #syncLoginModal { display:none !important; }
+      .toolbar, .cal-toolbar, #focusCard, #utilityCard, #onboardingCard, .pillbar button, .pillbar select, .focus-tabs button, .panel-tabs button, #aopAdd, #wipe, #export, #importBtn, #csvExport, #printBtn, #dayNotesBackdrop, #dayNotesCard, #undoToast, #syncLoginBackdrop, #syncLoginModal { display:none !important; }
       .card{ box-shadow:none; }
       body{ background:#fff; color:#000; }
       #matrixRain{ display:none !important; }
@@ -1388,33 +1653,62 @@
       <div class="sub">
         Plan your month (Planned) per AOP. Track execution (Actual), write Day Notes, and use Diff Mode + Dashboard to see adherence.
       </div>
+      <div class="context-pills" id="contextPills">
+        <span class="context-pill" id="contextMonthPill">Month: -</span>
+        <span class="context-pill" id="contextAreaPill">View: -</span>
+        <span class="context-pill" id="contextAopPill">Active AOP: -</span>
+      </div>
     </div>
 
-    <div class="toolbar compact">
-      <button id="today" class="btn-primary" type="button" title="Jump to current month">Today</button>
-      <select id="monthSelect" title="Select month"></select>
-      <select id="yearSelect" title="Select year"></select>
-      <select id="areaViewSelect" title="Select area view">
+    <div class="toolbar compact" id="topbarToolbar">
+      <div class="tb-item" data-tb-key="today"><button class="tb-grip" type="button" aria-label="Drag control">::</button><button id="today" class="btn-primary" type="button" title="Jump to current month">Today</button></div>
+      <div class="tb-item" data-tb-key="month"><button class="tb-grip" type="button" aria-label="Drag control">::</button><select id="monthSelect" title="Select month"></select></div>
+      <div class="tb-item" data-tb-key="year"><button class="tb-grip" type="button" aria-label="Drag control">::</button><select id="yearSelect" title="Select year"></select></div>
+      <div class="tb-item" data-tb-key="area"><button class="tb-grip" type="button" aria-label="Drag control">::</button><select id="areaViewSelect" title="Select area view">
         <option value="master">Master (All)</option>
         <option value="pool">Pool</option>
         <option value="sales">Sales</option>
         <option value="delivery">Delivery</option>
         <option value="aftersales">Aftersales</option>
         <option value="others_some">Others/SoMe</option>
-      </select>
-      <span class="toolbar-sep" aria-hidden="true"></span>
-      <button id="toggleDashboard" class="btn-ghost focus-tab" type="button" aria-pressed="true">Dashboard</button>
-      <button id="toggleCalendars" class="btn-ghost focus-tab" type="button" aria-pressed="true">Calendars</button>
-      <button id="toggleAopNotes" class="btn-ghost focus-tab" type="button" aria-pressed="true">AOP Catalog</button>
-      <button id="toggleTools" class="btn-ghost focus-tab" type="button" aria-pressed="true">Display/Data</button>
-      <button id="showAllSections" class="btn-ghost" type="button">Show All</button>
+      </select></div>
+      <div class="tb-item tb-extra" data-tb-key="sep"><button class="tb-grip" type="button" aria-label="Drag control">::</button><span class="toolbar-sep" aria-hidden="true"></span></div>
+      <div class="tb-item tb-extra" data-tb-key="dashboard"><button class="tb-grip" type="button" aria-label="Drag control">::</button><button id="toggleDashboard" class="btn-ghost focus-tab" type="button" aria-pressed="true">Dashboard</button></div>
+      <div class="tb-item tb-extra" data-tb-key="calendars"><button class="tb-grip" type="button" aria-label="Drag control">::</button><button id="toggleCalendars" class="btn-ghost focus-tab" type="button" aria-pressed="true">Calendars</button></div>
+      <div class="tb-item tb-extra" data-tb-key="aop"><button class="tb-grip" type="button" aria-label="Drag control">::</button><button id="toggleAopNotes" class="btn-ghost focus-tab" type="button" aria-pressed="true">AOP Catalog</button></div>
+      <div class="tb-item tb-extra" data-tb-key="tools"><button class="tb-grip" type="button" aria-label="Drag control">::</button><button id="toggleTools" class="btn-ghost focus-tab" type="button" aria-pressed="true">Display/Data</button></div>
+      <div class="tb-item tb-extra" data-tb-key="showall"><button class="tb-grip" type="button" aria-label="Drag control">::</button><button id="showAllSections" class="btn-ghost" type="button">Show All</button></div>
+      <div class="tb-item tb-extra" data-tb-key="arrange"><button class="tb-grip" type="button" aria-label="Drag control">::</button><button id="topbarArrangeBtn" class="btn-ghost btn-toggle" type="button" aria-pressed="false">Arrange</button></div>
+      <div class="tb-item topbar-more-wrap" data-tb-key="more" id="topbarMoreWrap">
+        <button class="tb-grip" type="button" aria-label="Drag control">::</button>
+        <button id="topbarMoreBtn" class="btn-ghost" type="button" aria-expanded="false" aria-controls="topbarMoreMenu">More</button>
+        <div id="topbarMoreMenu" class="topbar-more-menu" hidden>
+          <button id="moreToggleDashboard" class="btn-ghost" type="button">Dashboard</button>
+          <button id="moreToggleCalendars" class="btn-ghost" type="button">Calendars</button>
+          <button id="moreToggleAopNotes" class="btn-ghost" type="button">AOP Catalog</button>
+          <button id="moreToggleTools" class="btn-ghost" type="button">Display/Data</button>
+          <button id="moreShowAllSections" class="btn-ghost" type="button">Show All</button>
+          <button id="moreArrangeTopbar" class="btn-ghost" type="button">Arrange</button>
+        </div>
+      </div>
     </div>
   </div>
 </header>
 
 <main>
 
-  <section class="card tools-card" id="utilityCard">
+  <section class="card onboarding-card" id="onboardingCard">
+    <div class="onboarding-body">
+      <div class="onboarding-tips">
+        <span class="badge">1. Select month + view</span>
+        <span class="badge">2. Mark Planned / Actual</span>
+        <span class="badge">3. Review Dashboard + Notation</span>
+      </div>
+      <button id="dismissOnboardingBtn" class="btn-ghost" type="button">Dismiss</button>
+    </div>
+  </section>
+
+  <section class="card tools-card section-tools" id="utilityCard">
     <div class="section-pad">
       <div class="tools-row toolbar compact">
         <span class="small">Display</span>
@@ -1440,6 +1734,13 @@
           <option value="tight">Corners: Tight</option>
           <option value="normal">Corners: Normal</option>
           <option value="round">Corners: Round</option>
+        </select>
+        <select id="layoutPresetSelect" title="Layout presets">
+          <option value="custom">Layout: Custom</option>
+          <option value="focus">Layout: Focus</option>
+          <option value="review">Layout: Review</option>
+          <option value="sync">Layout: Team Sync</option>
+          <option value="dashboard">Layout: Dashboard Only</option>
         </select>
         <button id="contrastToggle" class="btn-ghost btn-toggle" type="button" aria-pressed="false" title="Toggle high contrast">Contrast</button>
         <button id="motionToggle" class="btn-ghost btn-toggle" type="button" aria-pressed="true" title="Toggle UI motion">Motion: ON</button>
@@ -1507,7 +1808,7 @@
   </section>
 
   <!-- DASHBOARD -->
-  <section class="card" id="dashboardCard">
+  <section class="card section-dashboard" id="dashboardCard">
     <div class="card-header">
       <div class="title">
         <strong>Monthly Dashboard</strong>
@@ -1583,7 +1884,7 @@
   <div class="grid" id="mainGrid">
 
     <!-- LEFT: Calendars + Lists underneath -->
-    <section class="card" id="calCard">
+    <section class="card section-calendars" id="calCard">
       <div class="card-header">
         <div class="title">
           <strong>Calendars</strong>
@@ -1632,7 +1933,7 @@
     </section>
 
     <!-- RIGHT: AOP Catalog -->
-    <aside class="card" id="aopNotesCard">
+    <aside class="card section-aop" id="aopNotesCard">
       <div class="card-header">
         <div class="title">
           <strong>AOP Catalog</strong>
@@ -1851,6 +2152,15 @@
     </div>
   </div>
 </section>
+<div id="commandPaletteBackdrop" class="cmdk-backdrop" aria-hidden="true"></div>
+<section id="commandPalette" class="cmdk-modal" role="dialog" aria-modal="true" aria-labelledby="commandPaletteTitle" aria-hidden="true">
+  <div class="cmdk-head">
+    <span id="commandPaletteTitle">Command Palette</span>
+    <kbd>Esc</kbd>
+  </div>
+  <input id="commandPaletteInput" class="cmdk-input" type="text" placeholder="Type a command..." autocomplete="off" />
+  <div id="commandPaletteList" class="cmdk-list"></div>
+</section>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
@@ -1861,7 +2171,7 @@
  *     aopPane:"catalog"|"notation",
  *     areaView:"master"|"pool"|"sales"|"delivery"|"aftersales"|"others_some",
  *     colorTheme:string,
- *     uiPrefs:{density:"compact"|"comfortable",textScale:"normal"|"large"|"xlarge",corner:"tight"|"normal"|"round",highContrast:boolean,motion:boolean},
+ *     uiPrefs:{density:"compact"|"comfortable",textScale:"normal"|"large"|"xlarge",corner:"tight"|"normal"|"round",highContrast:boolean,motion:boolean,showTips:boolean,layoutPreset:"custom"|"focus"|"review"|"sync"|"dashboard",topbarOrder:string[]},
  *     masterNotationSort:"blockers_desc"|"achievements_desc"|"updated_desc"|"name_asc",
  *     dayNoteFilters:{thisMonth:boolean},
  *     calendarUI:{compact:boolean,markedOnly:boolean,activeOnly:boolean,focus:"both"|"planned"|"actual"}
@@ -1884,6 +2194,7 @@ const TEAM_SYNC_CONFIG_KEY = "power_aop_team_sync_v1";
 const DOW = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const AOP_PANES = ["catalog","notation"];
+const DEFAULT_TOPBAR_ORDER = ["today","month","year","area","sep","dashboard","calendars","aop","tools","showall","arrange","more"];
 const AREA_VIEWS = [
   { id:"pool", label:"Pool" },
   { id:"sales", label:"Sales" },
@@ -1920,8 +2231,15 @@ let aopNotationSaveTimer = null;
 let dayNotesDrawerOpen = false;
 let undoToastTimer = null;
 let undoMarkAction = null;
+let topbarArrangeMode = false;
+let topbarDraggedKey = "";
+let topbarDnDBound = false;
 let syncLoginModalOpen = false;
 let syncLoginLastFocus = null;
+let onboardingAutoDismissBound = false;
+let commandPaletteOpen = false;
+let commandPaletteCommands = [];
+let commandPaletteIndex = 0;
 const MAX_MARK_BARS = 4;
 const TEAM_SYNC_TABLE = "planner_workspaces";
 const TEAM_SYNC_SAVE_DEBOUNCE_MS = 450;
@@ -2206,24 +2524,45 @@ function setRainEnabled(enabled, persist){
   if(persist) saveState();
   renderRainToggle();
 }
+function normalizeTopbarOrder(raw){
+  const source = Array.isArray(raw) ? raw.map(v => String(v || "").trim()) : [];
+  const next = [];
+  for(const key of source){
+    if(!DEFAULT_TOPBAR_ORDER.includes(key)) continue;
+    if(next.includes(key)) continue;
+    next.push(key);
+  }
+  for(const key of DEFAULT_TOPBAR_ORDER){
+    if(!next.includes(key)) next.push(key);
+  }
+  return next;
+}
 function normalizedUiPrefs(){
   const raw = view.state?.settings?.uiPrefs || {};
+  const layoutPreset = ["custom","focus","review","sync","dashboard"].includes(raw.layoutPreset) ? raw.layoutPreset : "custom";
   return {
     density: raw.density === "comfortable" ? "comfortable" : "compact",
     textScale: raw.textScale === "large" || raw.textScale === "xlarge" ? raw.textScale : "normal",
     corner: raw.corner === "tight" || raw.corner === "round" ? raw.corner : "normal",
     highContrast: raw.highContrast === true,
-    motion: raw.motion !== false
+    motion: raw.motion !== false,
+    showTips: raw.showTips !== false,
+    layoutPreset,
+    topbarOrder: normalizeTopbarOrder(raw.topbarOrder)
   };
 }
 function setUiPrefs(next, persist){
   if(!view.state?.settings) return;
+  const layoutPreset = ["custom","focus","review","sync","dashboard"].includes(next?.layoutPreset) ? next.layoutPreset : "custom";
   const safe = {
     density: next?.density === "comfortable" ? "comfortable" : "compact",
     textScale: next?.textScale === "large" || next?.textScale === "xlarge" ? next.textScale : "normal",
     corner: next?.corner === "tight" || next?.corner === "round" ? next.corner : "normal",
     highContrast: next?.highContrast === true,
-    motion: next?.motion !== false
+    motion: next?.motion !== false,
+    showTips: next?.showTips !== false,
+    layoutPreset,
+    topbarOrder: normalizeTopbarOrder(next?.topbarOrder)
   };
   view.state.settings.uiPrefs = safe;
   if(persist) saveState();
@@ -2266,6 +2605,183 @@ function applyUiPrefs(){
     syncToggleBtn(ui.motionToggle, prefs.motion);
     ui.motionToggle.textContent = prefs.motion ? "Motion: ON" : "Motion: OFF";
   }
+  if(ui.layoutPresetSelect) ui.layoutPresetSelect.value = prefs.layoutPreset;
+  applyTopbarOrder(prefs.topbarOrder);
+  syncTopbarArrangeButtons();
+  renderOnboarding();
+}
+function renderContextPills(){
+  if(!ui.contextMonthPill || !ui.contextAreaPill || !ui.contextAopPill) return;
+  const monthLabel = `${monthNames[view.month]} ${view.year}`;
+  ui.contextMonthPill.textContent = `Month: ${monthLabel}`;
+  ui.contextAreaPill.textContent = `View: ${areaLabel(currentAreaViewId())}`;
+  const activeName = (view.state.activeAopId && view.state.aops[view.state.activeAopId])
+    ? view.state.aops[view.state.activeAopId].name
+    : "None";
+  ui.contextAopPill.textContent = `Active AOP: ${activeName}`;
+}
+function renderOnboarding(){
+  if(!ui.onboardingCard) return;
+  const show = normalizedUiPrefs().showTips === true;
+  ui.onboardingCard.style.display = show ? "" : "none";
+}
+function dismissOnboarding(persist){
+  const prefs = normalizedUiPrefs();
+  if(!prefs.showTips) return;
+  setUiPrefs({ ...prefs, showTips:false }, persist !== false);
+}
+function bindOnboardingAutoDismiss(){
+  if(onboardingAutoDismissBound) return;
+  onboardingAutoDismissBound = true;
+  const cleanup = () => {
+    document.removeEventListener("pointerdown", onInteract, true);
+    document.removeEventListener("keydown", onInteract, true);
+    document.removeEventListener("change", onInteract, true);
+  };
+  const onInteract = (event) => {
+    if(!normalizedUiPrefs().showTips){
+      cleanup();
+      return;
+    }
+    dismissOnboarding(true);
+    cleanup();
+  };
+  document.addEventListener("pointerdown", onInteract, true);
+  document.addEventListener("keydown", onInteract, true);
+  document.addEventListener("change", onInteract, true);
+}
+function topbarItems(){
+  return ui.topbarToolbar
+    ? Array.from(ui.topbarToolbar.querySelectorAll(".tb-item[data-tb-key]"))
+    : [];
+}
+function collectTopbarOrderFromDom(){
+  return topbarItems().map(el => String(el.dataset.tbKey || "")).filter(Boolean);
+}
+function applyTopbarOrder(order){
+  if(!ui.topbarToolbar) return;
+  const safeOrder = normalizeTopbarOrder(order);
+  const byKey = new Map(topbarItems().map(el => [String(el.dataset.tbKey || ""), el]));
+  for(const key of safeOrder){
+    const item = byKey.get(key);
+    if(item) ui.topbarToolbar.appendChild(item);
+  }
+  for(const item of byKey.values()){
+    if(item.parentElement !== ui.topbarToolbar) ui.topbarToolbar.appendChild(item);
+  }
+  for(const item of topbarItems()){
+    item.draggable = topbarArrangeMode === true;
+    item.classList.remove("dragging");
+  }
+}
+function persistTopbarOrderFromDom(){
+  const prefs = normalizedUiPrefs();
+  const nextOrder = collectTopbarOrderFromDom();
+  setUiPrefs({ ...prefs, topbarOrder: nextOrder }, true);
+}
+function syncTopbarArrangeButtons(){
+  if(ui.topbarArrangeBtn){
+    syncToggleBtn(ui.topbarArrangeBtn, topbarArrangeMode);
+    ui.topbarArrangeBtn.textContent = topbarArrangeMode ? "Arrange: ON" : "Arrange";
+  }
+  if(ui.moreArrangeTopbar){
+    ui.moreArrangeTopbar.textContent = topbarArrangeMode ? "Arrange: ON" : "Arrange";
+  }
+}
+function setTopbarArrangeMode(on){
+  topbarArrangeMode = on === true;
+  const root = document.documentElement;
+  if(root) root.classList.toggle("topbar-arrange", topbarArrangeMode);
+  for(const item of topbarItems()){
+    item.draggable = topbarArrangeMode;
+    if(!topbarArrangeMode) item.classList.remove("dragging");
+  }
+  if(!topbarArrangeMode) topbarDraggedKey = "";
+  syncTopbarArrangeButtons();
+}
+function bindTopbarDragAndDrop(){
+  if(topbarDnDBound || !ui.topbarToolbar) return;
+  topbarDnDBound = true;
+
+  ui.topbarToolbar.addEventListener("dragstart", (event) => {
+    if(!topbarArrangeMode) return event.preventDefault();
+    const target = event.target instanceof Element ? event.target : null;
+    const grip = target ? target.closest(".tb-grip") : null;
+    const item = grip ? grip.closest(".tb-item[data-tb-key]") : null;
+    if(!item) return event.preventDefault();
+    topbarDraggedKey = String(item.dataset.tbKey || "");
+    item.classList.add("dragging");
+    if(event.dataTransfer){
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain", topbarDraggedKey);
+    }
+  });
+  ui.topbarToolbar.addEventListener("dragover", (event) => {
+    if(!topbarArrangeMode || !topbarDraggedKey) return;
+    const dragging = topbarItems().find(el => String(el.dataset.tbKey || "") === topbarDraggedKey);
+    if(!(dragging instanceof HTMLElement)) return;
+    const targetRaw = event.target instanceof Element ? event.target.closest(".tb-item[data-tb-key]") : null;
+    if(!(targetRaw instanceof HTMLElement) || targetRaw === dragging) return;
+    event.preventDefault();
+    const rect = targetRaw.getBoundingClientRect();
+    const after = event.clientX > (rect.left + rect.width / 2);
+    ui.topbarToolbar.insertBefore(dragging, after ? targetRaw.nextSibling : targetRaw);
+  });
+  ui.topbarToolbar.addEventListener("drop", (event) => {
+    if(!topbarArrangeMode || !topbarDraggedKey) return;
+    event.preventDefault();
+    persistTopbarOrderFromDom();
+  });
+  ui.topbarToolbar.addEventListener("dragend", () => {
+    for(const item of topbarItems()) item.classList.remove("dragging");
+    if(topbarArrangeMode && topbarDraggedKey){
+      persistTopbarOrderFromDom();
+    }
+    topbarDraggedKey = "";
+  });
+}
+function setTopbarMoreOpen(open){
+  const next = open === true;
+  if(ui.topbarMoreMenu) ui.topbarMoreMenu.hidden = !next;
+  if(ui.topbarMoreBtn) ui.topbarMoreBtn.setAttribute("aria-expanded", next ? "true" : "false");
+}
+function applyLayoutPreset(presetId, persist){
+  const preset = ["focus","review","sync","dashboard"].includes(presetId) ? presetId : "custom";
+  const prefs = normalizedUiPrefs();
+  const setPresetOnly = () => setUiPrefs({ ...prefs, layoutPreset: preset }, persist !== false);
+  if(preset === "custom"){
+    setPresetOnly();
+    return;
+  }
+  const nextVis = preset === "focus"
+    ? { dashboard:false, calendars:true, aopNotes:true, tools:false }
+    : preset === "review"
+      ? { dashboard:true, calendars:true, aopNotes:false, tools:false }
+      : preset === "sync"
+        ? { dashboard:false, calendars:false, aopNotes:false, tools:true }
+        : { dashboard:true, calendars:false, aopNotes:false, tools:false };
+  view.state.settings.sectionVisibility = nextVis;
+  const curCal = normalizedCalendarUI();
+  if(preset === "focus"){
+    setCalendarUI({ ...curCal, focus:"actual", activeOnly:true, markedOnly:false }, false);
+    view.diffMode = false;
+  }else if(preset === "review"){
+    setCalendarUI({ ...curCal, focus:"both", activeOnly:false, markedOnly:false }, false);
+    view.diffMode = true;
+  }else if(preset === "sync"){
+    setCalendarUI({ ...curCal, focus:"both", activeOnly:false, markedOnly:false }, false);
+    setTeamSyncPanelOpen(true, false);
+  }else{
+    setCalendarUI({ ...curCal, focus:"both", activeOnly:false, markedOnly:false }, false);
+    view.diffMode = true;
+  }
+  setUiPrefs({ ...prefs, layoutPreset: preset }, false);
+  if(persist !== false) saveState();
+  renderAll();
+  loadMonthlyTemplate();
+  loadDayNoteUI();
+  renderEntries();
+  renderDashboard();
 }
 
 function setTemplateSaveState(msg){
@@ -2294,6 +2810,10 @@ function setCalendarUI(next, persist){
     activeOnly: next.activeOnly === true,
     focus: next.focus === "planned" || next.focus === "actual" ? next.focus : "both"
   };
+  const prefs = normalizedUiPrefs();
+  if(prefs.layoutPreset !== "custom"){
+    view.state.settings.uiPrefs = { ...prefs, layoutPreset:"custom" };
+  }
   if(persist !== false) saveState();
 }
 function renderCalendarControls(){
@@ -2540,8 +3060,13 @@ function normalizedSectionVisibility(){
 
 function applySectionVisibility(next){
   view.state.settings.sectionVisibility = next;
+  const prefs = normalizedUiPrefs();
+  if(prefs.layoutPreset !== "custom"){
+    view.state.settings.uiPrefs = { ...prefs, layoutPreset:"custom" };
+  }
   saveState();
   renderSectionVisibility();
+  applyUiPrefs();
 }
 
 function syncToggleBtn(btn, on){
@@ -2632,7 +3157,7 @@ function defaultState(){
       aopPane: "notation",
       areaView: DEFAULT_AREA_VIEW,
       colorTheme: DEFAULT_THEME,
-      uiPrefs: { density:"compact", textScale:"normal", corner:"normal", highContrast:false, motion:true },
+      uiPrefs: { density:"compact", textScale:"normal", corner:"normal", highContrast:false, motion:true, showTips:true, layoutPreset:"custom", topbarOrder: DEFAULT_TOPBAR_ORDER.slice() },
       rainEnabled: true,
       teamSyncOpen: false,
       masterNotationSort: "blockers_desc",
@@ -2680,7 +3205,10 @@ function migrateIfNeeded(st){
     textScale: up.textScale === "large" || up.textScale === "xlarge" ? up.textScale : "normal",
     corner: up.corner === "tight" || up.corner === "round" ? up.corner : "normal",
     highContrast: up.highContrast === true,
-    motion: up.motion !== false
+    motion: up.motion !== false,
+    showTips: up.showTips !== false,
+    layoutPreset: ["custom","focus","review","sync","dashboard"].includes(up.layoutPreset) ? up.layoutPreset : "custom",
+    topbarOrder: normalizeTopbarOrder(up.topbarOrder)
   };
   st.settings.rainEnabled = st.settings.rainEnabled !== false;
   st.settings.teamSyncOpen = st.settings.teamSyncOpen === true;
@@ -3856,6 +4384,8 @@ function renderAopCatalog(){
   const order = visibleAopOrder();
   const q = (ui.aopSearch?.value || "").trim().toLowerCase();
   const monthKey = currentMonthKey();
+  const prevSelectId = ui.aopSelect?.value || "";
+  const prevGoalsSelectId = ui.aopSelectGoals?.value || "";
   ui.aopList.innerHTML = "";
   if(ui.areaViewSelect) ui.areaViewSelect.value = currentAreaViewId();
   if(ui.aopNewArea) ui.aopNewArea.value = suggestedAreaForNewAop();
@@ -3978,7 +4508,8 @@ function renderAopCatalog(){
     ui.activeAopLabel.style.background = hexToRgba(c, .12);
     ui.activeAopLabel.style.color = "var(--text)";
   }else{
-    syncAopSelectors("");
+    const sticky = [prevSelectId, prevGoalsSelectId].find(id => !!id && order.includes(id)) || "";
+    syncAopSelectors(sticky);
     ui.activeAopLabel.textContent = "None";
     ui.activeAopLabel.style.borderColor = "var(--line)";
     ui.activeAopLabel.style.background = "rgba(255,255,255,.03)";
@@ -4105,7 +4636,6 @@ function clearActiveAop(){
   view.state.activeAopId = null;
   saveState();
   renderAll();
-  syncAopSelectors("");
   loadMonthlyTemplate();
   renderEntries();
   renderDashboard();
@@ -4854,6 +5384,7 @@ function renderAll(){
   if(ui.aopNewArea) ui.aopNewArea.value = suggestedAreaForNewAop();
   ui.monthSelect.value = String(view.month);
   ui.yearSelect.value = String(view.year);
+  renderContextPills();
 
   renderAopCatalog();
   renderCalendarControls();
@@ -4986,6 +5517,98 @@ function printView(){
   window.print();
 }
 
+function buildCommandPaletteCommands(){
+  const vis = normalizedSectionVisibility();
+  const cal = normalizedCalendarUI();
+  const syncOpen = view.state?.settings?.teamSyncOpen === true;
+  return [
+    { id:"today", label:"Go to Today", hint:"Month + year", run: () => ui.today?.click() },
+    { id:"open-notes", label:"Open Day Notes", hint:"Actual only", run: () => { openDayNotesPanel(true); renderAll(); loadDayNoteUI(); renderEntries(); } },
+    { id:"toggle-dashboard", label: vis.dashboard ? "Hide Dashboard" : "Show Dashboard", hint:"Section", run: () => ui.toggleDashboard?.click() },
+    { id:"toggle-calendars", label: vis.calendars ? "Hide Calendars" : "Show Calendars", hint:"Section", run: () => ui.toggleCalendars?.click() },
+    { id:"toggle-aop", label: vis.aopNotes ? "Hide AOP Catalog" : "Show AOP Catalog", hint:"Section", run: () => ui.toggleAopNotes?.click() },
+    { id:"toggle-tools", label: vis.tools ? "Hide Display/Data" : "Show Display/Data", hint:"Section", run: () => ui.toggleTools?.click() },
+    { id:"show-all-sections", label:"Show All Sections", hint:"Reset layout", run: () => ui.showAllSections?.click() },
+    { id:"calendar-focus-both", label: cal.focus === "both" ? "Calendar Focus: Both (active)" : "Calendar Focus: Both", hint:"Planned + actual", run: () => { setCalendarUI({ ...cal, focus:"both" }, true); renderAll(); } },
+    { id:"calendar-focus-planned", label: cal.focus === "planned" ? "Calendar Focus: Planned (active)" : "Calendar Focus: Planned", hint:"Planned only", run: () => { setCalendarUI({ ...cal, focus:"planned" }, true); renderAll(); } },
+    { id:"calendar-focus-actual", label: cal.focus === "actual" ? "Calendar Focus: Actual (active)" : "Calendar Focus: Actual", hint:"Actual only", run: () => { setCalendarUI({ ...cal, focus:"actual" }, true); renderAll(); } },
+    { id:"toggle-rain", label: isRainEnabled() ? "Disable Rain" : "Enable Rain", hint:"Background", run: () => ui.rainToggle?.click() },
+    { id:"toggle-diff", label: view.diffMode ? "Disable Diff Mode" : "Enable Diff Mode", hint:"Planned vs actual", run: () => ui.diffToggle?.click() },
+    { id:"toggle-sync-panel", label: syncOpen ? "Hide Team Sync" : "Show Team Sync", hint:"Sync/Login", run: () => setTeamSyncPanelOpen(!syncOpen, true) },
+    { id:"layout-focus", label:"Layout Preset: Focus", hint:"Actual execution", run: () => applyLayoutPreset("focus", true) },
+    { id:"layout-review", label:"Layout Preset: Review", hint:"Review month", run: () => applyLayoutPreset("review", true) },
+    { id:"layout-sync", label:"Layout Preset: Team Sync", hint:"Sync controls", run: () => applyLayoutPreset("sync", true) },
+    { id:"layout-dashboard", label:"Layout Preset: Dashboard", hint:"Dashboard only", run: () => applyLayoutPreset("dashboard", true) },
+    { id:"layout-custom", label:"Layout Preset: Custom", hint:"Current manual layout", run: () => applyLayoutPreset("custom", true) }
+  ];
+}
+function commandPaletteFiltered(){
+  const q = (ui.commandPaletteInput?.value || "").trim().toLowerCase();
+  if(!q) return commandPaletteCommands.slice();
+  return commandPaletteCommands.filter(cmd => `${cmd.label} ${cmd.hint || ""}`.toLowerCase().includes(q));
+}
+function renderCommandPalette(){
+  if(!ui.commandPaletteList) return;
+  const list = commandPaletteFiltered();
+  if(commandPaletteIndex < 0) commandPaletteIndex = 0;
+  if(commandPaletteIndex >= list.length) commandPaletteIndex = Math.max(0, list.length - 1);
+  ui.commandPaletteList.innerHTML = "";
+  if(!list.length){
+    const empty = document.createElement("div");
+    empty.className = "cmdk-empty";
+    empty.textContent = "No matching command.";
+    ui.commandPaletteList.appendChild(empty);
+    return;
+  }
+  list.forEach((cmd, idx) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = `cmdk-item${idx === commandPaletteIndex ? " active" : ""}`;
+    btn.dataset.cmdId = cmd.id;
+    btn.setAttribute("aria-selected", idx === commandPaletteIndex ? "true" : "false");
+    btn.innerHTML = `<span>${escapeHtml(cmd.label)}</span><small>${escapeHtml(cmd.hint || "")}</small>`;
+    btn.addEventListener("mouseenter", () => {
+      commandPaletteIndex = idx;
+      renderCommandPalette();
+    });
+    btn.addEventListener("click", () => runCommandPaletteCommand(cmd.id));
+    ui.commandPaletteList.appendChild(btn);
+  });
+}
+function runCommandPaletteCommand(cmdId){
+  const cmd = commandPaletteCommands.find(c => c.id === cmdId);
+  if(!cmd) return;
+  setCommandPaletteOpen(false);
+  cmd.run();
+}
+function setCommandPaletteOpen(open){
+  const next = open === true;
+  commandPaletteOpen = next;
+  if(ui.commandPalette){
+    ui.commandPalette.hidden = !next;
+    ui.commandPalette.classList.toggle("open", next);
+    ui.commandPalette.setAttribute("aria-hidden", next ? "false" : "true");
+  }
+  if(ui.commandPaletteBackdrop){
+    ui.commandPaletteBackdrop.hidden = !next;
+    ui.commandPaletteBackdrop.classList.toggle("open", next);
+    ui.commandPaletteBackdrop.setAttribute("aria-hidden", next ? "false" : "true");
+  }
+  if(next){
+    setTopbarMoreOpen(false);
+    commandPaletteCommands = buildCommandPaletteCommands();
+    commandPaletteIndex = 0;
+    if(ui.commandPaletteInput) ui.commandPaletteInput.value = "";
+    renderCommandPalette();
+    requestAnimationFrame(() => ui.commandPaletteInput?.focus());
+  }else if(ui.commandPaletteInput){
+    ui.commandPaletteInput.value = "";
+  }
+}
+function toggleCommandPalette(){
+  setCommandPaletteOpen(!commandPaletteOpen);
+}
+
 function isEditableTarget(target){
   if(!(target instanceof Element)) return false;
   if(target.isContentEditable) return true;
@@ -5001,12 +5624,50 @@ function handleGlobalShortcuts(event){
   if(event.defaultPrevented) return;
   const key = (event.key || "").toLowerCase();
 
+  if((event.ctrlKey || event.metaKey) && key === "k"){
+    event.preventDefault();
+    toggleCommandPalette();
+    return;
+  }
   if((event.ctrlKey || event.metaKey) && key === "s"){
     event.preventDefault();
     if(dayNotesDrawerOpen) saveDayNote({ fromAutosave:false });
     return;
   }
+  if(commandPaletteOpen){
+    if(key === "escape"){
+      event.preventDefault();
+      setCommandPaletteOpen(false);
+      return;
+    }
+    if(key === "arrowdown"){
+      event.preventDefault();
+      commandPaletteIndex += 1;
+      renderCommandPalette();
+      return;
+    }
+    if(key === "arrowup"){
+      event.preventDefault();
+      commandPaletteIndex -= 1;
+      renderCommandPalette();
+      return;
+    }
+    if(key === "enter"){
+      const list = commandPaletteFiltered();
+      if(!list.length) return;
+      event.preventDefault();
+      const idx = Math.max(0, Math.min(commandPaletteIndex, list.length - 1));
+      runCommandPaletteCommand(list[idx].id);
+      return;
+    }
+    return;
+  }
   if(key === "escape"){
+    if(ui.topbarMoreMenu && ui.topbarMoreMenu.hidden === false){
+      event.preventDefault();
+      setTopbarMoreOpen(false);
+      return;
+    }
     if(syncLoginModalOpen){
       event.preventDefault();
       closeSyncLoginModal();
@@ -5075,6 +5736,38 @@ function hookUI(){
   ui.showAllSections.addEventListener("click", () => {
     applySectionVisibility({ dashboard:true, calendars:true, aopNotes:true, tools:true });
   });
+  if(ui.topbarMoreBtn){
+    ui.topbarMoreBtn.addEventListener("click", () => setTopbarMoreOpen(ui.topbarMoreMenu?.hidden !== false));
+    document.addEventListener("pointerdown", (event) => {
+      const target = event.target;
+      if(!(target instanceof Node)) return;
+      if(ui.topbarMoreWrap?.contains(target)) return;
+      setTopbarMoreOpen(false);
+    });
+  }
+  if(ui.moreToggleDashboard) ui.moreToggleDashboard.addEventListener("click", () => { ui.toggleDashboard.click(); setTopbarMoreOpen(false); });
+  if(ui.moreToggleCalendars) ui.moreToggleCalendars.addEventListener("click", () => { ui.toggleCalendars.click(); setTopbarMoreOpen(false); });
+  if(ui.moreToggleAopNotes) ui.moreToggleAopNotes.addEventListener("click", () => { ui.toggleAopNotes.click(); setTopbarMoreOpen(false); });
+  if(ui.moreToggleTools) ui.moreToggleTools.addEventListener("click", () => { ui.toggleTools.click(); setTopbarMoreOpen(false); });
+  if(ui.moreShowAllSections) ui.moreShowAllSections.addEventListener("click", () => { ui.showAllSections.click(); setTopbarMoreOpen(false); });
+  if(ui.topbarArrangeBtn) ui.topbarArrangeBtn.addEventListener("click", () => setTopbarArrangeMode(!topbarArrangeMode));
+  if(ui.moreArrangeTopbar) ui.moreArrangeTopbar.addEventListener("click", () => { setTopbarArrangeMode(!topbarArrangeMode); setTopbarMoreOpen(false); });
+  bindTopbarDragAndDrop();
+  if(ui.commandPaletteInput){
+    ui.commandPaletteInput.addEventListener("input", () => {
+      commandPaletteIndex = 0;
+      renderCommandPalette();
+    });
+  }
+  if(ui.commandPaletteBackdrop){
+    ui.commandPaletteBackdrop.addEventListener("pointerdown", () => setCommandPaletteOpen(false));
+  }
+  if(ui.dismissOnboardingBtn){
+    ui.dismissOnboardingBtn.addEventListener("click", () => dismissOnboarding(true));
+  }
+  if(ui.layoutPresetSelect){
+    ui.layoutPresetSelect.addEventListener("change", () => applyLayoutPreset(ui.layoutPresetSelect.value, true));
+  }
   ui.calendarDensityBtn.addEventListener("click", () => {
     const cur = normalizedCalendarUI();
     setCalendarUI({ ...cur, compact: !cur.compact }, true);
@@ -5356,10 +6049,32 @@ function init(){
     monthSelect: document.getElementById("monthSelect"),
     yearSelect: document.getElementById("yearSelect"),
     areaViewSelect: document.getElementById("areaViewSelect"),
+    contextPills: document.getElementById("contextPills"),
+    contextMonthPill: document.getElementById("contextMonthPill"),
+    contextAreaPill: document.getElementById("contextAreaPill"),
+    contextAopPill: document.getElementById("contextAopPill"),
+    topbarToolbar: document.getElementById("topbarToolbar"),
+    topbarMoreWrap: document.getElementById("topbarMoreWrap"),
+    topbarMoreBtn: document.getElementById("topbarMoreBtn"),
+    topbarMoreMenu: document.getElementById("topbarMoreMenu"),
+    topbarArrangeBtn: document.getElementById("topbarArrangeBtn"),
+    moreToggleDashboard: document.getElementById("moreToggleDashboard"),
+    moreToggleCalendars: document.getElementById("moreToggleCalendars"),
+    moreToggleAopNotes: document.getElementById("moreToggleAopNotes"),
+    moreToggleTools: document.getElementById("moreToggleTools"),
+    moreShowAllSections: document.getElementById("moreShowAllSections"),
+    moreArrangeTopbar: document.getElementById("moreArrangeTopbar"),
+    commandPaletteBackdrop: document.getElementById("commandPaletteBackdrop"),
+    commandPalette: document.getElementById("commandPalette"),
+    commandPaletteInput: document.getElementById("commandPaletteInput"),
+    commandPaletteList: document.getElementById("commandPaletteList"),
+    onboardingCard: document.getElementById("onboardingCard"),
+    dismissOnboardingBtn: document.getElementById("dismissOnboardingBtn"),
     themeSelect: document.getElementById("themeSelect"),
     uiDensitySelect: document.getElementById("uiDensitySelect"),
     uiTextScaleSelect: document.getElementById("uiTextScaleSelect"),
     uiCornersSelect: document.getElementById("uiCornersSelect"),
+    layoutPresetSelect: document.getElementById("layoutPresetSelect"),
     contrastToggle: document.getElementById("contrastToggle"),
     motionToggle: document.getElementById("motionToggle"),
     rainToggle: document.getElementById("rainToggle"),
@@ -5504,6 +6219,10 @@ function init(){
   setTeamSyncStatus("Local-only mode");
   applyTeamSyncUiState();
   hookUI();
+  setTopbarArrangeMode(false);
+  setTopbarMoreOpen(false);
+  setCommandPaletteOpen(false);
+  bindOnboardingAutoDismiss();
   applyUiPrefs();
   renderRainToggle();
 
