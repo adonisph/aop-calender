@@ -1239,6 +1239,43 @@
     .delta.neg{ color: rgba(239,68,68,.95); font-weight:800; }
     .delta.zero{ color: var(--muted); font-weight:700; }
     .adhr{ font-family: var(--mono); }
+    .deflect-cell{
+      min-width: 170px;
+    }
+    .deflect-wrap{
+      display:flex;
+      align-items:center;
+      gap:6px;
+      flex-wrap:nowrap;
+    }
+    .deflect-wrap input{
+      width: 56px;
+      min-width: 56px;
+      text-align:center;
+      font-size:11px;
+      font-weight:700;
+      padding: 6px 6px;
+    }
+    .deflect-sep{
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 11px;
+      user-select:none;
+    }
+    .deflect-delta{
+      min-width: 54px;
+      text-align:right;
+      font-size: 11px;
+      font-family: var(--mono);
+      border:1px solid var(--line);
+      border-radius: 999px;
+      padding: 4px 7px;
+      background: rgba(255,255,255,.03);
+      color: var(--muted);
+    }
+    .deflect-delta.pos{ color: rgba(34,197,94,.95); border-color: rgba(34,197,94,.52); background: rgba(34,197,94,.14); }
+    .deflect-delta.neg{ color: rgba(239,68,68,.95); border-color: rgba(239,68,68,.56); background: rgba(239,68,68,.14); }
+    .deflect-delta.zero{ color: var(--muted); }
     .master-notation-panel{
       margin-top: 12px;
       border: 1px solid var(--line);
@@ -2099,6 +2136,7 @@
               <th class="nowrap">Actual</th>
               <th class="nowrap">Delta</th>
               <th class="nowrap">Adherence (MTD)</th>
+              <th class="nowrap">Deflection % (SoM to EoM)</th>
             </tr>
           </thead>
           <tbody id="dashTbody"></tbody>
@@ -2441,6 +2479,7 @@
  * - aops: {id:{id,name,color,area}}
  * - aopMonthly: { [aopId]: { [YYYY-MM]: {
  *      goal, comments, required:boolean,
+ *      deflection_start, deflection_end,
  *      notation, notation_updated_at,
  *      created_at, updated_at,
  *      goal_created_at, goal_updated_at,
@@ -3704,11 +3743,15 @@ function migrateIfNeeded(st){
         (typeof t.notation_updated_at === "string") ? t.notation_updated_at : (notation ? updated_at : "");
 
       const required = !!t.required;
+      const deflection_start = parseDeflectionRate(t.deflection_start);
+      const deflection_end = parseDeflectionRate(t.deflection_end);
 
       st.aopMonthly[aopId][mk] = {
         goal,
         comments,
         required,
+        deflection_start: deflection_start === null ? "" : deflection_start,
+        deflection_end: deflection_end === null ? "" : deflection_end,
         notation,
         notation_updated_at,
         created_at,
@@ -3735,6 +3778,7 @@ function migrateIfNeeded(st){
       if(!st.aopMonthly[aopId][nowMonthKey]){
         st.aopMonthly[aopId][nowMonthKey] = {
           goal:"", comments:"", required:false,
+          deflection_start:"", deflection_end:"",
           notation: "", notation_updated_at: "",
           created_at: t, updated_at: t,
           goal_created_at:"", goal_updated_at:"",
@@ -4473,6 +4517,43 @@ function isWeekend(d){ const js = d.getDay(); return js === 0 || js === 6; }
 function resolveAopColor(aopId){ return aopId ? (view.state.aops[aopId]?.color || null) : null; }
 function resolveAopName(aopId){ return aopId ? (view.state.aops[aopId]?.name || "(Missing AOP)") : "(No AOP)"; }
 function currentMonthKey(){ return ymKey(view.year, view.month); }
+function parseDeflectionRate(raw){
+  const txt = String(raw ?? "").replace(",",".").trim();
+  if(!txt) return null;
+  const num = Number(txt);
+  if(!Number.isFinite(num)) return null;
+  return Math.round(Math.max(0, Math.min(100, num)) * 10) / 10;
+}
+function deflectionRateInputValue(raw){
+  const num = parseDeflectionRate(raw);
+  if(num === null) return "";
+  return Number.isInteger(num) ? String(num) : String(num);
+}
+function deflectionDeltaState(startRaw, endRaw){
+  const start = parseDeflectionRate(startRaw);
+  const end = parseDeflectionRate(endRaw);
+  if(start === null || end === null){
+    return { text:"-", cls:"zero" };
+  }
+  const delta = Math.round((end - start) * 10) / 10;
+  const sign = delta > 0 ? "+" : "";
+  const text = `${sign}${Number.isInteger(delta) ? delta.toFixed(0) : delta.toFixed(1)}%`;
+  const cls = delta > 0 ? "pos" : (delta < 0 ? "neg" : "zero");
+  return { text, cls };
+}
+function setMonthlyDeflectionRate(aopId, monthKey, field, raw, persist){
+  if(!aopId || !monthKey) return null;
+  if(field !== "deflection_start" && field !== "deflection_end") return null;
+  const tmpl = ensureMonthly(aopId, monthKey);
+  const parsed = parseDeflectionRate(raw);
+  const next = parsed === null ? "" : parsed;
+  if(tmpl[field] !== next){
+    tmpl[field] = next;
+    tmpl.updated_at = nowIso();
+  }
+  if(persist) saveState();
+  return tmpl;
+}
 
 function ensureMonthly(aopId, monthKey){
   if(!view.state.aopMonthly[aopId]) view.state.aopMonthly[aopId] = {};
@@ -4480,6 +4561,7 @@ function ensureMonthly(aopId, monthKey){
     const t = nowIso();
     view.state.aopMonthly[aopId][monthKey] = {
       goal:"", comments:"", required:false,
+      deflection_start:"", deflection_end:"",
       notation:"", notation_updated_at:"",
       created_at: t, updated_at: t,
       goal_created_at:"", goal_updated_at:"",
@@ -4487,7 +4569,10 @@ function ensureMonthly(aopId, monthKey){
       required_created_at:"", required_updated_at:""
     };
   }
-  return view.state.aopMonthly[aopId][monthKey];
+  const tmpl = view.state.aopMonthly[aopId][monthKey];
+  if(!("deflection_start" in tmpl)) tmpl.deflection_start = "";
+  if(!("deflection_end" in tmpl)) tmpl.deflection_end = "";
+  return tmpl;
 }
 
 /* --- Entries helpers --- */
@@ -5793,12 +5878,15 @@ function renderDashboard(){
     const a = view.state.aops[id];
     const sMonth = st.perAop[id];
     const sMtd = st.mtdPerAop[id] || { planned:0, actual:0, matched:0 };
+    const tmpl = view.state.aopMonthly?.[id]?.[st.mk] || {};
     const planned = sMonth?.planned || 0;
     const actual = sMonth?.actual || 0;
     const adhPlanned = sMtd.planned || 0;
     const adhMatched = sMtd.matched || 0;
     const adh = adhPlanned ? (adhMatched / adhPlanned) : 0;
     const delta = actual - planned;
+    const deflectionStart = deflectionRateInputValue(tmpl.deflection_start);
+    const deflectionEnd = deflectionRateInputValue(tmpl.deflection_end);
 
     return {
       id,
@@ -5809,13 +5897,15 @@ function renderDashboard(){
       adhPlanned,
       adhMatched,
       adh,
-      delta
+      delta,
+      deflectionStart,
+      deflectionEnd
     };
   });
 
   if(rows.length === 0){
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td colspan="5" class="small">No AOPs in ${escapeHtml(areaLabel(currentAreaViewId()))} view.</td>`;
+    tr.innerHTML = `<td colspan="6" class="small">No AOPs in ${escapeHtml(areaLabel(currentAreaViewId()))} view.</td>`;
     ui.dashTbody.appendChild(tr);
     return;
   }
@@ -5846,10 +5936,68 @@ function renderDashboard(){
     adhTd.className = "nowrap adhr";
     adhTd.textContent = r.adhPlanned ? `${adhPctRow}% (${r.adhMatched}/${r.adhPlanned})` : "-";
 
+    const deflectionTd = document.createElement("td");
+    deflectionTd.className = "deflect-cell";
+    const deflectWrap = document.createElement("div");
+    deflectWrap.className = "deflect-wrap";
+
+    const startInput = document.createElement("input");
+    startInput.type = "number";
+    startInput.min = "0";
+    startInput.max = "100";
+    startInput.step = "0.1";
+    startInput.placeholder = "SoM";
+    startInput.title = "Start of month deflection rate (%)";
+    startInput.value = r.deflectionStart;
+
+    const sep = document.createElement("span");
+    sep.className = "deflect-sep";
+    sep.textContent = "to";
+
+    const endInput = document.createElement("input");
+    endInput.type = "number";
+    endInput.min = "0";
+    endInput.max = "100";
+    endInput.step = "0.1";
+    endInput.placeholder = "EoM";
+    endInput.title = "End of month deflection rate (%)";
+    endInput.value = r.deflectionEnd;
+
+    const deltaBadge = document.createElement("span");
+    deltaBadge.className = "deflect-delta";
+    const updateDeflectionBadge = () => {
+      const state = deflectionDeltaState(startInput.value, endInput.value);
+      deltaBadge.className = `deflect-delta ${state.cls}`;
+      deltaBadge.textContent = state.text;
+    };
+    const commitInput = (field, el, persist) => {
+      const tmpl = setMonthlyDeflectionRate(r.id, st.mk, field, el.value, persist);
+      if(!tmpl) return;
+      if(persist){
+        const normalized = deflectionRateInputValue(tmpl[field]);
+        if(el.value !== normalized) el.value = normalized;
+      }
+      updateDeflectionBadge();
+    };
+    startInput.addEventListener("input", () => commitInput("deflection_start", startInput, false));
+    startInput.addEventListener("change", () => commitInput("deflection_start", startInput, true));
+    startInput.addEventListener("blur", () => commitInput("deflection_start", startInput, true));
+    endInput.addEventListener("input", () => commitInput("deflection_end", endInput, false));
+    endInput.addEventListener("change", () => commitInput("deflection_end", endInput, true));
+    endInput.addEventListener("blur", () => commitInput("deflection_end", endInput, true));
+
+    deflectWrap.appendChild(startInput);
+    deflectWrap.appendChild(sep);
+    deflectWrap.appendChild(endInput);
+    deflectWrap.appendChild(deltaBadge);
+    deflectionTd.appendChild(deflectWrap);
+    updateDeflectionBadge();
+
     tr.appendChild(plannedTd);
     tr.appendChild(actualTd);
     tr.appendChild(deltaTd);
     tr.appendChild(adhTd);
+    tr.appendChild(deflectionTd);
 
     ui.dashTbody.appendChild(tr);
   }
@@ -6242,6 +6390,12 @@ function hookUI(){
     document.addEventListener("pointerdown", (event) => {
       const target = event.target;
       if(!(target instanceof Node)) return;
+      const active = document.activeElement;
+      const colorPickerOpen =
+        customizeOpen &&
+        active instanceof HTMLInputElement &&
+        (active.type || "").toLowerCase() === "color";
+      if(colorPickerOpen) return;
       if(ui.topbarMoreWrap?.contains(target)) return;
       if(ui.customizeWrap?.contains(target)) return;
       setTopbarMoreOpen(false);
@@ -6351,6 +6505,9 @@ function hookUI(){
   }
   const bindCustomColorInput = (el, key) => {
     if(!el) return;
+    el.addEventListener("pointerdown", (event) => {
+      event.stopPropagation();
+    });
     el.addEventListener("input", () => {
       const cur = normalizedUiPrefs();
       const nextColors = { ...cur.customColors, [key]: normalizeHexColor(el.value, cur.customColors[key]) };
