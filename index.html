@@ -173,6 +173,25 @@
       gap:14px;
       flex-wrap:wrap;
     }
+    #headerInfo{
+      order: 1;
+      min-width: 0;
+      flex: 1 1 460px;
+    }
+    #topbarToolbar{
+      order: 2;
+      margin-left: auto;
+      margin-right: 0;
+      flex: 0 1 auto;
+    }
+    header .row.topbar-side-left #topbarToolbar{
+      order: 1;
+      margin-left: 0;
+      margin-right: auto;
+    }
+    header .row.topbar-side-left #headerInfo{
+      order: 2;
+    }
 
     h1{
       font-family: var(--heading);
@@ -400,8 +419,46 @@
       display:grid;
       gap:4px;
     }
+    .customize-color-block{
+      grid-column: 1 / -1;
+      border:1px solid var(--line);
+      border-radius: 10px;
+      background: rgba(255,255,255,.02);
+      padding: 8px;
+      display:grid;
+      gap:8px;
+    }
+    .customize-color-actions{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+    .customize-color-grid{
+      display:grid;
+      grid-template-columns: repeat(3, minmax(120px, 1fr));
+      gap:8px;
+    }
+    .customize-color-item{
+      display:grid;
+      gap:4px;
+    }
+    .customize-color-item input[type="color"]{
+      width:100%;
+      height:34px;
+      border:1px solid var(--line);
+      border-radius:10px;
+      background:#0b0d10;
+      padding:3px;
+      cursor:pointer;
+    }
+    .customize-color-item input[type="color"]:disabled{
+      cursor:not-allowed;
+      opacity:.55;
+    }
     @media (max-width: 760px){
       .customize-grid{ grid-template-columns: 1fr; }
+      .customize-color-grid{ grid-template-columns: repeat(2, minmax(120px, 1fr)); }
     }
     .sync-panel{
       margin-top: 10px;
@@ -479,11 +536,12 @@
       gap:10px 8px;
       align-items:center;
     }
-    .sync-actions #syncDisconnectBtn{ order:1; }
-    .sync-actions #syncPullBtn{ order:2; }
-    .sync-actions #syncPushBtn{ order:3; }
-    .sync-actions #syncAutoBtn{ order:4; }
-    .sync-actions #syncStatus{ order:5; }
+    .sync-actions #syncOpenLoginBtn{ order:1; }
+    .sync-actions #syncDisconnectBtn{ order:2; }
+    .sync-actions #syncPullBtn{ order:3; }
+    .sync-actions #syncPushBtn{ order:4; }
+    .sync-actions #syncAutoBtn{ order:5; }
+    .sync-actions #syncStatus{ order:6; }
     .sync-password-row{
       display:grid;
       grid-template-columns: 1fr auto;
@@ -1712,8 +1770,8 @@
   <div class="small">Use the Login button in the top right.</div>
 </section>
 <header>
-  <div class="row">
-    <div>
+  <div class="row topbar-side-right" id="headerRow">
+    <div id="headerInfo">
       <h1>AOP Calender R&D</h1>
       <div class="sub">
         Plan your month (Planned) per AOP. Track execution (Actual), write Day Notes, and use Diff Mode + Dashboard to see adherence.
@@ -1765,6 +1823,13 @@
                 </select>
               </div>
               <div>
+                <label for="topbarSideSelect">Top Bar</label>
+                <select id="topbarSideSelect" title="Top bar side">
+                  <option value="right">Top Bar: Right</option>
+                  <option value="left">Top Bar: Left</option>
+                </select>
+              </div>
+              <div>
                 <label for="uiDensitySelect">Density</label>
                 <select id="uiDensitySelect" title="Control density">
                   <option value="compact">Density: Compact</option>
@@ -1791,6 +1856,24 @@
                 <button id="contrastToggle" class="btn-ghost btn-toggle" type="button" aria-pressed="false" title="Toggle high contrast">Contrast</button>
                 <button id="rainToggle" class="btn-ghost btn-toggle" type="button" aria-pressed="true" title="Toggle matrix rain background">Rain: ON</button>
                 <button id="diffToggle" class="btn-ghost btn-toggle" type="button" title="Toggle diff view (met/missed/unplanned)">Diff</button>
+              </div>
+              <div class="customize-color-block">
+                <label>Colors</label>
+                <div class="customize-color-actions">
+                  <button id="customColorsToggle" class="btn-ghost btn-toggle" type="button" aria-pressed="false">Custom Colors: OFF</button>
+                  <button id="customColorsResetBtn" class="btn-ghost" type="button">Reset Colors</button>
+                </div>
+                <div class="customize-color-grid">
+                  <div class="customize-color-item"><label for="customColorPower">Accent</label><input id="customColorPower" type="color" value="#ff7a1a" /></div>
+                  <div class="customize-color-item"><label for="customColorBg0">Background Base</label><input id="customColorBg0" type="color" value="#050200" /></div>
+                  <div class="customize-color-item"><label for="customColorBg1">Background Glow</label><input id="customColorBg1" type="color" value="#1a0c03" /></div>
+                  <div class="customize-color-item"><label for="customColorSurface">Surface</label><input id="customColorSurface" type="color" value="#101010" /></div>
+                  <div class="customize-color-item"><label for="customColorSurfaceSoft">Surface Soft</label><input id="customColorSurfaceSoft" type="color" value="#171717" /></div>
+                  <div class="customize-color-item"><label for="customColorLine">Border</label><input id="customColorLine" type="color" value="#2a2a2a" /></div>
+                  <div class="customize-color-item"><label for="customColorText">Text</label><input id="customColorText" type="color" value="#e6e6e6" /></div>
+                  <div class="customize-color-item"><label for="customColorMuted">Muted Text</label><input id="customColorMuted" type="color" value="#b3b3b3" /></div>
+                  <div class="customize-color-item"><label for="customColorRain">Rain</label><input id="customColorRain" type="color" value="#ffab62" /></div>
+                </div>
               </div>
             </div>
           </div>
@@ -1861,14 +1944,9 @@
               </div>
             </div>
           </section>
-          <section class="sync-section" aria-label="Login settings">
-            <h4>Account</h4>
-            <div class="sync-login-trigger">
-              <button id="syncOpenLoginBtn" class="btn-primary" type="button">Open Login</button>
-            </div>
-          </section>
         </div>
         <div class="sync-actions">
+          <button id="syncOpenLoginBtn" class="btn-primary" type="button">Open Login</button>
           <button id="syncDisconnectBtn" class="btn-ghost" type="button">Disconnect</button>
           <button id="syncPullBtn" class="btn-ghost" type="button">Pull Latest</button>
           <button id="syncPushBtn" class="btn-ghost" type="button">Push Now</button>
@@ -2264,7 +2342,7 @@
  *     aopPane:"catalog"|"notation",
  *     areaView:"master"|"pool"|"sales"|"delivery"|"aftersales"|"others_some",
  *     colorTheme:string,
- *     uiPrefs:{density:"compact"|"comfortable",textScale:"normal"|"large"|"xlarge",corner:"tight"|"normal"|"round",highContrast:boolean,showTips:boolean,layoutPreset:"custom"|"focus"|"review"|"sync"|"dashboard",topbarOrder:string[]},
+ *     uiPrefs:{density:"compact"|"comfortable",textScale:"normal"|"large"|"xlarge",corner:"tight"|"normal"|"round",topbarSide:"right"|"left",customColorsEnabled:boolean,customColors:{power,bg0,bg1,surface,surfaceSoft,line,text,muted,rain},highContrast:boolean,showTips:boolean,layoutPreset:"custom"|"focus"|"review"|"sync"|"dashboard",topbarOrder:string[]},
  *     masterNotationSort:"blockers_desc"|"achievements_desc"|"updated_desc"|"name_asc",
  *     dayNoteFilters:{thisMonth:boolean},
  *     calendarUI:{compact:boolean,markedOnly:boolean,activeOnly:boolean,focus:"both"|"planned"|"actual"}
@@ -2299,6 +2377,13 @@ const MASTER_VIEW_ID = "master";
 const DEFAULT_AREA_VIEW = "pool";
 const DEFAULT_THEME = "ember";
 const DAY_NOTE_AUTOSAVE_MS = 700;
+const BASE_UI_COLORS = {
+  surface:"#101010",
+  surfaceSoft:"#171717",
+  line:"#2a2a2a",
+  text:"#e6e6e6",
+  muted:"#b3b3b3"
+};
 const COLOR_THEMES = {
   ember:   { power:"#ff7a1a", powerRgb:"255,122,26",   bg0:"#050200", bg1:"#1a0c03", rainRgb:"255,171,98",  rainAlpha:.34, rainSpeed:"34s", rainSpeed2:"52s" },
   ocean:   { power:"#2bc7ff", powerRgb:"43,199,255",   bg0:"#031017", bg1:"#082538", rainRgb:"127,216,255", rainAlpha:.34, rainSpeed:"33s", rainSpeed2:"50s" },
@@ -2470,6 +2555,108 @@ function setAopArea(aopId, areaId){
   renderDashboard();
 }
 
+function normalizeHexColor(raw, fallback){
+  const safeFallback = String(fallback || "#000000").trim();
+  const value = String(raw || "").trim();
+  const short = /^#([0-9a-fA-F]{3})$/;
+  const full = /^#([0-9a-fA-F]{6})$/;
+  if(short.test(value)){
+    const m = value.slice(1);
+    return `#${m[0]}${m[0]}${m[1]}${m[1]}${m[2]}${m[2]}`.toLowerCase();
+  }
+  if(full.test(value)) return value.toLowerCase();
+  return safeFallback.toLowerCase();
+}
+function hexToRgbString(hex){
+  const safe = normalizeHexColor(hex, "#000000").slice(1);
+  const r = parseInt(safe.slice(0,2), 16);
+  const g = parseInt(safe.slice(2,4), 16);
+  const b = parseInt(safe.slice(4,6), 16);
+  return `${r},${g},${b}`;
+}
+function rgbCsvToHex(raw, fallback){
+  const safeFallback = normalizeHexColor(fallback, "#000000");
+  const parts = String(raw || "").split(",").map(v => Number(v.trim()));
+  if(parts.length !== 3 || parts.some(v => !Number.isFinite(v))) return safeFallback;
+  const [r,g,b] = parts.map(v => Math.max(0, Math.min(255, Math.round(v))));
+  return `#${r.toString(16).padStart(2,"0")}${g.toString(16).padStart(2,"0")}${b.toString(16).padStart(2,"0")}`;
+}
+function baseUiColors(themeId){
+  const safeTheme = COLOR_THEMES[themeId] ? themeId : DEFAULT_THEME;
+  const theme = COLOR_THEMES[safeTheme];
+  return {
+    power: normalizeHexColor(theme.power, "#ff7a1a"),
+    bg0: normalizeHexColor(theme.bg0, "#050200"),
+    bg1: normalizeHexColor(theme.bg1, "#1a0c03"),
+    surface: BASE_UI_COLORS.surface,
+    surfaceSoft: BASE_UI_COLORS.surfaceSoft,
+    line: BASE_UI_COLORS.line,
+    text: BASE_UI_COLORS.text,
+    muted: BASE_UI_COLORS.muted,
+    rain: normalizeHexColor(rgbCsvToHex(theme.rainRgb, theme.power), theme.power)
+  };
+}
+function normalizeCustomColors(raw, themeId){
+  const base = baseUiColors(themeId);
+  const src = raw && typeof raw === "object" ? raw : {};
+  return {
+    power: normalizeHexColor(src.power, base.power),
+    bg0: normalizeHexColor(src.bg0, base.bg0),
+    bg1: normalizeHexColor(src.bg1, base.bg1),
+    surface: normalizeHexColor(src.surface, base.surface),
+    surfaceSoft: normalizeHexColor(src.surfaceSoft, base.surfaceSoft),
+    line: normalizeHexColor(src.line, base.line),
+    text: normalizeHexColor(src.text, base.text),
+    muted: normalizeHexColor(src.muted, base.muted),
+    rain: normalizeHexColor(src.rain, base.rain)
+  };
+}
+function effectiveUiColors(){
+  const prefs = normalizedUiPrefs();
+  return prefs.customColorsEnabled ? prefs.customColors : baseUiColors(currentThemeId());
+}
+function applyEffectiveUiColors(){
+  const root = document.documentElement;
+  if(!root) return;
+  const c = effectiveUiColors();
+  root.style.setProperty("--power", c.power);
+  root.style.setProperty("--power-rgb", hexToRgbString(c.power));
+  root.style.setProperty("--bg0", c.bg0);
+  root.style.setProperty("--bg1", c.bg1);
+  root.style.setProperty("--surface", c.surface);
+  root.style.setProperty("--surfaceSoft", c.surfaceSoft);
+  root.style.setProperty("--line", c.line);
+  root.style.setProperty("--text", c.text);
+  root.style.setProperty("--muted", c.muted);
+  root.style.setProperty("--rain-rgb", hexToRgbString(c.rain));
+}
+function colorInputBindings(){
+  return [
+    ["power", ui.customColorPower],
+    ["bg0", ui.customColorBg0],
+    ["bg1", ui.customColorBg1],
+    ["surface", ui.customColorSurface],
+    ["surfaceSoft", ui.customColorSurfaceSoft],
+    ["line", ui.customColorLine],
+    ["text", ui.customColorText],
+    ["muted", ui.customColorMuted],
+    ["rain", ui.customColorRain]
+  ];
+}
+function renderCustomColorControls(){
+  const prefs = normalizedUiPrefs();
+  const on = prefs.customColorsEnabled;
+  if(ui.customColorsToggle){
+    syncToggleBtn(ui.customColorsToggle, on);
+    ui.customColorsToggle.textContent = on ? "Custom Colors: ON" : "Custom Colors: OFF";
+  }
+  for(const [key, el] of colorInputBindings()){
+    if(!el) continue;
+    const val = normalizeHexColor(prefs.customColors[key], baseUiColors(currentThemeId())[key]);
+    if(el.value.toLowerCase() !== val) el.value = val;
+    el.disabled = !on;
+  }
+}
 function applyColorTheme(themeId, persist){
   const safe = COLOR_THEMES[themeId] ? themeId : DEFAULT_THEME;
   const theme = COLOR_THEMES[safe];
@@ -2488,19 +2675,23 @@ function applyColorTheme(themeId, persist){
   if(ui.themeSelect && ui.themeSelect.value !== safe){
     ui.themeSelect.value = safe;
   }
+  if(view.state?.settings){
+    view.state.settings.colorTheme = safe;
+  }
+
+  applyEffectiveUiColors();
+  renderCustomColorControls();
 
   if(ui.aopNewColor){
+    const activeAccent = effectiveUiColors().power.toLowerCase();
     const knownThemeColors = Object.values(COLOR_THEMES).map(t => t.power.toLowerCase());
     const current = (ui.aopNewColor.value || "").toLowerCase();
-    if(!current || knownThemeColors.includes(current)){
-      ui.aopNewColor.value = theme.power;
+    if(!current || knownThemeColors.includes(current) || current === activeAccent){
+      ui.aopNewColor.value = activeAccent;
     }
   }
 
-  if(view.state?.settings){
-    view.state.settings.colorTheme = safe;
-    if(persist) saveState();
-  }
+  if(view.state?.settings && persist) saveState();
 }
 function matrixGlyph(){
   const source = Math.random() < 0.72 ? RAIN_GLYPHS : RAIN_CHARS;
@@ -2627,13 +2818,20 @@ function normalizeTopbarOrder(raw){
   }
   return next;
 }
+function normalizeTopbarSide(raw){
+  return String(raw || "").trim().toLowerCase() === "left" ? "left" : "right";
+}
 function normalizedUiPrefs(){
   const raw = view.state?.settings?.uiPrefs || {};
+  const themeId = COLOR_THEMES[view.state?.settings?.colorTheme] ? view.state.settings.colorTheme : DEFAULT_THEME;
   const layoutPreset = ["custom","focus","review","sync","dashboard"].includes(raw.layoutPreset) ? raw.layoutPreset : "custom";
   return {
     density: raw.density === "comfortable" ? "comfortable" : "compact",
     textScale: raw.textScale === "large" || raw.textScale === "xlarge" ? raw.textScale : "normal",
     corner: raw.corner === "tight" || raw.corner === "round" ? raw.corner : "normal",
+    topbarSide: normalizeTopbarSide(raw.topbarSide),
+    customColorsEnabled: raw.customColorsEnabled === true,
+    customColors: normalizeCustomColors(raw.customColors, themeId),
     highContrast: raw.highContrast === true,
     showTips: raw.showTips !== false,
     layoutPreset,
@@ -2647,6 +2845,9 @@ function setUiPrefs(next, persist){
     density: next?.density === "comfortable" ? "comfortable" : "compact",
     textScale: next?.textScale === "large" || next?.textScale === "xlarge" ? next.textScale : "normal",
     corner: next?.corner === "tight" || next?.corner === "round" ? next.corner : "normal",
+    topbarSide: normalizeTopbarSide(next?.topbarSide),
+    customColorsEnabled: next?.customColorsEnabled === true,
+    customColors: normalizeCustomColors(next?.customColors, view.state?.settings?.colorTheme),
     highContrast: next?.highContrast === true,
     showTips: next?.showTips !== false,
     layoutPreset,
@@ -2681,9 +2882,17 @@ function applyUiPrefs(){
   root.style.setProperty("--radius", c.card);
   root.style.setProperty("--control-radius", c.control);
   root.classList.toggle("ui-high-contrast", prefs.highContrast);
+  applyEffectiveUiColors();
   if(ui.uiDensitySelect) ui.uiDensitySelect.value = prefs.density;
   if(ui.uiTextScaleSelect) ui.uiTextScaleSelect.value = prefs.textScale;
   if(ui.uiCornersSelect) ui.uiCornersSelect.value = prefs.corner;
+  if(ui.topbarSideSelect) ui.topbarSideSelect.value = prefs.topbarSide;
+  renderCustomColorControls();
+  if(ui.headerRow){
+    const left = prefs.topbarSide === "left";
+    ui.headerRow.classList.toggle("topbar-side-left", left);
+    ui.headerRow.classList.toggle("topbar-side-right", !left);
+  }
   if(ui.contrastToggle){
     syncToggleBtn(ui.contrastToggle, prefs.highContrast);
     ui.contrastToggle.textContent = prefs.highContrast ? "Contrast: High" : "Contrast";
@@ -3176,7 +3385,18 @@ function defaultState(){
       aopPane: "notation",
       areaView: DEFAULT_AREA_VIEW,
       colorTheme: DEFAULT_THEME,
-      uiPrefs: { density:"compact", textScale:"normal", corner:"normal", highContrast:false, showTips:true, layoutPreset:"custom", topbarOrder: DEFAULT_TOPBAR_ORDER.slice() },
+      uiPrefs: {
+        density:"compact",
+        textScale:"normal",
+        corner:"normal",
+        topbarSide:"right",
+        customColorsEnabled:false,
+        customColors: normalizeCustomColors({}, DEFAULT_THEME),
+        highContrast:false,
+        showTips:true,
+        layoutPreset:"custom",
+        topbarOrder: DEFAULT_TOPBAR_ORDER.slice()
+      },
       rainEnabled: true,
       teamSyncOpen: false,
       masterNotationSort: "blockers_desc",
@@ -3223,6 +3443,9 @@ function migrateIfNeeded(st){
     density: up.density === "comfortable" ? "comfortable" : "compact",
     textScale: up.textScale === "large" || up.textScale === "xlarge" ? up.textScale : "normal",
     corner: up.corner === "tight" || up.corner === "round" ? up.corner : "normal",
+    topbarSide: normalizeTopbarSide(up.topbarSide),
+    customColorsEnabled: up.customColorsEnabled === true,
+    customColors: normalizeCustomColors(up.customColors, st.settings.colorTheme),
     highContrast: up.highContrast === true,
     showTips: up.showTips !== false,
     layoutPreset: ["custom","focus","review","sync","dashboard"].includes(up.layoutPreset) ? up.layoutPreset : "custom",
@@ -5844,6 +6067,12 @@ function hookUI(){
   if(ui.layoutPresetSelect){
     ui.layoutPresetSelect.addEventListener("change", () => applyLayoutPreset(ui.layoutPresetSelect.value, true));
   }
+  if(ui.topbarSideSelect){
+    ui.topbarSideSelect.addEventListener("change", () => {
+      const cur = normalizedUiPrefs();
+      setUiPrefs({ ...cur, topbarSide: ui.topbarSideSelect.value }, true);
+    });
+  }
   ui.calendarDensityBtn.addEventListener("click", () => {
     const cur = normalizedCalendarUI();
     setCalendarUI({ ...cur, compact: !cur.compact }, true);
@@ -5897,6 +6126,44 @@ function hookUI(){
   });
   ui.saveTemplateBtn.addEventListener("click", saveMonthlyTemplate);
   ui.themeSelect.addEventListener("change", () => applyColorTheme(ui.themeSelect.value, true));
+  if(ui.customColorsToggle){
+    ui.customColorsToggle.addEventListener("click", () => {
+      const cur = normalizedUiPrefs();
+      setUiPrefs({ ...cur, customColorsEnabled: !cur.customColorsEnabled }, true);
+    });
+  }
+  if(ui.customColorsResetBtn){
+    ui.customColorsResetBtn.addEventListener("click", () => {
+      const cur = normalizedUiPrefs();
+      setUiPrefs({
+        ...cur,
+        customColorsEnabled: false,
+        customColors: normalizeCustomColors({}, currentThemeId())
+      }, true);
+    });
+  }
+  const bindCustomColorInput = (el, key) => {
+    if(!el) return;
+    el.addEventListener("input", () => {
+      const cur = normalizedUiPrefs();
+      const nextColors = { ...cur.customColors, [key]: normalizeHexColor(el.value, cur.customColors[key]) };
+      setUiPrefs({ ...cur, customColorsEnabled:true, customColors: nextColors }, false);
+    });
+    el.addEventListener("change", () => {
+      const cur = normalizedUiPrefs();
+      const nextColors = { ...cur.customColors, [key]: normalizeHexColor(el.value, cur.customColors[key]) };
+      setUiPrefs({ ...cur, customColorsEnabled:true, customColors: nextColors }, true);
+    });
+  };
+  bindCustomColorInput(ui.customColorPower, "power");
+  bindCustomColorInput(ui.customColorBg0, "bg0");
+  bindCustomColorInput(ui.customColorBg1, "bg1");
+  bindCustomColorInput(ui.customColorSurface, "surface");
+  bindCustomColorInput(ui.customColorSurfaceSoft, "surfaceSoft");
+  bindCustomColorInput(ui.customColorLine, "line");
+  bindCustomColorInput(ui.customColorText, "text");
+  bindCustomColorInput(ui.customColorMuted, "muted");
+  bindCustomColorInput(ui.customColorRain, "rain");
   if(ui.uiDensitySelect){
     ui.uiDensitySelect.addEventListener("change", () => {
       const cur = normalizedUiPrefs();
@@ -6135,6 +6402,7 @@ function init(){
     contextMonthPill: document.getElementById("contextMonthPill"),
     contextAreaPill: document.getElementById("contextAreaPill"),
     contextAopPill: document.getElementById("contextAopPill"),
+    headerRow: document.getElementById("headerRow"),
     topbarToolbar: document.getElementById("topbarToolbar"),
     topbarMoreWrap: document.getElementById("topbarMoreWrap"),
     topbarMoreBtn: document.getElementById("topbarMoreBtn"),
@@ -6154,9 +6422,21 @@ function init(){
     onboardingCard: document.getElementById("onboardingCard"),
     dismissOnboardingBtn: document.getElementById("dismissOnboardingBtn"),
     themeSelect: document.getElementById("themeSelect"),
+    customColorsToggle: document.getElementById("customColorsToggle"),
+    customColorsResetBtn: document.getElementById("customColorsResetBtn"),
+    customColorPower: document.getElementById("customColorPower"),
+    customColorBg0: document.getElementById("customColorBg0"),
+    customColorBg1: document.getElementById("customColorBg1"),
+    customColorSurface: document.getElementById("customColorSurface"),
+    customColorSurfaceSoft: document.getElementById("customColorSurfaceSoft"),
+    customColorLine: document.getElementById("customColorLine"),
+    customColorText: document.getElementById("customColorText"),
+    customColorMuted: document.getElementById("customColorMuted"),
+    customColorRain: document.getElementById("customColorRain"),
     uiDensitySelect: document.getElementById("uiDensitySelect"),
     uiTextScaleSelect: document.getElementById("uiTextScaleSelect"),
     uiCornersSelect: document.getElementById("uiCornersSelect"),
+    topbarSideSelect: document.getElementById("topbarSideSelect"),
     layoutPresetSelect: document.getElementById("layoutPresetSelect"),
     contrastToggle: document.getElementById("contrastToggle"),
     rainToggle: document.getElementById("rainToggle"),
