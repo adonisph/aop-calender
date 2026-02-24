@@ -94,6 +94,23 @@
       position: relative;
       z-index: 3;
     }
+    #preloginTopRightBtn{
+      position: fixed;
+      top: 12px;
+      right: 16px;
+      z-index: 98;
+      display:none;
+    }
+    body.prelogin-lock header,
+    body.prelogin-lock main{
+      display:none !important;
+    }
+    body.prelogin-lock #matrixRain{
+      display:none !important;
+    }
+    body.prelogin-lock #preloginTopRightBtn{
+      display:inline-flex;
+    }
 
     header{
       padding:12px 16px;
@@ -150,47 +167,6 @@
       align-items:center;
       gap:6px;
       min-width:0;
-    }
-    .tb-grip{
-      display:none;
-      width:24px;
-      height:24px;
-      border-radius:8px;
-      border:1px dashed var(--line);
-      background: rgba(255,255,255,.02);
-      color: var(--muted);
-      align-items:center;
-      justify-content:center;
-      font-size: 11px;
-      font-weight:900;
-      cursor:grab;
-      padding:0;
-      flex:0 0 auto;
-    }
-    .tb-grip:active{ cursor:grabbing; }
-    html.topbar-arrange #topbarToolbar{
-      border:1px dashed rgba(var(--power-rgb),.40);
-      border-radius: 12px;
-      padding:6px;
-      background: rgba(var(--power-rgb),.06);
-    }
-    html.topbar-arrange #topbarToolbar .tb-item{
-      border:1px dashed rgba(var(--power-rgb),.45);
-      border-radius: 10px;
-      padding:2px;
-      background: rgba(255,255,255,.02);
-    }
-    html.topbar-arrange #topbarToolbar .tb-grip{
-      display:inline-flex;
-    }
-    html.topbar-arrange #topbarToolbar .tb-item.dragging{
-      opacity:.72;
-      border-color: rgba(var(--power-rgb),.75);
-      box-shadow: 0 0 0 2px rgba(var(--power-rgb),.18);
-    }
-    html.topbar-arrange #topbarToolbar .tb-item > button:not(.tb-grip),
-    html.topbar-arrange #topbarToolbar .tb-item > select{
-      pointer-events:none;
     }
     .topbar-more-menu{
       position:absolute;
@@ -352,6 +328,38 @@
     }
     .tools-card .section-pad{ padding: 10px 12px; }
     .tools-row + .tools-row{ margin-top: 8px; }
+    .customize-wrap{
+      position: relative;
+      display:inline-flex;
+    }
+    .customize-popout{
+      position:absolute;
+      top: calc(100% + 8px);
+      left:0;
+      z-index: 65;
+      min-width: min(520px, calc(100vw - 32px));
+      max-width: min(720px, calc(100vw - 32px));
+      border:1px solid var(--line);
+      border-radius: 12px;
+      background: linear-gradient(180deg, #141414, #101010);
+      box-shadow: var(--shadow);
+      padding: 10px;
+      display:grid;
+      gap:10px;
+    }
+    .customize-popout[hidden]{ display:none !important; }
+    .customize-grid{
+      display:grid;
+      grid-template-columns: repeat(2, minmax(220px, 1fr));
+      gap:8px;
+    }
+    .customize-grid > div{
+      display:grid;
+      gap:4px;
+    }
+    @media (max-width: 760px){
+      .customize-grid{ grid-template-columns: 1fr; }
+    }
     .sync-panel{
       margin-top: 10px;
       border: 1px solid var(--line);
@@ -656,12 +664,6 @@
     html.ui-high-contrast .aop-row{
       border-color: #5a5a5a;
     }
-    html.motion-off *, html.motion-off *::before, html.motion-off *::after{
-      animation: none !important;
-      transition: none !important;
-      scroll-behavior: auto !important;
-    }
-
     button{
       cursor:pointer;
       transition: transform .04s ease, border-color .15s ease, background .15s ease, box-shadow .15s ease;
@@ -1646,6 +1648,7 @@
 
 <body>
 <canvas id="matrixRain" aria-hidden="true"></canvas>
+<button id="preloginTopRightBtn" class="btn-primary" type="button">Login</button>
 <header>
   <div class="row">
     <div>
@@ -1661,10 +1664,10 @@
     </div>
 
     <div class="toolbar compact" id="topbarToolbar">
-      <div class="tb-item" data-tb-key="today"><button class="tb-grip" type="button" aria-label="Drag control">::</button><button id="today" class="btn-primary" type="button" title="Jump to current month">Today</button></div>
-      <div class="tb-item" data-tb-key="month"><button class="tb-grip" type="button" aria-label="Drag control">::</button><select id="monthSelect" title="Select month"></select></div>
-      <div class="tb-item" data-tb-key="year"><button class="tb-grip" type="button" aria-label="Drag control">::</button><select id="yearSelect" title="Select year"></select></div>
-      <div class="tb-item" data-tb-key="area"><button class="tb-grip" type="button" aria-label="Drag control">::</button><select id="areaViewSelect" title="Select area view">
+      <div class="tb-item" data-tb-key="today"><button id="today" class="btn-primary" type="button" title="Jump to current month">Today</button></div>
+      <div class="tb-item" data-tb-key="month"><select id="monthSelect" title="Select month"></select></div>
+      <div class="tb-item" data-tb-key="year"><select id="yearSelect" title="Select year"></select></div>
+      <div class="tb-item" data-tb-key="area"><select id="areaViewSelect" title="Select area view">
         <option value="master">Master (All)</option>
         <option value="pool">Pool</option>
         <option value="sales">Sales</option>
@@ -1672,15 +1675,13 @@
         <option value="aftersales">Aftersales</option>
         <option value="others_some">Others/SoMe</option>
       </select></div>
-      <div class="tb-item tb-extra" data-tb-key="sep"><button class="tb-grip" type="button" aria-label="Drag control">::</button><span class="toolbar-sep" aria-hidden="true"></span></div>
-      <div class="tb-item tb-extra" data-tb-key="dashboard"><button class="tb-grip" type="button" aria-label="Drag control">::</button><button id="toggleDashboard" class="btn-ghost focus-tab" type="button" aria-pressed="true">Dashboard</button></div>
-      <div class="tb-item tb-extra" data-tb-key="calendars"><button class="tb-grip" type="button" aria-label="Drag control">::</button><button id="toggleCalendars" class="btn-ghost focus-tab" type="button" aria-pressed="true">Calendars</button></div>
-      <div class="tb-item tb-extra" data-tb-key="aop"><button class="tb-grip" type="button" aria-label="Drag control">::</button><button id="toggleAopNotes" class="btn-ghost focus-tab" type="button" aria-pressed="true">AOP Catalog</button></div>
-      <div class="tb-item tb-extra" data-tb-key="tools"><button class="tb-grip" type="button" aria-label="Drag control">::</button><button id="toggleTools" class="btn-ghost focus-tab" type="button" aria-pressed="true">Display/Data</button></div>
-      <div class="tb-item tb-extra" data-tb-key="showall"><button class="tb-grip" type="button" aria-label="Drag control">::</button><button id="showAllSections" class="btn-ghost" type="button">Show All</button></div>
-      <div class="tb-item tb-extra" data-tb-key="arrange"><button class="tb-grip" type="button" aria-label="Drag control">::</button><button id="topbarArrangeBtn" class="btn-ghost btn-toggle" type="button" aria-pressed="false">Arrange</button></div>
+      <div class="tb-item tb-extra" data-tb-key="sep"><span class="toolbar-sep" aria-hidden="true"></span></div>
+      <div class="tb-item tb-extra" data-tb-key="dashboard"><button id="toggleDashboard" class="btn-ghost focus-tab" type="button" aria-pressed="true">Dashboard</button></div>
+      <div class="tb-item tb-extra" data-tb-key="calendars"><button id="toggleCalendars" class="btn-ghost focus-tab" type="button" aria-pressed="true">Calendars</button></div>
+      <div class="tb-item tb-extra" data-tb-key="aop"><button id="toggleAopNotes" class="btn-ghost focus-tab" type="button" aria-pressed="true">AOP Catalog</button></div>
+      <div class="tb-item tb-extra" data-tb-key="tools"><button id="toggleTools" class="btn-ghost focus-tab" type="button" aria-pressed="true">Display/Data</button></div>
+      <div class="tb-item tb-extra" data-tb-key="showall"><button id="showAllSections" class="btn-ghost" type="button">Show All</button></div>
       <div class="tb-item topbar-more-wrap" data-tb-key="more" id="topbarMoreWrap">
-        <button class="tb-grip" type="button" aria-label="Drag control">::</button>
         <button id="topbarMoreBtn" class="btn-ghost" type="button" aria-expanded="false" aria-controls="topbarMoreMenu">More</button>
         <div id="topbarMoreMenu" class="topbar-more-menu" hidden>
           <button id="moreToggleDashboard" class="btn-ghost" type="button">Dashboard</button>
@@ -1688,7 +1689,6 @@
           <button id="moreToggleAopNotes" class="btn-ghost" type="button">AOP Catalog</button>
           <button id="moreToggleTools" class="btn-ghost" type="button">Display/Data</button>
           <button id="moreShowAllSections" class="btn-ghost" type="button">Show All</button>
-          <button id="moreArrangeTopbar" class="btn-ghost" type="button">Arrange</button>
         </div>
       </div>
     </div>
@@ -1712,40 +1712,63 @@
     <div class="section-pad">
       <div class="tools-row toolbar compact">
         <span class="small">Display</span>
-        <select id="themeSelect" title="Select theme">
-          <option value="ember">Ember</option>
-          <option value="ocean">Ocean</option>
-          <option value="forest">Forest</option>
-          <option value="sunset">Sunset</option>
-          <option value="matrix">Matrix</option>
-          <option value="slate">Slate</option>
-          <option value="crimson">Crimson</option>
-        </select>
-        <select id="uiDensitySelect" title="Control density">
-          <option value="compact">Density: Compact</option>
-          <option value="comfortable">Density: Comfortable</option>
-        </select>
-        <select id="uiTextScaleSelect" title="Text size">
-          <option value="normal">Text: Normal</option>
-          <option value="large">Text: Large</option>
-          <option value="xlarge">Text: XL</option>
-        </select>
-        <select id="uiCornersSelect" title="Corner style">
-          <option value="tight">Corners: Tight</option>
-          <option value="normal">Corners: Normal</option>
-          <option value="round">Corners: Round</option>
-        </select>
-        <select id="layoutPresetSelect" title="Layout presets">
-          <option value="custom">Layout: Custom</option>
-          <option value="focus">Layout: Focus</option>
-          <option value="review">Layout: Review</option>
-          <option value="sync">Layout: Team Sync</option>
-          <option value="dashboard">Layout: Dashboard Only</option>
-        </select>
-        <button id="contrastToggle" class="btn-ghost btn-toggle" type="button" aria-pressed="false" title="Toggle high contrast">Contrast</button>
-        <button id="motionToggle" class="btn-ghost btn-toggle" type="button" aria-pressed="true" title="Toggle UI motion">Motion: ON</button>
-        <button id="rainToggle" class="btn-ghost btn-toggle" type="button" aria-pressed="true" title="Toggle matrix rain background">Rain: ON</button>
-        <button id="diffToggle" class="btn-ghost btn-toggle" type="button" title="Toggle diff view (met/missed/unplanned)">Diff</button>
+        <div class="customize-wrap" id="customizeWrap">
+          <button id="customizeToggleBtn" class="btn-ghost btn-toggle" type="button" aria-expanded="false" aria-controls="customizePopout">Customize</button>
+          <div id="customizePopout" class="customize-popout" hidden>
+            <div class="customize-grid">
+              <div>
+                <label for="themeSelect">Theme</label>
+                <select id="themeSelect" title="Select theme">
+                  <option value="ember">Ember</option>
+                  <option value="ocean">Ocean</option>
+                  <option value="forest">Forest</option>
+                  <option value="sunset">Sunset</option>
+                  <option value="matrix">Matrix</option>
+                  <option value="slate">Slate</option>
+                  <option value="crimson">Crimson</option>
+                </select>
+              </div>
+              <div>
+                <label for="layoutPresetSelect">Layout</label>
+                <select id="layoutPresetSelect" title="Layout presets">
+                  <option value="custom">Layout: Custom</option>
+                  <option value="focus">Layout: Focus</option>
+                  <option value="review">Layout: Review</option>
+                  <option value="sync">Layout: Team Sync</option>
+                  <option value="dashboard">Layout: Dashboard Only</option>
+                </select>
+              </div>
+              <div>
+                <label for="uiDensitySelect">Density</label>
+                <select id="uiDensitySelect" title="Control density">
+                  <option value="compact">Density: Compact</option>
+                  <option value="comfortable">Density: Comfortable</option>
+                </select>
+              </div>
+              <div>
+                <label for="uiTextScaleSelect">Text Size</label>
+                <select id="uiTextScaleSelect" title="Text size">
+                  <option value="normal">Text: Normal</option>
+                  <option value="large">Text: Large</option>
+                  <option value="xlarge">Text: XL</option>
+                </select>
+              </div>
+              <div>
+                <label for="uiCornersSelect">Corners</label>
+                <select id="uiCornersSelect" title="Corner style">
+                  <option value="tight">Corners: Tight</option>
+                  <option value="normal">Corners: Normal</option>
+                  <option value="round">Corners: Round</option>
+                </select>
+              </div>
+              <div class="toolbar compact" style="align-items:end;">
+                <button id="contrastToggle" class="btn-ghost btn-toggle" type="button" aria-pressed="false" title="Toggle high contrast">Contrast</button>
+                <button id="rainToggle" class="btn-ghost btn-toggle" type="button" aria-pressed="true" title="Toggle matrix rain background">Rain: ON</button>
+                <button id="diffToggle" class="btn-ghost btn-toggle" type="button" title="Toggle diff view (met/missed/unplanned)">Diff</button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
       <div class="tools-row toolbar compact">
         <span class="small">Data</span>
@@ -2003,8 +2026,12 @@
         <div class="head">
           <div>
             <strong>Achieved During Sprint</strong>
-            <div class="small">Use the active AOP (or pick one from Catalog) and track outcomes for this month.</div>
+            <div class="small">Select the AOP below and track outcomes for this month.</div>
           </div>
+        </div>
+        <div style="margin-top:10px;">
+          <label for="aopNotationSelect">AOP/Custom</label>
+          <select id="aopNotationSelect"></select>
         </div>
         <div class="aop-notation">
           <label for="aopNotation">Achieved during Sprint</label>
@@ -2171,7 +2198,7 @@
  *     aopPane:"catalog"|"notation",
  *     areaView:"master"|"pool"|"sales"|"delivery"|"aftersales"|"others_some",
  *     colorTheme:string,
- *     uiPrefs:{density:"compact"|"comfortable",textScale:"normal"|"large"|"xlarge",corner:"tight"|"normal"|"round",highContrast:boolean,motion:boolean,showTips:boolean,layoutPreset:"custom"|"focus"|"review"|"sync"|"dashboard",topbarOrder:string[]},
+ *     uiPrefs:{density:"compact"|"comfortable",textScale:"normal"|"large"|"xlarge",corner:"tight"|"normal"|"round",highContrast:boolean,showTips:boolean,layoutPreset:"custom"|"focus"|"review"|"sync"|"dashboard",topbarOrder:string[]},
  *     masterNotationSort:"blockers_desc"|"achievements_desc"|"updated_desc"|"name_asc",
  *     dayNoteFilters:{thisMonth:boolean},
  *     calendarUI:{compact:boolean,markedOnly:boolean,activeOnly:boolean,focus:"both"|"planned"|"actual"}
@@ -2194,7 +2221,7 @@ const TEAM_SYNC_CONFIG_KEY = "power_aop_team_sync_v1";
 const DOW = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const AOP_PANES = ["catalog","notation"];
-const DEFAULT_TOPBAR_ORDER = ["today","month","year","area","sep","dashboard","calendars","aop","tools","showall","arrange","more"];
+const DEFAULT_TOPBAR_ORDER = ["today","month","year","area","sep","dashboard","calendars","aop","tools","showall","more"];
 const AREA_VIEWS = [
   { id:"pool", label:"Pool" },
   { id:"sales", label:"Sales" },
@@ -2231,9 +2258,7 @@ let aopNotationSaveTimer = null;
 let dayNotesDrawerOpen = false;
 let undoToastTimer = null;
 let undoMarkAction = null;
-let topbarArrangeMode = false;
-let topbarDraggedKey = "";
-let topbarDnDBound = false;
+let customizeOpen = false;
 let syncLoginModalOpen = false;
 let syncLoginLastFocus = null;
 let onboardingAutoDismissBound = false;
@@ -2504,8 +2529,7 @@ function startMatrixRain(){
 }
 function isRainEnabled(){
   const reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const motionOn = normalizedUiPrefs().motion !== false;
-  return (view.state?.settings?.rainEnabled !== false) && motionOn && !reduced;
+  return (view.state?.settings?.rainEnabled !== false) && !reduced;
 }
 function renderRainToggle(){
   const on = isRainEnabled();
@@ -2545,7 +2569,6 @@ function normalizedUiPrefs(){
     textScale: raw.textScale === "large" || raw.textScale === "xlarge" ? raw.textScale : "normal",
     corner: raw.corner === "tight" || raw.corner === "round" ? raw.corner : "normal",
     highContrast: raw.highContrast === true,
-    motion: raw.motion !== false,
     showTips: raw.showTips !== false,
     layoutPreset,
     topbarOrder: normalizeTopbarOrder(raw.topbarOrder)
@@ -2559,7 +2582,6 @@ function setUiPrefs(next, persist){
     textScale: next?.textScale === "large" || next?.textScale === "xlarge" ? next.textScale : "normal",
     corner: next?.corner === "tight" || next?.corner === "round" ? next.corner : "normal",
     highContrast: next?.highContrast === true,
-    motion: next?.motion !== false,
     showTips: next?.showTips !== false,
     layoutPreset,
     topbarOrder: normalizeTopbarOrder(next?.topbarOrder)
@@ -2593,7 +2615,6 @@ function applyUiPrefs(){
   root.style.setProperty("--radius", c.card);
   root.style.setProperty("--control-radius", c.control);
   root.classList.toggle("ui-high-contrast", prefs.highContrast);
-  root.classList.toggle("motion-off", !prefs.motion);
   if(ui.uiDensitySelect) ui.uiDensitySelect.value = prefs.density;
   if(ui.uiTextScaleSelect) ui.uiTextScaleSelect.value = prefs.textScale;
   if(ui.uiCornersSelect) ui.uiCornersSelect.value = prefs.corner;
@@ -2601,13 +2622,8 @@ function applyUiPrefs(){
     syncToggleBtn(ui.contrastToggle, prefs.highContrast);
     ui.contrastToggle.textContent = prefs.highContrast ? "Contrast: High" : "Contrast";
   }
-  if(ui.motionToggle){
-    syncToggleBtn(ui.motionToggle, prefs.motion);
-    ui.motionToggle.textContent = prefs.motion ? "Motion: ON" : "Motion: OFF";
-  }
   if(ui.layoutPresetSelect) ui.layoutPresetSelect.value = prefs.layoutPreset;
   applyTopbarOrder(prefs.topbarOrder);
-  syncTopbarArrangeButtons();
   renderOnboarding();
 }
 function renderContextPills(){
@@ -2655,9 +2671,6 @@ function topbarItems(){
     ? Array.from(ui.topbarToolbar.querySelectorAll(".tb-item[data-tb-key]"))
     : [];
 }
-function collectTopbarOrderFromDom(){
-  return topbarItems().map(el => String(el.dataset.tbKey || "")).filter(Boolean);
-}
 function applyTopbarOrder(order){
   if(!ui.topbarToolbar) return;
   const safeOrder = normalizeTopbarOrder(order);
@@ -2669,81 +2682,20 @@ function applyTopbarOrder(order){
   for(const item of byKey.values()){
     if(item.parentElement !== ui.topbarToolbar) ui.topbarToolbar.appendChild(item);
   }
-  for(const item of topbarItems()){
-    item.draggable = topbarArrangeMode === true;
-    item.classList.remove("dragging");
-  }
-}
-function persistTopbarOrderFromDom(){
-  const prefs = normalizedUiPrefs();
-  const nextOrder = collectTopbarOrderFromDom();
-  setUiPrefs({ ...prefs, topbarOrder: nextOrder }, true);
-}
-function syncTopbarArrangeButtons(){
-  if(ui.topbarArrangeBtn){
-    syncToggleBtn(ui.topbarArrangeBtn, topbarArrangeMode);
-    ui.topbarArrangeBtn.textContent = topbarArrangeMode ? "Arrange: ON" : "Arrange";
-  }
-  if(ui.moreArrangeTopbar){
-    ui.moreArrangeTopbar.textContent = topbarArrangeMode ? "Arrange: ON" : "Arrange";
-  }
-}
-function setTopbarArrangeMode(on){
-  topbarArrangeMode = on === true;
-  const root = document.documentElement;
-  if(root) root.classList.toggle("topbar-arrange", topbarArrangeMode);
-  for(const item of topbarItems()){
-    item.draggable = topbarArrangeMode;
-    if(!topbarArrangeMode) item.classList.remove("dragging");
-  }
-  if(!topbarArrangeMode) topbarDraggedKey = "";
-  syncTopbarArrangeButtons();
-}
-function bindTopbarDragAndDrop(){
-  if(topbarDnDBound || !ui.topbarToolbar) return;
-  topbarDnDBound = true;
-
-  ui.topbarToolbar.addEventListener("dragstart", (event) => {
-    if(!topbarArrangeMode) return event.preventDefault();
-    const target = event.target instanceof Element ? event.target : null;
-    const grip = target ? target.closest(".tb-grip") : null;
-    const item = grip ? grip.closest(".tb-item[data-tb-key]") : null;
-    if(!item) return event.preventDefault();
-    topbarDraggedKey = String(item.dataset.tbKey || "");
-    item.classList.add("dragging");
-    if(event.dataTransfer){
-      event.dataTransfer.effectAllowed = "move";
-      event.dataTransfer.setData("text/plain", topbarDraggedKey);
-    }
-  });
-  ui.topbarToolbar.addEventListener("dragover", (event) => {
-    if(!topbarArrangeMode || !topbarDraggedKey) return;
-    const dragging = topbarItems().find(el => String(el.dataset.tbKey || "") === topbarDraggedKey);
-    if(!(dragging instanceof HTMLElement)) return;
-    const targetRaw = event.target instanceof Element ? event.target.closest(".tb-item[data-tb-key]") : null;
-    if(!(targetRaw instanceof HTMLElement) || targetRaw === dragging) return;
-    event.preventDefault();
-    const rect = targetRaw.getBoundingClientRect();
-    const after = event.clientX > (rect.left + rect.width / 2);
-    ui.topbarToolbar.insertBefore(dragging, after ? targetRaw.nextSibling : targetRaw);
-  });
-  ui.topbarToolbar.addEventListener("drop", (event) => {
-    if(!topbarArrangeMode || !topbarDraggedKey) return;
-    event.preventDefault();
-    persistTopbarOrderFromDom();
-  });
-  ui.topbarToolbar.addEventListener("dragend", () => {
-    for(const item of topbarItems()) item.classList.remove("dragging");
-    if(topbarArrangeMode && topbarDraggedKey){
-      persistTopbarOrderFromDom();
-    }
-    topbarDraggedKey = "";
-  });
 }
 function setTopbarMoreOpen(open){
   const next = open === true;
   if(ui.topbarMoreMenu) ui.topbarMoreMenu.hidden = !next;
   if(ui.topbarMoreBtn) ui.topbarMoreBtn.setAttribute("aria-expanded", next ? "true" : "false");
+}
+function setCustomizeOpen(open){
+  customizeOpen = open === true;
+  if(ui.customizePopout) ui.customizePopout.hidden = !customizeOpen;
+  if(ui.customizeToggleBtn){
+    syncToggleBtn(ui.customizeToggleBtn, customizeOpen);
+    ui.customizeToggleBtn.setAttribute("aria-expanded", customizeOpen ? "true" : "false");
+    ui.customizeToggleBtn.textContent = customizeOpen ? "Customize: ON" : "Customize";
+  }
 }
 function applyLayoutPreset(presetId, persist){
   const preset = ["focus","review","sync","dashboard"].includes(presetId) ? presetId : "custom";
@@ -3157,7 +3109,7 @@ function defaultState(){
       aopPane: "notation",
       areaView: DEFAULT_AREA_VIEW,
       colorTheme: DEFAULT_THEME,
-      uiPrefs: { density:"compact", textScale:"normal", corner:"normal", highContrast:false, motion:true, showTips:true, layoutPreset:"custom", topbarOrder: DEFAULT_TOPBAR_ORDER.slice() },
+      uiPrefs: { density:"compact", textScale:"normal", corner:"normal", highContrast:false, showTips:true, layoutPreset:"custom", topbarOrder: DEFAULT_TOPBAR_ORDER.slice() },
       rainEnabled: true,
       teamSyncOpen: false,
       masterNotationSort: "blockers_desc",
@@ -3205,7 +3157,6 @@ function migrateIfNeeded(st){
     textScale: up.textScale === "large" || up.textScale === "xlarge" ? up.textScale : "normal",
     corner: up.corner === "tight" || up.corner === "round" ? up.corner : "normal",
     highContrast: up.highContrast === true,
-    motion: up.motion !== false,
     showTips: up.showTips !== false,
     layoutPreset: ["custom","focus","review","sync","dashboard"].includes(up.layoutPreset) ? up.layoutPreset : "custom",
     topbarOrder: normalizeTopbarOrder(up.topbarOrder)
@@ -3444,6 +3395,7 @@ function hasSyncCoreConfig(){
 function setSyncLoginModal(open){
   const on = open === true;
   if(!ui.syncLoginModal || !ui.syncLoginBackdrop) return;
+  if(on) setCustomizeOpen(false);
   syncLoginModalOpen = on;
   ui.syncLoginModal.classList.toggle("open", on);
   ui.syncLoginBackdrop.classList.toggle("open", on);
@@ -3538,6 +3490,14 @@ function setSyncModalStatus(text, isError){
   ui.syncModalStatus.textContent = msg;
   ui.syncModalStatus.classList.toggle("error", !!(isError && msg));
 }
+function setPreloginLock(on){
+  const lock = on === true;
+  if(document.body) document.body.classList.toggle("prelogin-lock", lock);
+  if(ui.preloginTopRightBtn){
+    ui.preloginTopRightBtn.hidden = !lock;
+    ui.preloginTopRightBtn.setAttribute("aria-hidden", lock ? "false" : "true");
+  }
+}
 
 function isTeamSyncPanelOpen(){
   return view.state?.settings?.teamSyncOpen === true;
@@ -3560,6 +3520,7 @@ function renderTeamSyncPanelToggle(){
 function setTeamSyncPanelOpen(open, persist){
   if(!view.state?.settings) return;
   view.state.settings.teamSyncOpen = open === true;
+  if(open) setCustomizeOpen(false);
   if(persist !== false){
     saveStateLocal();
   }
@@ -3619,6 +3580,7 @@ function renderTeamSyncMeta(){
 function applyTeamSyncUiState(){
   const connected = !!teamSync.connected;
   const busy = !!teamSyncBusy;
+  setPreloginLock(!connected);
   if(ui.syncPanel){
     ui.syncPanel.setAttribute("aria-busy", busy ? "true" : "false");
   }
@@ -4133,7 +4095,7 @@ function renderDows(){
 }
 
 function selectedAopId(){
-  const candidates = [ui.aopSelect?.value, ui.aopSelectGoals?.value, view.state.activeAopId];
+  const candidates = [ui.aopSelect?.value, ui.aopNotationSelect?.value, ui.aopSelectGoals?.value, view.state.activeAopId];
   for(const id of candidates){
     if(id && view.state.aops[id] && isAopInArea(id)) return id;
   }
@@ -4143,6 +4105,7 @@ function selectedAopId(){
 function syncAopSelectors(id){
   const safe = (id && view.state.aops[id] && isAopInArea(id)) ? id : "";
   if(ui.aopSelect) ui.aopSelect.value = safe;
+  if(ui.aopNotationSelect) ui.aopNotationSelect.value = safe;
   if(ui.aopSelectGoals) ui.aopSelectGoals.value = safe;
 }
 
@@ -4385,6 +4348,7 @@ function renderAopCatalog(){
   const q = (ui.aopSearch?.value || "").trim().toLowerCase();
   const monthKey = currentMonthKey();
   const prevSelectId = ui.aopSelect?.value || "";
+  const prevNotationSelectId = ui.aopNotationSelect?.value || "";
   const prevGoalsSelectId = ui.aopSelectGoals?.value || "";
   ui.aopList.innerHTML = "";
   if(ui.areaViewSelect) ui.areaViewSelect.value = currentAreaViewId();
@@ -4498,6 +4462,7 @@ function renderAopCatalog(){
       return `<option value="${id}">${escapeHtml(a.name)}</option>`;
     }).join("");
   ui.aopSelect.innerHTML = optionsHtml;
+  if(ui.aopNotationSelect) ui.aopNotationSelect.innerHTML = optionsHtml;
   if(ui.aopSelectGoals) ui.aopSelectGoals.innerHTML = optionsHtml;
 
   if(view.state.activeAopId && view.state.aops[view.state.activeAopId] && isAopInArea(view.state.activeAopId)){
@@ -4508,7 +4473,7 @@ function renderAopCatalog(){
     ui.activeAopLabel.style.background = hexToRgba(c, .12);
     ui.activeAopLabel.style.color = "var(--text)";
   }else{
-    const sticky = [prevSelectId, prevGoalsSelectId].find(id => !!id && order.includes(id)) || "";
+    const sticky = [prevSelectId, prevNotationSelectId, prevGoalsSelectId].find(id => !!id && order.includes(id)) || "";
     syncAopSelectors(sticky);
     ui.activeAopLabel.textContent = "None";
     ui.activeAopLabel.style.borderColor = "var(--line)";
@@ -5596,6 +5561,7 @@ function setCommandPaletteOpen(open){
   }
   if(next){
     setTopbarMoreOpen(false);
+    setCustomizeOpen(false);
     commandPaletteCommands = buildCommandPaletteCommands();
     commandPaletteIndex = 0;
     if(ui.commandPaletteInput) ui.commandPaletteInput.value = "";
@@ -5623,6 +5589,10 @@ function isEditableTarget(target){
 function handleGlobalShortcuts(event){
   if(event.defaultPrevented) return;
   const key = (event.key || "").toLowerCase();
+  if(document.body?.classList.contains("prelogin-lock") && !syncLoginModalOpen){
+    if((event.ctrlKey || event.metaKey) && key === "k") event.preventDefault();
+    return;
+  }
 
   if((event.ctrlKey || event.metaKey) && key === "k"){
     event.preventDefault();
@@ -5663,6 +5633,11 @@ function handleGlobalShortcuts(event){
     return;
   }
   if(key === "escape"){
+    if(customizeOpen){
+      event.preventDefault();
+      setCustomizeOpen(false);
+      return;
+    }
     if(ui.topbarMoreMenu && ui.topbarMoreMenu.hidden === false){
       event.preventDefault();
       setTopbarMoreOpen(false);
@@ -5736,13 +5711,21 @@ function hookUI(){
   ui.showAllSections.addEventListener("click", () => {
     applySectionVisibility({ dashboard:true, calendars:true, aopNotes:true, tools:true });
   });
+  if(ui.preloginTopRightBtn){
+    ui.preloginTopRightBtn.addEventListener("click", () => openSyncLoginModal());
+  }
   if(ui.topbarMoreBtn){
-    ui.topbarMoreBtn.addEventListener("click", () => setTopbarMoreOpen(ui.topbarMoreMenu?.hidden !== false));
+    ui.topbarMoreBtn.addEventListener("click", () => {
+      setCustomizeOpen(false);
+      setTopbarMoreOpen(ui.topbarMoreMenu?.hidden !== false);
+    });
     document.addEventListener("pointerdown", (event) => {
       const target = event.target;
       if(!(target instanceof Node)) return;
       if(ui.topbarMoreWrap?.contains(target)) return;
+      if(ui.customizeWrap?.contains(target)) return;
       setTopbarMoreOpen(false);
+      setCustomizeOpen(false);
     });
   }
   if(ui.moreToggleDashboard) ui.moreToggleDashboard.addEventListener("click", () => { ui.toggleDashboard.click(); setTopbarMoreOpen(false); });
@@ -5750,9 +5733,12 @@ function hookUI(){
   if(ui.moreToggleAopNotes) ui.moreToggleAopNotes.addEventListener("click", () => { ui.toggleAopNotes.click(); setTopbarMoreOpen(false); });
   if(ui.moreToggleTools) ui.moreToggleTools.addEventListener("click", () => { ui.toggleTools.click(); setTopbarMoreOpen(false); });
   if(ui.moreShowAllSections) ui.moreShowAllSections.addEventListener("click", () => { ui.showAllSections.click(); setTopbarMoreOpen(false); });
-  if(ui.topbarArrangeBtn) ui.topbarArrangeBtn.addEventListener("click", () => setTopbarArrangeMode(!topbarArrangeMode));
-  if(ui.moreArrangeTopbar) ui.moreArrangeTopbar.addEventListener("click", () => { setTopbarArrangeMode(!topbarArrangeMode); setTopbarMoreOpen(false); });
-  bindTopbarDragAndDrop();
+  if(ui.customizeToggleBtn){
+    ui.customizeToggleBtn.addEventListener("click", () => {
+      setTopbarMoreOpen(false);
+      setCustomizeOpen(!customizeOpen);
+    });
+  }
   if(ui.commandPaletteInput){
     ui.commandPaletteInput.addEventListener("input", () => {
       commandPaletteIndex = 0;
@@ -5845,12 +5831,6 @@ function hookUI(){
       setUiPrefs({ ...cur, highContrast: !cur.highContrast }, true);
     });
   }
-  if(ui.motionToggle){
-    ui.motionToggle.addEventListener("click", () => {
-      const cur = normalizedUiPrefs();
-      setUiPrefs({ ...cur, motion: !cur.motion }, true);
-    });
-  }
   if(ui.rainToggle){
     ui.rainToggle.addEventListener("click", () => setRainEnabled(!isRainEnabled(), true));
   }
@@ -5903,6 +5883,9 @@ function hookUI(){
     }
   };
   ui.aopSelect.addEventListener("change", () => onAopSelectionChange(ui.aopSelect.value));
+  if(ui.aopNotationSelect){
+    ui.aopNotationSelect.addEventListener("change", () => onAopSelectionChange(ui.aopNotationSelect.value));
+  }
   ui.aopSelectGoals.addEventListener("change", () => onAopSelectionChange(ui.aopSelectGoals.value));
 
   ui.tmplGoal.addEventListener("blur", saveMonthlyTemplate);
@@ -6045,6 +6028,7 @@ function hookUI(){
 /* --- Init --- */
 function init(){
   ui = {
+    preloginTopRightBtn: document.getElementById("preloginTopRightBtn"),
     today: document.getElementById("today"),
     monthSelect: document.getElementById("monthSelect"),
     yearSelect: document.getElementById("yearSelect"),
@@ -6057,13 +6041,14 @@ function init(){
     topbarMoreWrap: document.getElementById("topbarMoreWrap"),
     topbarMoreBtn: document.getElementById("topbarMoreBtn"),
     topbarMoreMenu: document.getElementById("topbarMoreMenu"),
-    topbarArrangeBtn: document.getElementById("topbarArrangeBtn"),
     moreToggleDashboard: document.getElementById("moreToggleDashboard"),
     moreToggleCalendars: document.getElementById("moreToggleCalendars"),
     moreToggleAopNotes: document.getElementById("moreToggleAopNotes"),
     moreToggleTools: document.getElementById("moreToggleTools"),
     moreShowAllSections: document.getElementById("moreShowAllSections"),
-    moreArrangeTopbar: document.getElementById("moreArrangeTopbar"),
+    customizeWrap: document.getElementById("customizeWrap"),
+    customizeToggleBtn: document.getElementById("customizeToggleBtn"),
+    customizePopout: document.getElementById("customizePopout"),
     commandPaletteBackdrop: document.getElementById("commandPaletteBackdrop"),
     commandPalette: document.getElementById("commandPalette"),
     commandPaletteInput: document.getElementById("commandPaletteInput"),
@@ -6076,7 +6061,6 @@ function init(){
     uiCornersSelect: document.getElementById("uiCornersSelect"),
     layoutPresetSelect: document.getElementById("layoutPresetSelect"),
     contrastToggle: document.getElementById("contrastToggle"),
-    motionToggle: document.getElementById("motionToggle"),
     rainToggle: document.getElementById("rainToggle"),
     diffToggle: document.getElementById("diffToggle"),
 
@@ -6173,6 +6157,7 @@ function init(){
     aopNotationTemplateBtn: document.getElementById("aopNotationTemplateBtn"),
     aopNotationState: document.getElementById("aopNotationState"),
     aopSelect: document.getElementById("aopSelect"),
+    aopNotationSelect: document.getElementById("aopNotationSelect"),
     aopSelectGoals: document.getElementById("aopSelectGoals"),
     paneCatalogBtn: document.getElementById("paneCatalogBtn"),
     paneNotationBtn: document.getElementById("paneNotationBtn"),
@@ -6219,7 +6204,7 @@ function init(){
   setTeamSyncStatus("Local-only mode");
   applyTeamSyncUiState();
   hookUI();
-  setTopbarArrangeMode(false);
+  setCustomizeOpen(false);
   setTopbarMoreOpen(false);
   setCommandPaletteOpen(false);
   bindOnboardingAutoDismiss();
