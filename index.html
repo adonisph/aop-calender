@@ -441,6 +441,11 @@
       display:grid;
       gap:4px;
     }
+    .customize-toggle-item button{
+      width:100%;
+      justify-content:center;
+      min-height: 34px;
+    }
     .customize-color-block{
       grid-column: 1 / -1;
       border:1px solid var(--line);
@@ -1950,16 +1955,6 @@
                 </select>
               </div>
               <div>
-                <label for="layoutPresetSelect">Layout</label>
-                <select id="layoutPresetSelect" title="Layout presets">
-                  <option value="custom">Layout: Custom</option>
-                  <option value="focus">Layout: Focus</option>
-                  <option value="review">Layout: Review</option>
-                  <option value="sync">Layout: Team Sync</option>
-                  <option value="dashboard">Layout: Dashboard Only</option>
-                </select>
-              </div>
-              <div>
                 <label for="topbarSideSelect">Top Bar</label>
                 <select id="topbarSideSelect" title="Top bar side">
                   <option value="right">Top Bar: Right</option>
@@ -1989,9 +1984,16 @@
                   <option value="round">Corners: Round</option>
                 </select>
               </div>
-              <div class="toolbar compact" style="align-items:end;">
+              <div class="customize-toggle-item">
+                <label for="contrastToggle">Contrast</label>
                 <button id="contrastToggle" class="btn-ghost btn-toggle" type="button" aria-pressed="false" title="Toggle high contrast">Contrast</button>
+              </div>
+              <div class="customize-toggle-item">
+                <label for="rainToggle">Rain</label>
                 <button id="rainToggle" class="btn-ghost btn-toggle" type="button" aria-pressed="true" title="Toggle matrix rain background">Rain: ON</button>
+              </div>
+              <div class="customize-toggle-item">
+                <label for="diffToggle">Diff Mode</label>
                 <button id="diffToggle" class="btn-ghost btn-toggle" type="button" title="Toggle diff view (met/missed/unplanned)">Diff</button>
               </div>
               <div class="customize-color-block">
