@@ -53,12 +53,18 @@
 
       --warnOrange: rgba(245,158,11,.70);
       --warnOrangeBg: rgba(245,158,11,.14);
+      --ui-font-scale:1;
+      --control-radius:12px;
+      --toolbar-gap:8px;
+      --toolbar-pad-y:7px;
+      --toolbar-pad-x:9px;
     }
 
     *{box-sizing:border-box}
     body{
       margin:0;
       font-family: var(--sans);
+      font-size: calc(16px * var(--ui-font-scale));
       color: var(--text);
       position: relative;
       isolation: isolate;
@@ -120,14 +126,20 @@
     .sub{ margin:2px 0 0; color: var(--muted); font-size: 12px; max-width: 820px; }
 
     .toolbar{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-    .toolbar.compact{ gap:8px; }
+    .toolbar.compact{ gap:var(--toolbar-gap); }
     .toolbar.compact button,
     .toolbar.compact select,
     .toolbar.compact input{
-      padding:7px 9px;
-      border-radius:10px;
+      padding:var(--toolbar-pad-y) var(--toolbar-pad-x);
+      border-radius:var(--control-radius);
       font-size:12px;
     }
+    .toolbar.compact select{
+      padding-right: calc(var(--toolbar-pad-x) + 26px);
+    }
+    #monthSelect{ min-width: 10.2em; }
+    #yearSelect{ min-width: 6.2em; }
+    #areaViewSelect{ min-width: 11.6em; }
     .toolbar-sep{
       width:1px;
       height:26px;
@@ -409,7 +421,7 @@
       color: var(--text);
       background: linear-gradient(180deg, var(--surfaceSoft), #141414);
       border: 1px solid var(--line);
-      border-radius: 12px;
+      border-radius: var(--control-radius);
       padding:10px 10px;
       outline: none;
     }
@@ -451,6 +463,28 @@
     select option, select optgroup{
       background: #151515;
       color: var(--text);
+    }
+    html.ui-high-contrast{
+      --line:#4b4b4b;
+      --text:#ffffff;
+      --muted:#dddddd;
+      --surface:#0a0a0a;
+      --surfaceSoft:#141414;
+      --greyout: rgba(8,8,8,.74);
+      --greyoutText: rgba(255,255,255,.64);
+    }
+    html.ui-high-contrast .card,
+    html.ui-high-contrast .calendar,
+    html.ui-high-contrast .day,
+    html.ui-high-contrast .item,
+    html.ui-high-contrast .sync-panel,
+    html.ui-high-contrast .aop-row{
+      border-color: #5a5a5a;
+    }
+    html.motion-off *, html.motion-off *::before, html.motion-off *::after{
+      animation: none !important;
+      transition: none !important;
+      scroll-behavior: auto !important;
     }
 
     button{
@@ -1393,6 +1427,22 @@
           <option value="slate">Slate</option>
           <option value="crimson">Crimson</option>
         </select>
+        <select id="uiDensitySelect" title="Control density">
+          <option value="compact">Density: Compact</option>
+          <option value="comfortable">Density: Comfortable</option>
+        </select>
+        <select id="uiTextScaleSelect" title="Text size">
+          <option value="normal">Text: Normal</option>
+          <option value="large">Text: Large</option>
+          <option value="xlarge">Text: XL</option>
+        </select>
+        <select id="uiCornersSelect" title="Corner style">
+          <option value="tight">Corners: Tight</option>
+          <option value="normal">Corners: Normal</option>
+          <option value="round">Corners: Round</option>
+        </select>
+        <button id="contrastToggle" class="btn-ghost btn-toggle" type="button" aria-pressed="false" title="Toggle high contrast">Contrast</button>
+        <button id="motionToggle" class="btn-ghost btn-toggle" type="button" aria-pressed="true" title="Toggle UI motion">Motion: ON</button>
         <button id="rainToggle" class="btn-ghost btn-toggle" type="button" aria-pressed="true" title="Toggle matrix rain background">Rain: ON</button>
         <button id="diffToggle" class="btn-ghost btn-toggle" type="button" title="Toggle diff view (met/missed/unplanned)">Diff</button>
       </div>
@@ -1808,9 +1858,10 @@
  * State v7:
  * - settings: {
  *     sectionVisibility:{dashboard:boolean,calendars:boolean,aopNotes:boolean,tools:boolean},
- *     aopPane:"catalog"|"template",
+ *     aopPane:"catalog"|"notation",
  *     areaView:"master"|"pool"|"sales"|"delivery"|"aftersales"|"others_some",
  *     colorTheme:string,
+ *     uiPrefs:{density:"compact"|"comfortable",textScale:"normal"|"large"|"xlarge",corner:"tight"|"normal"|"round",highContrast:boolean,motion:boolean},
  *     masterNotationSort:"blockers_desc"|"achievements_desc"|"updated_desc"|"name_asc",
  *     dayNoteFilters:{thisMonth:boolean},
  *     calendarUI:{compact:boolean,markedOnly:boolean,activeOnly:boolean,focus:"both"|"planned"|"actual"}
@@ -2135,7 +2186,8 @@ function startMatrixRain(){
 }
 function isRainEnabled(){
   const reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  return (view.state?.settings?.rainEnabled !== false) && !reduced;
+  const motionOn = normalizedUiPrefs().motion !== false;
+  return (view.state?.settings?.rainEnabled !== false) && motionOn && !reduced;
 }
 function renderRainToggle(){
   const on = isRainEnabled();
@@ -2153,6 +2205,67 @@ function setRainEnabled(enabled, persist){
   view.state.settings.rainEnabled = enabled !== false;
   if(persist) saveState();
   renderRainToggle();
+}
+function normalizedUiPrefs(){
+  const raw = view.state?.settings?.uiPrefs || {};
+  return {
+    density: raw.density === "comfortable" ? "comfortable" : "compact",
+    textScale: raw.textScale === "large" || raw.textScale === "xlarge" ? raw.textScale : "normal",
+    corner: raw.corner === "tight" || raw.corner === "round" ? raw.corner : "normal",
+    highContrast: raw.highContrast === true,
+    motion: raw.motion !== false
+  };
+}
+function setUiPrefs(next, persist){
+  if(!view.state?.settings) return;
+  const safe = {
+    density: next?.density === "comfortable" ? "comfortable" : "compact",
+    textScale: next?.textScale === "large" || next?.textScale === "xlarge" ? next.textScale : "normal",
+    corner: next?.corner === "tight" || next?.corner === "round" ? next.corner : "normal",
+    highContrast: next?.highContrast === true,
+    motion: next?.motion !== false
+  };
+  view.state.settings.uiPrefs = safe;
+  if(persist) saveState();
+  applyUiPrefs();
+  renderRainToggle();
+}
+function applyUiPrefs(){
+  const prefs = normalizedUiPrefs();
+  const root = document.documentElement;
+  if(!root) return;
+  const densityMap = {
+    compact: { gap:"8px", py:"7px", px:"9px" },
+    comfortable: { gap:"10px", py:"9px", px:"11px" }
+  };
+  const fontMap = { normal:"1", large:"1.06", xlarge:"1.12" };
+  const cornerMap = {
+    tight: { card:"12px", control:"9px" },
+    normal: { card:"16px", control:"12px" },
+    round: { card:"20px", control:"14px" }
+  };
+  const d = densityMap[prefs.density] || densityMap.compact;
+  const f = fontMap[prefs.textScale] || fontMap.normal;
+  const c = cornerMap[prefs.corner] || cornerMap.normal;
+  root.style.setProperty("--toolbar-gap", d.gap);
+  root.style.setProperty("--toolbar-pad-y", d.py);
+  root.style.setProperty("--toolbar-pad-x", d.px);
+  root.style.setProperty("--ui-font-scale", f);
+  root.style.setProperty("--radius", c.card);
+  root.style.setProperty("--control-radius", c.control);
+  root.classList.toggle("ui-high-contrast", prefs.highContrast);
+  root.classList.toggle("motion-off", !prefs.motion);
+  if(ui.uiDensitySelect) ui.uiDensitySelect.value = prefs.density;
+  if(ui.uiTextScaleSelect) ui.uiTextScaleSelect.value = prefs.textScale;
+  if(ui.uiCornersSelect) ui.uiCornersSelect.value = prefs.corner;
+  if(ui.contrastToggle){
+    syncToggleBtn(ui.contrastToggle, prefs.highContrast);
+    ui.contrastToggle.textContent = prefs.highContrast ? "Contrast: High" : "Contrast";
+  }
+  if(ui.motionToggle){
+    syncToggleBtn(ui.motionToggle, prefs.motion);
+    ui.motionToggle.textContent = prefs.motion ? "Motion: ON" : "Motion: OFF";
+  }
 }
 
 function setTemplateSaveState(msg){
@@ -2519,6 +2632,7 @@ function defaultState(){
       aopPane: "notation",
       areaView: DEFAULT_AREA_VIEW,
       colorTheme: DEFAULT_THEME,
+      uiPrefs: { density:"compact", textScale:"normal", corner:"normal", highContrast:false, motion:true },
       rainEnabled: true,
       teamSyncOpen: false,
       masterNotationSort: "blockers_desc",
@@ -2560,6 +2674,14 @@ function migrateIfNeeded(st){
   if(!COLOR_THEMES[st.settings.colorTheme]){
     st.settings.colorTheme = DEFAULT_THEME;
   }
+  const up = st.settings.uiPrefs || {};
+  st.settings.uiPrefs = {
+    density: up.density === "comfortable" ? "comfortable" : "compact",
+    textScale: up.textScale === "large" || up.textScale === "xlarge" ? up.textScale : "normal",
+    corner: up.corner === "tight" || up.corner === "round" ? up.corner : "normal",
+    highContrast: up.highContrast === true,
+    motion: up.motion !== false
+  };
   st.settings.rainEnabled = st.settings.rainEnabled !== false;
   st.settings.teamSyncOpen = st.settings.teamSyncOpen === true;
   st.settings.masterNotationSort = normalizeMasterNotationSort(st.settings.masterNotationSort);
@@ -4725,6 +4847,7 @@ function renderDashboard(){
 /* --- Render All --- */
 function renderAll(){
   applyColorTheme(currentThemeId(), false);
+  applyUiPrefs();
   renderRainToggle();
   ensureActiveAopInView();
   if(ui.areaViewSelect) ui.areaViewSelect.value = currentAreaViewId();
@@ -5005,6 +5128,36 @@ function hookUI(){
   });
   ui.saveTemplateBtn.addEventListener("click", saveMonthlyTemplate);
   ui.themeSelect.addEventListener("change", () => applyColorTheme(ui.themeSelect.value, true));
+  if(ui.uiDensitySelect){
+    ui.uiDensitySelect.addEventListener("change", () => {
+      const cur = normalizedUiPrefs();
+      setUiPrefs({ ...cur, density: ui.uiDensitySelect.value }, true);
+    });
+  }
+  if(ui.uiTextScaleSelect){
+    ui.uiTextScaleSelect.addEventListener("change", () => {
+      const cur = normalizedUiPrefs();
+      setUiPrefs({ ...cur, textScale: ui.uiTextScaleSelect.value }, true);
+    });
+  }
+  if(ui.uiCornersSelect){
+    ui.uiCornersSelect.addEventListener("change", () => {
+      const cur = normalizedUiPrefs();
+      setUiPrefs({ ...cur, corner: ui.uiCornersSelect.value }, true);
+    });
+  }
+  if(ui.contrastToggle){
+    ui.contrastToggle.addEventListener("click", () => {
+      const cur = normalizedUiPrefs();
+      setUiPrefs({ ...cur, highContrast: !cur.highContrast }, true);
+    });
+  }
+  if(ui.motionToggle){
+    ui.motionToggle.addEventListener("click", () => {
+      const cur = normalizedUiPrefs();
+      setUiPrefs({ ...cur, motion: !cur.motion }, true);
+    });
+  }
   if(ui.rainToggle){
     ui.rainToggle.addEventListener("click", () => setRainEnabled(!isRainEnabled(), true));
   }
@@ -5204,6 +5357,11 @@ function init(){
     yearSelect: document.getElementById("yearSelect"),
     areaViewSelect: document.getElementById("areaViewSelect"),
     themeSelect: document.getElementById("themeSelect"),
+    uiDensitySelect: document.getElementById("uiDensitySelect"),
+    uiTextScaleSelect: document.getElementById("uiTextScaleSelect"),
+    uiCornersSelect: document.getElementById("uiCornersSelect"),
+    contrastToggle: document.getElementById("contrastToggle"),
+    motionToggle: document.getElementById("motionToggle"),
     rainToggle: document.getElementById("rainToggle"),
     diffToggle: document.getElementById("diffToggle"),
 
@@ -5346,6 +5504,7 @@ function init(){
   setTeamSyncStatus("Local-only mode");
   applyTeamSyncUiState();
   hookUI();
+  applyUiPrefs();
   renderRainToggle();
 
   // Default selection = today
