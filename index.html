@@ -1228,6 +1228,28 @@
       gap:10px;
       min-width: 220px;
     }
+    .dash-aop-link{
+      border:none;
+      background:transparent;
+      color: var(--text);
+      font: inherit;
+      font-weight:700;
+      padding:0;
+      margin:0;
+      text-align:left;
+      cursor:pointer;
+      text-decoration:none;
+    }
+    .dash-aop-link:hover{
+      color: rgba(var(--power-rgb),.98);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .dash-aop-link:focus-visible{
+      outline: 2px solid rgba(var(--power-rgb),.85);
+      outline-offset: 2px;
+      border-radius: 6px;
+    }
     .sw{
       width: 14px; height: 14px; border-radius: 4px;
       border: 1px solid rgba(0,0,0,.35);
@@ -1318,6 +1340,11 @@
       padding: 10px;
       display:grid;
       gap:8px;
+      scroll-margin-top: 110px;
+    }
+    .mn-card.jump-highlight{
+      border-color: rgba(var(--power-rgb),.72);
+      box-shadow: 0 0 0 3px rgba(var(--power-rgb),.18);
     }
     .mn-top{
       display:flex;
@@ -4901,7 +4928,7 @@ function renderMasterNotationPanel(){
       ? `<ul class="mn-list blockers">${row.blockers.map(x => `<li>${escapeHtml(x)}</li>`).join("")}</ul>`
       : `<div class="small">No blockers listed.</div>`;
     return `
-      <article class="mn-card">
+      <article class="mn-card" data-master-notation-aop="${escapeHtml(row.id)}">
         <div class="mn-top">
           <span class="sw" style="background:${escapeHtml(row.color)}"></span>
           <span class="name" title="${escapeHtml(row.name)}">${escapeHtml(row.name)}</span>
@@ -4924,6 +4951,45 @@ function renderMasterNotationPanel(){
   ui.masterNotationList.innerHTML = cards.length
     ? cards.join("")
     : `<div class="small">No AOP notation added for this month.</div>`;
+}
+function hasMasterNotationForAopMonth(aopId, monthKey){
+  if(!aopId) return false;
+  const monthData = readAopMonthlyNotation(aopId, monthKey);
+  const raw = String(monthData.notation || "").trim();
+  if(!raw) return false;
+  const parsed = parseAopNotationModel(raw);
+  return parsed.achievements.length > 0 || parsed.blockers.length > 0;
+}
+function findMasterNotationCard(aopId){
+  if(!ui.masterNotationList || !aopId) return null;
+  const cards = Array.from(ui.masterNotationList.querySelectorAll(".mn-card[data-master-notation-aop]"));
+  return cards.find(el => el.getAttribute("data-master-notation-aop") === aopId) || null;
+}
+function scrollToMasterNotationCard(aopId){
+  const card = findMasterNotationCard(aopId);
+  if(!card) return false;
+  card.scrollIntoView({ behavior:"smooth", block:"center", inline:"nearest" });
+  card.classList.remove("jump-highlight");
+  void card.offsetWidth;
+  card.classList.add("jump-highlight");
+  setTimeout(() => card.classList.remove("jump-highlight"), 1300);
+  return true;
+}
+function jumpToMasterNotationForAop(aopId){
+  const mk = currentMonthKey();
+  if(!hasMasterNotationForAopMonth(aopId, mk)) return false;
+  if(currentAreaViewId() !== MASTER_VIEW_ID){
+    if(!canAccessMasterView()) return false;
+    setAreaView(MASTER_VIEW_ID, true);
+  }else{
+    renderMasterNotationPanel();
+  }
+  requestAnimationFrame(() => {
+    if(scrollToMasterNotationCard(aopId)) return;
+    renderMasterNotationPanel();
+    scrollToMasterNotationCard(aopId);
+  });
+  return true;
 }
 
 function setAopNotationState(msg){
@@ -5904,6 +5970,7 @@ function calcMonthStats(){
 
 function renderDashboard(){
   const st = calcMonthStats();
+  const canJumpMasterNotation = canAccessMasterView();
   const mtdRange = (st.mtdStartDateKey && st.mtdEndDateKey) ? `${st.mtdStartDateKey} to ${st.mtdEndDateKey}` : "No MTD days yet";
   ui.dashSub.textContent = `${monthNames[view.month]} ${view.year} | View: ${areaLabel(currentAreaViewId())} | Strict match: same AOP + same day | Adherence: MTD (${mtdRange})`;
   renderMasterNotationPanel();
@@ -5937,6 +6004,8 @@ function renderDashboard(){
     const delta = actual - planned;
     const deflectionStart = deflectionRateInputValue(tmpl.deflection_start);
     const deflectionEnd = deflectionRateInputValue(tmpl.deflection_end);
+    const hasNotation = hasMasterNotationForAopMonth(id, st.mk);
+    const canJumpNotation = hasNotation && canJumpMasterNotation;
 
     return {
       id,
@@ -5949,7 +6018,8 @@ function renderDashboard(){
       adh,
       delta,
       deflectionStart,
-      deflectionEnd
+      deflectionEnd,
+      canJumpNotation
     };
   });
 
@@ -5970,7 +6040,9 @@ function renderDashboard(){
       <td>
         <div class="aopname">
           <span class="sw" style="background:${escapeHtml(r.color)}"></span>
-          <span title="${escapeHtml(r.name)}" style="font-weight:700; color:var(--text);">${escapeHtml(r.name)}</span>
+          ${r.canJumpNotation
+            ? `<button type="button" class="dash-aop-link" data-jump-master-aop="${escapeHtml(r.id)}" title="Open Master Notation">${escapeHtml(r.name)}</button>`
+            : `<span title="${escapeHtml(r.name)}" style="font-weight:700; color:var(--text);">${escapeHtml(r.name)}</span>`}
         </div>
       </td>
     `;
@@ -6048,6 +6120,13 @@ function renderDashboard(){
     tr.appendChild(deltaTd);
     tr.appendChild(adhTd);
     tr.appendChild(deflectionTd);
+
+    const jumpBtn = tr.querySelector("[data-jump-master-aop]");
+    if(jumpBtn){
+      jumpBtn.addEventListener("click", () => {
+        jumpToMasterNotationForAop(r.id);
+      });
+    }
 
     ui.dashTbody.appendChild(tr);
   }
