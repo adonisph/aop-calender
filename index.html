@@ -1089,10 +1089,13 @@
       gap: 6px;
     }
     .aop-notation textarea{
-      min-height: 86px;
+      min-height: 320px;
+      height: clamp(320px, 45vh, 560px);
       width: 100%;
       display: block;
       box-sizing: border-box;
+      font-size: 14px;
+      line-height: 1.4;
     }
     .aop-notation .hint{
       margin-top: 6px;
@@ -1135,6 +1138,9 @@
       grid-template-columns: 1.05fr .95fr;
       gap: 16px;
       margin-top: 16px;
+    }
+    .grid.aop-achieved-wide:not(.single){
+      grid-template-columns: .88fr 1.12fr;
     }
     .grid.single{ grid-template-columns: 1fr; }
     @media (max-width: 980px){ .grid{ grid-template-columns: 1fr; } }
@@ -2151,6 +2157,11 @@
       <div class="pillbar">
         <span class="badge planned">Planned</span>
         <span class="badge actual">Actual</span>
+        <label for="dashboardSortSelect" class="small" style="margin:0;">Sort</label>
+        <select id="dashboardSortSelect" aria-label="Sort dashboard AOP rows">
+          <option value="az">A-Z</option>
+          <option value="area">Area</option>
+        </select>
       </div>
     </div>
 
@@ -2526,6 +2537,7 @@
  *     colorTheme:string,
  *     uiPrefs:{density:"compact"|"comfortable",textScale:"normal"|"large"|"xlarge",corner:"tight"|"normal"|"round",topbarSide:"right"|"left",customColorsEnabled:boolean,customColors:{power,bg0,bg1,surface,surfaceSoft,line,text,muted,rain},highContrast:boolean,showTips:boolean,layoutPreset:"custom"|"focus"|"review"|"sync"|"dashboard",topbarOrder:string[]},
  *     masterNotationSort:"blockers_desc"|"achievements_desc"|"updated_desc"|"name_asc",
+ *     dashboardSort:"az"|"area",
  *     dayNoteFilters:{thisMonth:boolean},
  *     calendarUI:{compact:boolean,markedOnly:boolean,activeOnly:boolean,focus:"both"|"planned"|"actual"}
  *   }
@@ -2665,6 +2677,10 @@ function normalizeMasterNotationSort(raw){
   const safe = String(raw || "").trim().toLowerCase();
   if(["blockers_desc","achievements_desc","updated_desc","name_asc"].includes(safe)) return safe;
   return "blockers_desc";
+}
+function normalizeDashboardSort(raw){
+  const safe = String(raw || "").trim().toLowerCase();
+  return safe === "area" ? "area" : "az";
 }
 function areaLabel(areaId){
   const safe = normalizeAreaViewId(areaId);
@@ -3715,6 +3731,7 @@ function renderAopPane(){
     ui.paneNotation.hidden = !notationOn;
   }
   if(ui.aopNotesCard) ui.aopNotesCard.classList.toggle("goals-focus", notationOn);
+  if(ui.mainGrid) ui.mainGrid.classList.toggle("aop-achieved-wide", notationOn);
 
   if(ui.paneCatalogBtn){
     ui.paneCatalogBtn.classList.toggle("on", catalogOn);
@@ -3762,6 +3779,7 @@ function defaultState(){
       rainEnabled: true,
       teamSyncOpen: false,
       masterNotationSort: "blockers_desc",
+      dashboardSort: "az",
       dayNoteFilters: { thisMonth:false },
       calendarUI: { compact:false, markedOnly:false, activeOnly:false, focus:"both" }
     },
@@ -3816,6 +3834,7 @@ function migrateIfNeeded(st){
   st.settings.rainEnabled = st.settings.rainEnabled !== false;
   st.settings.teamSyncOpen = st.settings.teamSyncOpen === true;
   st.settings.masterNotationSort = normalizeMasterNotationSort(st.settings.masterNotationSort);
+  st.settings.dashboardSort = normalizeDashboardSort(st.settings.dashboardSort);
   const nf = st.settings.dayNoteFilters || {};
   st.settings.dayNoteFilters = {
     thisMonth: nf.thisMonth === true
@@ -4905,6 +4924,23 @@ function applyAopNotationTemplate(){
   saveAopNotation();
   ui.aopNotation.focus();
 }
+function currentDashboardSort(){
+  return normalizeDashboardSort(view.state?.settings?.dashboardSort);
+}
+function setDashboardSort(nextSort, persist){
+  const safe = normalizeDashboardSort(nextSort);
+  if(!view.state?.settings) return;
+  if(view.state.settings.dashboardSort === safe){
+    if(ui.dashboardSortSelect) ui.dashboardSortSelect.value = safe;
+    return;
+  }
+  view.state.settings.dashboardSort = safe;
+  if(persist !== false){
+    saveStateLocal();
+  }
+  if(ui.dashboardSortSelect) ui.dashboardSortSelect.value = safe;
+  renderDashboard();
+}
 function currentMasterNotationSort(){
   return normalizeMasterNotationSort(view.state?.settings?.masterNotationSort);
 }
@@ -5125,7 +5161,11 @@ function scheduleAopNotationSave(){
 
 /* --- AOP catalog UI --- */
 function renderAopCatalog(){
-  const order = visibleAopOrder();
+  const order = visibleAopOrder().slice().sort((a, b) => {
+    const aName = (view.state.aops?.[a]?.name || "").trim();
+    const bName = (view.state.aops?.[b]?.name || "").trim();
+    return aName.localeCompare(bName, undefined, { sensitivity:"base", numeric:true });
+  });
   const q = (ui.aopSearch?.value || "").trim().toLowerCase();
   const monthKey = currentMonthKey();
   const prevSelectId = ui.aopSelect?.value || "";
@@ -6047,6 +6087,10 @@ function calcMonthStats(){
 function renderDashboard(){
   const st = calcMonthStats();
   const canJumpMasterNotation = canAccessMasterView();
+  const dashboardSort = currentDashboardSort();
+  if(ui.dashboardSortSelect && ui.dashboardSortSelect.value !== dashboardSort){
+    ui.dashboardSortSelect.value = dashboardSort;
+  }
   const mtdRange = (st.mtdStartDateKey && st.mtdEndDateKey) ? `${st.mtdStartDateKey} to ${st.mtdEndDateKey}` : "No MTD days yet";
   ui.dashSub.textContent = `${monthNames[view.month]} ${view.year} | View: ${areaLabel(currentAreaViewId())} | Strict match: same AOP + same day | Adherence: MTD (${mtdRange})`;
   renderMasterNotationPanel();
@@ -6087,6 +6131,7 @@ function renderDashboard(){
       id,
       name: a?.name || "(Missing AOP)",
       color: a?.color || "#6b7280",
+      areaName: a ? areaLabel(aopAreaId(a)) : "Unknown",
       planned,
       actual,
       adhPlanned,
@@ -6097,6 +6142,13 @@ function renderDashboard(){
       deflectionEnd,
       canJumpNotation
     };
+  });
+  rows.sort((a, b) => {
+    if(dashboardSort === "area"){
+      const byArea = a.areaName.localeCompare(b.areaName, undefined, { sensitivity:"base", numeric:true });
+      if(byArea !== 0) return byArea;
+    }
+    return a.name.localeCompare(b.name, undefined, { sensitivity:"base", numeric:true });
   });
 
   if(rows.length === 0){
@@ -6820,6 +6872,11 @@ function hookUI(){
       setMasterNotationSort(ui.masterNotationSort.value, true);
     });
   }
+  if(ui.dashboardSortSelect){
+    ui.dashboardSortSelect.addEventListener("change", () => {
+      setDashboardSort(ui.dashboardSortSelect.value, true);
+    });
+  }
 
   const onAopSelectionChange = (nextId) => {
     const id = nextId || "";
@@ -7112,6 +7169,7 @@ function init(){
     masterNotationMeta: document.getElementById("masterNotationMeta"),
     masterNotationList: document.getElementById("masterNotationList"),
     masterNotationSort: document.getElementById("masterNotationSort"),
+    dashboardSortSelect: document.getElementById("dashboardSortSelect"),
 
     // calendars
     selectedInfo: document.getElementById("selectedInfo"),
