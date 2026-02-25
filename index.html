@@ -1760,7 +1760,7 @@
       font-size: 12px;
       border-radius: 10px;
     }
-    .aop-row .actions .aop-color-input{
+    .aop-row .aop-color-input{
       width: 36px;
       min-width: 36px;
       height: 34px;
@@ -1769,6 +1769,7 @@
       border: 1px solid var(--line);
       background: #0b0d10;
       cursor: pointer;
+      flex: 0 0 auto;
     }
 
     .aop-list{ margin-top: 10px; display:grid; gap: 8px; }
@@ -5158,10 +5159,6 @@ function renderAopCatalog(){
       const left = document.createElement("div");
       left.className = "left";
 
-      const sw = document.createElement("div");
-      sw.className = "sw";
-      sw.style.background = a.color;
-
       const name = document.createElement("div");
       name.className = "name";
       const monthNotation = readAopMonthlyNotation(id, monthKey);
@@ -5171,7 +5168,6 @@ function renderAopCatalog(){
         ? `${escapeHtml(a.name)}<div class="small" style="margin-top:4px;">${escapeHtml(clipped)}</div>`
         : escapeHtml(a.name);
 
-      left.appendChild(sw);
       left.appendChild(name);
 
       const actions = document.createElement("div");
@@ -5187,13 +5183,12 @@ function renderAopCatalog(){
       colorInput.addEventListener("keydown", (event) => event.stopPropagation());
       colorInput.addEventListener("input", (event) => {
         event.stopPropagation();
-        const preview = normalizeHexColor(colorInput.value, a.color);
-        sw.style.background = preview;
       });
       colorInput.addEventListener("change", (event) => {
         event.stopPropagation();
         setAopColor(id, colorInput.value, true);
       });
+      left.appendChild(colorInput);
 
       const areaSel = document.createElement("select");
       areaSel.innerHTML = areaOptionsHtml(aopAreaId(a));
@@ -5214,7 +5209,6 @@ function renderAopCatalog(){
         removeAop(id);
       });
 
-      actions.appendChild(colorInput);
       actions.appendChild(areaSel);
       actions.appendChild(del);
 
