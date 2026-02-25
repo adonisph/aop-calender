@@ -404,6 +404,21 @@
     }
     .tools-card .section-pad{ padding: 10px 12px; }
     .tools-row + .tools-row{ margin-top: 8px; }
+    .tools-sync-meta{
+      margin-left:auto;
+      display:flex;
+      align-items:center;
+      gap:8px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+    @media (max-width:900px){
+      .tools-sync-meta{
+        margin-left:0;
+        width:100%;
+        justify-content:flex-start;
+      }
+    }
     .customize-wrap{
       position: relative;
       display:inline-flex;
@@ -547,19 +562,6 @@
       background: rgba(255,255,255,.02);
       display: grid;
       gap: 8px;
-    }
-    .sync-topline{
-      display:flex;
-      justify-content:space-between;
-      align-items:flex-start;
-      gap:10px;
-      flex-wrap:wrap;
-    }
-    .sync-top-meta{
-      display:flex;
-      align-items:center;
-      gap:8px;
-      flex-wrap:wrap;
     }
     .sync-panel-body[hidden]{
       display:none !important;
@@ -1363,13 +1365,6 @@
     .deflect-delta.pos{ color: rgba(34,197,94,.95); border-color: rgba(34,197,94,.52); background: rgba(34,197,94,.14); }
     .deflect-delta.neg{ color: rgba(239,68,68,.95); border-color: rgba(239,68,68,.56); background: rgba(239,68,68,.14); }
     .deflect-delta.zero{ color: var(--muted); }
-    .dash-row-actions{
-      display:flex;
-      align-items:center;
-      gap:8px;
-      justify-content:flex-end;
-      min-width: 120px;
-    }
     .dash-row-deflect{
       justify-content:flex-end;
       margin-bottom: 6px;
@@ -1377,18 +1372,6 @@
     .dash-row-deflect input{
       width: 52px;
       min-width: 52px;
-    }
-    .dash-detail-open{
-      padding: 6px 8px;
-      font-size: 11px;
-      font-weight: 700;
-      border-radius: 8px;
-      background: rgba(255,255,255,.03);
-      border: 1px solid rgba(255,255,255,.16);
-    }
-    .dash-row-active td{
-      background: rgba(var(--power-rgb),.10);
-      box-shadow: inset 0 0 0 1px rgba(var(--power-rgb),.35);
     }
     .dash-details{
       margin-top: 10px;
@@ -1961,8 +1944,8 @@
     @media (max-width: 560px){ .aop-form{ grid-template-columns: 1fr; } }
     input[type="color"]{ padding: 6px; height: 40px; }
     .aop-row .actions select{
-      min-width: 98px;
-      width: 98px;
+      min-width: 122px;
+      width: 122px;
       padding: 6px 28px 6px 8px;
       font-size: 12px;
       border-radius: 10px;
@@ -1980,6 +1963,33 @@
     }
 
     .aop-list{ margin-top: 10px; display:grid; gap: 8px; }
+    .aop-active-line{
+      margin-top: 10px;
+      display:flex;
+      align-items:center;
+      gap:6px;
+      flex-wrap:wrap;
+      min-width:0;
+    }
+    #activeAopPill{
+      max-width: 100%;
+      overflow:hidden;
+      text-overflow: ellipsis;
+    }
+    #activeAopLabel{
+      display:inline-block;
+      max-width: min(100%, 760px);
+      overflow:hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      vertical-align: middle;
+    }
+    #aopSelect,
+    #aopNotationSelect,
+    #aopSelectGoals{
+      width:100%;
+      max-width:100%;
+    }
     .aop-row{
       display:grid;
       grid-template-columns: minmax(0, 1fr) auto;
@@ -2001,11 +2011,26 @@
     }
     .aop-row .left{ display:flex; align-items:center; gap:10px; min-width: 0; }
     .aop-row .name{
-      font-size: 12px; color: var(--text);
-      overflow:hidden; text-overflow: ellipsis; white-space:nowrap;
+      display:grid;
+      gap:4px;
+      font-size: 12px;
+      color: var(--text);
       width:100%;
       max-width: 100%;
       font-weight:650;
+      min-width:0;
+    }
+    .aop-row .name-main{
+      overflow:hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .aop-row .name-preview{
+      font-size: 11px;
+      color: var(--muted);
+      overflow:hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
     .aop-row .actions{
       display:flex;
@@ -2300,18 +2325,14 @@
         <button id="csvExport" type="button" title="Export CSV for this month">Export CSV</button>
         <button id="printBtn" type="button" title="Print / Save as PDF">Print</button>
         <button id="wipe" class="btn-danger" type="button" title="Clear all saved data">Clear All</button>
+        <div class="tools-sync-meta">
+          <button id="syncPanelToggleBtn" class="btn-ghost btn-toggle sync-panel-toggle" type="button" aria-pressed="false" aria-expanded="false" aria-controls="syncPanelBody">Sync/Login</button>
+          <span id="syncConnectionState" class="status-pill sync-conn offline">Disconnected</span>
+          <span id="syncRoleBadge" class="status-pill">Role: local</span>
+        </div>
       </div>
       <div class="sync-panel" id="syncPanel" role="region" aria-labelledby="syncPanelTitle" aria-describedby="syncWarning" aria-busy="false">
-        <div class="sync-topline">
-          <div>
-            <strong id="syncPanelTitle">Team Sync</strong>
-          </div>
-          <div class="sync-top-meta">
-            <button id="syncPanelToggleBtn" class="btn-ghost btn-toggle sync-panel-toggle" type="button" aria-pressed="false" aria-expanded="false" aria-controls="syncPanelBody">Sync/Login</button>
-            <span id="syncConnectionState" class="status-pill sync-conn offline">Disconnected</span>
-            <span id="syncRoleBadge" class="status-pill">Role: local</span>
-          </div>
-        </div>
+        <span id="syncPanelTitle" class="sr-only">Team Sync</span>
         <div id="syncPanelBody" class="sync-panel-body" hidden>
         <div id="syncUserMeta" class="small sync-user">Not signed in.</div>
         <div class="sync-sections">
@@ -2554,7 +2575,7 @@
           <input id="aopSearch" placeholder="Filter AOP catalog..." />
         </div>
 
-        <div class="small" style="margin-top:10px;">
+          <div class="small aop-active-line">
           Active AOP: <span id="activeAopLabel" class="chip active" style="cursor:default;">None</span>
         </div>
 
@@ -5168,6 +5189,17 @@ function parseAopNotationModel(raw){
   }
   return { goals, achievements, blockers };
 }
+function aopNotationPreviewText(raw){
+  const parsed = parseAopNotationModel(raw);
+  const primary =
+    (parsed.goals[0] ? `Goal: ${parsed.goals[0]}` : "") ||
+    (parsed.achievements[0] ? `Achieved: ${parsed.achievements[0]}` : "") ||
+    (parsed.blockers[0] ? `Blocker: ${parsed.blockers[0]}` : "");
+  const fallback = String(raw || "").replace(/\s+/g, " ").trim();
+  const text = (primary || fallback || "").trim();
+  if(!text) return "";
+  return text.length > 96 ? `${text.slice(0, 96)}...` : text;
+}
 function applyAopNotationTemplate(){
   if(!ui.aopNotation) return;
   const aopId = selectedAopForNotation();
@@ -5335,17 +5367,18 @@ function setMasterNotationSort(nextSort, persist){
 }
 function renderMasterNotationPanel(){
   if(!ui.masterNotationPanel || !ui.masterNotationList || !ui.masterNotationMeta) return;
-  const isMaster = currentAreaViewId() === MASTER_VIEW_ID;
   const isTeamlead = syncRoleLabel(teamSync?.role) === "teamlead";
-  ui.masterNotationPanel.hidden = !(isMaster && isTeamlead);
-  if(!(isMaster && isTeamlead)) return;
+  ui.masterNotationPanel.hidden = !isTeamlead;
+  if(!isTeamlead) return;
 
   const mk = currentMonthKey();
+  const scopeArea = currentAreaViewId();
+  const scopeLabel = areaLabel(scopeArea);
   const sort = currentMasterNotationSort();
   if(ui.masterNotationSort && ui.masterNotationSort.value !== sort){
     ui.masterNotationSort.value = sort;
   }
-  const order = visibleAopOrder(MASTER_VIEW_ID);
+  const order = visibleAopOrder(scopeArea);
   const rows = [];
 
   for(const id of order){
@@ -5451,7 +5484,7 @@ function renderMasterNotationPanel(){
     `;
   });
 
-  ui.masterNotationMeta.textContent = `${mk} | ${cards.length}/${rows.length} AOP${rows.length === 1 ? "" : "s"} shown`;
+  ui.masterNotationMeta.textContent = `${mk} | ${scopeLabel} | ${cards.length}/${rows.length} AOP${rows.length === 1 ? "" : "s"} shown`;
   ui.masterNotationList.innerHTML = cards.length
     ? cards.join("")
     : `<div class="small">${rows.length ? "No notation cards match current filters." : "No AOP notation added for this month."}</div>`;
@@ -5597,6 +5630,7 @@ function renderAopCatalog(){
       ? view.state.aops[view.state.activeAopId].name
       : "None";
     ui.activeAopPill.textContent = `Active: ${activeName}`;
+    ui.activeAopPill.title = activeName === "None" ? "Active: None" : activeName;
   }
 
   if(order.length === 0){
@@ -5635,11 +5669,10 @@ function renderAopCatalog(){
       const name = document.createElement("div");
       name.className = "name";
       const monthNotation = readAopMonthlyNotation(id, monthKey);
-      const notePreview = String(monthNotation.notation || "").trim();
-      const clipped = notePreview.length > 80 ? `${notePreview.slice(0, 80)}...` : notePreview;
+      const notePreview = aopNotationPreviewText(monthNotation.notation || "");
       name.innerHTML = notePreview
-        ? `${escapeHtml(a.name)}<div class="small" style="margin-top:4px;">${escapeHtml(clipped)}</div>`
-        : escapeHtml(a.name);
+        ? `<div class="name-main">${escapeHtml(a.name)}</div><div class="name-preview">${escapeHtml(notePreview)}</div>`
+        : `<div class="name-main">${escapeHtml(a.name)}</div>`;
 
       left.appendChild(name);
 
@@ -5703,8 +5736,10 @@ function renderAopCatalog(){
   if(ui.aopSelectGoals) ui.aopSelectGoals.innerHTML = optionsHtml;
 
   if(view.state.activeAopId && view.state.aops[view.state.activeAopId] && isAopInArea(view.state.activeAopId)){
+    const activeName = view.state.aops[view.state.activeAopId].name;
     syncAopSelectors(view.state.activeAopId);
-    ui.activeAopLabel.textContent = view.state.aops[view.state.activeAopId].name;
+    ui.activeAopLabel.textContent = activeName;
+    ui.activeAopLabel.title = activeName;
     const c = view.state.aops[view.state.activeAopId].color;
     ui.activeAopLabel.style.borderColor = hexToRgba(c, .65);
     ui.activeAopLabel.style.background = hexToRgba(c, .12);
@@ -5713,6 +5748,7 @@ function renderAopCatalog(){
     const sticky = [prevSelectId, prevNotationSelectId, prevGoalsSelectId].find(id => !!id && order.includes(id)) || "";
     syncAopSelectors(sticky);
     ui.activeAopLabel.textContent = "None";
+    ui.activeAopLabel.title = "None";
     ui.activeAopLabel.style.borderColor = "var(--line)";
     ui.activeAopLabel.style.background = "rgba(255,255,255,.03)";
     ui.activeAopLabel.style.color = "var(--muted)";
@@ -6533,7 +6569,6 @@ function renderDashboardDetails(monthKey){
     </div>
     <div class="dash-action-row">
       <button type="button" class="btn-ghost" data-open-achieved="${escapeHtml(row.id)}">Open Achieved Editor</button>
-      ${row.canJumpNotation ? `<button type="button" class="btn-ghost" data-jump-master-aop="${escapeHtml(row.id)}">Open Master Notation</button>` : ""}
     </div>
     <div class="dash-reason-list">
       ${reasons.map(reason => `<span class="status-pill dash-reason">${escapeHtml(reason)}</span>`).join("")}
@@ -6567,10 +6602,6 @@ function renderDashboardDetails(monthKey){
     <div class="dash-detail-note">End-of-month value auto-carries to next month start-of-month for this AOP.</div>
   `;
 
-  const jumpBtn = ui.dashDetailsBody.querySelector("[data-jump-master-aop]");
-  if(jumpBtn){
-    jumpBtn.addEventListener("click", () => jumpToMasterNotationForAop(row.id));
-  }
   const openAchievedBtn = ui.dashDetailsBody.querySelector("[data-open-achieved]");
   if(openAchievedBtn){
     openAchievedBtn.addEventListener("click", () => openAopNotationFromDashboard(row.id));
@@ -6738,7 +6769,6 @@ function renderDashboard(){
 
     for(const r of groupRows){
       const tr = document.createElement("tr");
-      if(dashboardUi.detailsAopId === r.id) tr.classList.add("dash-row-active");
       const adhPctRow = r.adhPlanned ? Math.round(r.adh * 100) : 0;
       const deltaClass = r.delta > 0 ? "pos" : (r.delta < 0 ? "neg" : "zero");
       const deflectionState = deflectionDeltaState(r.deflectionStart, r.deflectionEnd);
@@ -6764,9 +6794,6 @@ function renderDashboard(){
             <input type="number" min="0" max="100" step="0.1" placeholder="EoM" title="End of month deflection rate (%)" value="${escapeHtml(r.deflectionEnd)}" data-deflect-field="deflection_end" />
             <span class="deflect-delta ${deflectionState.cls}" data-deflect-badge title="${escapeHtml(deflectionSummary)}">${escapeHtml(deflectionState.text)}</span>
           </div>
-          <div class="dash-row-actions">
-            <button type="button" class="dash-detail-open" data-dash-detail-open="${escapeHtml(r.id)}">${dashboardUi.detailsAopId === r.id ? "Hide" : "Inspect"}</button>
-          </div>
         </td>
       `;
       ui.dashTbody.appendChild(tr);
@@ -6778,13 +6805,6 @@ function renderDashboard(){
       const areaName = btn.getAttribute("data-dash-area");
       if(!areaName) return;
       setDashboardAreaCollapsed(areaName, !isDashboardAreaCollapsed(areaName));
-    });
-  });
-  ui.dashTbody.querySelectorAll("button[data-dash-detail-open]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const id = btn.getAttribute("data-dash-detail-open");
-      if(!id) return;
-      openDashboardDetails(id);
     });
   });
   ui.dashTbody.querySelectorAll("button[data-jump-master-aop]").forEach(btn => {
@@ -6825,6 +6845,7 @@ function renderDashboard(){
     }
   });
 
+  dashboardUi.detailsAopId = "";
   renderDashboardDetails(st.mk);
 }
 
