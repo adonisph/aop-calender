@@ -1370,6 +1370,14 @@
       justify-content:flex-end;
       min-width: 120px;
     }
+    .dash-row-deflect{
+      justify-content:flex-end;
+      margin-bottom: 6px;
+    }
+    .dash-row-deflect input{
+      width: 52px;
+      min-width: 52px;
+    }
     .dash-detail-open{
       padding: 6px 8px;
       font-size: 11px;
@@ -1377,6 +1385,10 @@
       border-radius: 8px;
       background: rgba(255,255,255,.03);
       border: 1px solid rgba(255,255,255,.16);
+    }
+    .dash-row-active td{
+      background: rgba(var(--power-rgb),.10);
+      box-shadow: inset 0 0 0 1px rgba(var(--power-rgb),.35);
     }
     .dash-details{
       margin-top: 10px;
@@ -1403,6 +1415,22 @@
       align-items:center;
       gap:8px;
       flex-wrap:wrap;
+    }
+    .dash-action-row{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+    .dash-reason-list{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+    .dash-reason{
+      border-color: rgba(var(--power-rgb),.34);
+      background: rgba(var(--power-rgb),.10);
     }
     .dash-metric-grid{
       display:grid;
@@ -1440,6 +1468,21 @@
       background: rgba(255,255,255,.02);
       font-size:12px;
       color: var(--muted);
+    }
+    .dash-detail-note strong{
+      display:block;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+    .dash-detail-columns{
+      display:grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap:8px;
+    }
+    @media (max-width: 820px){
+      .dash-detail-columns{
+        grid-template-columns: 1fr;
+      }
     }
     .master-notation-panel{
       margin-top: 12px;
@@ -5204,6 +5247,37 @@ function dashboardAttentionScore(row){
   if(staleWeeks > 0) score += staleWeeks;
   return score;
 }
+function dashboardAttentionReasons(row){
+  const reasons = [];
+  if(row.blockerCount > 0){
+    reasons.push(`${row.blockerCount} blocker${row.blockerCount === 1 ? "" : "s"} to resolve`);
+  }
+  if(Math.abs(row.delta) >= DASH_HIGH_DELTA_THRESHOLD){
+    reasons.push(`High month delta (${row.delta > 0 ? "+" : ""}${row.delta})`);
+  }
+  if(!row.hasNotation){
+    reasons.push("No sprint outcome notation yet");
+  }
+  if(!row.updatedMs){
+    reasons.push("No notation update this month");
+  }else if((Date.now() - row.updatedMs) > DASH_UPDATED_WINDOW_MS){
+    reasons.push("Notation is older than 7 days");
+  }
+  if(reasons.length === 0){
+    reasons.push("Stable and on-track");
+  }
+  return reasons;
+}
+function openAopNotationFromDashboard(aopId){
+  if(!aopId || !view.state?.aops?.[aopId]) return;
+  if(view.state.activeAopId !== aopId){
+    setActiveAop(aopId);
+  }
+  setAopPane("notation");
+  if(ui.aopNotesCard){
+    ui.aopNotesCard.scrollIntoView({ behavior:"smooth", block:"start", inline:"nearest" });
+  }
+}
 function dashboardRowMatchesFilters(row){
   const q = dashboardUi.query.trim().toLowerCase();
   if(q){
@@ -5352,9 +5426,6 @@ function renderMasterNotationPanel(){
           <span class="status-pill">${escapeHtml(row.area)}</span>
         </div>
         <div class="mn-kpis">
-          <span class="status-pill">Goal: ${row.goals.length}</span>
-          <span class="status-pill">Achieved: ${row.achievements.length}</span>
-          <span class="status-pill">Blockers: ${row.blockers.length}</span>
           <span class="status-pill">Attention: ${attention}</span>
           <span class="status-pill">Updated: ${escapeHtml(fmtIsoShort(row.updatedAt))}</span>
         </div>
@@ -6418,8 +6489,15 @@ function calcMonthStats(){
 }
 
 function openDashboardDetails(aopId){
-  dashboardUi.detailsAopId = aopId || "";
+  const safe = String(aopId || "");
+  dashboardUi.detailsAopId = dashboardUi.detailsAopId === safe ? "" : safe;
   renderDashboard();
+  if(!dashboardUi.detailsAopId) return;
+  requestAnimationFrame(() => {
+    if(ui.dashDetailsDrawer && !ui.dashDetailsDrawer.hidden){
+      ui.dashDetailsDrawer.scrollIntoView({ behavior:"smooth", block:"nearest", inline:"nearest" });
+    }
+  });
 }
 function closeDashboardDetails(){
   dashboardUi.detailsAopId = "";
@@ -6438,13 +6516,27 @@ function renderDashboardDetails(monthKey){
 
   const deflectState = deflectionDeltaState(row.deflectionStart, row.deflectionEnd);
   const adhPct = row.adhPlanned ? Math.round(row.adh * 100) : 0;
+  const reasons = dashboardAttentionReasons(row);
+  const goalPreview = row.goals?.[0] ? escapeHtml(row.goals[0]) : "No goal yet.";
+  const achievedPreview = row.achievements?.length
+    ? row.achievements.slice(0, 3).map(x => `<li>${escapeHtml(x)}</li>`).join("")
+    : `<li>No achieved items yet.</li>`;
+  const blockerPreview = row.blockers?.length
+    ? row.blockers.slice(0, 3).map(x => `<li>${escapeHtml(x)}</li>`).join("")
+    : `<li>No blockers noted.</li>`;
   ui.dashDetailsBody.innerHTML = `
     <div class="dash-details-meta">
       <span class="sw" style="background:${escapeHtml(row.color)}"></span>
       <span class="status-pill">${escapeHtml(row.areaName)}</span>
       <span class="status-pill">Attention: ${row.attentionScore}</span>
       <span class="status-pill">Updated: ${escapeHtml(fmtIsoShort(row.notationUpdatedAt || ""))}</span>
-      ${row.canJumpNotation ? `<button type="button" class="dash-aop-link" data-jump-master-aop="${escapeHtml(row.id)}">Open Master Notation</button>` : ""}
+    </div>
+    <div class="dash-action-row">
+      <button type="button" class="btn-ghost" data-open-achieved="${escapeHtml(row.id)}">Open Achieved Editor</button>
+      ${row.canJumpNotation ? `<button type="button" class="btn-ghost" data-jump-master-aop="${escapeHtml(row.id)}">Open Master Notation</button>` : ""}
+    </div>
+    <div class="dash-reason-list">
+      ${reasons.map(reason => `<span class="status-pill dash-reason">${escapeHtml(reason)}</span>`).join("")}
     </div>
     <div class="dash-metric-grid">
       <div class="dash-metric"><div class="label">Planned</div><div class="value">${row.planned}</div></div>
@@ -6452,11 +6544,19 @@ function renderDashboardDetails(monthKey){
       <div class="dash-metric"><div class="label">Delta</div><div class="value ${row.delta > 0 ? "delta pos" : row.delta < 0 ? "delta neg" : "delta zero"}">${row.delta > 0 ? `+${row.delta}` : row.delta}</div></div>
       <div class="dash-metric"><div class="label">Adherence (MTD)</div><div class="value">${row.adhPlanned ? `${adhPct}% (${row.adhMatched}/${row.adhPlanned})` : "-"}</div></div>
     </div>
-    <div class="dash-metric-grid">
-      <div class="dash-metric"><div class="label">Goal lines</div><div class="value">${row.goalCount}</div></div>
-      <div class="dash-metric"><div class="label">Achieved</div><div class="value">${row.achievementCount}</div></div>
-      <div class="dash-metric"><div class="label">Blockers</div><div class="value">${row.blockerCount}</div></div>
-      <div class="dash-metric"><div class="label">Deflection Delta</div><div class="value ${deflectState.cls === "pos" ? "delta pos" : deflectState.cls === "neg" ? "delta neg" : "delta zero"}">${escapeHtml(deflectState.text)}</div></div>
+    <div class="dash-detail-note">
+      <strong>Goal</strong>
+      <div>${goalPreview}</div>
+    </div>
+    <div class="dash-detail-columns">
+      <div class="dash-detail-note">
+        <strong>Achieved During Sprint</strong>
+        <ul class="mn-list">${achievedPreview}</ul>
+      </div>
+      <div class="dash-detail-note">
+        <strong>Existing Blockers</strong>
+        <ul class="mn-list blockers">${blockerPreview}</ul>
+      </div>
     </div>
     <div class="deflect-wrap" data-dash-detail-deflect="${escapeHtml(row.id)}">
       <input type="number" min="0" max="100" step="0.1" placeholder="SoM" title="Start of month deflection rate (%)" value="${escapeHtml(row.deflectionStart)}" data-deflect-field="deflection_start" />
@@ -6470,6 +6570,10 @@ function renderDashboardDetails(monthKey){
   const jumpBtn = ui.dashDetailsBody.querySelector("[data-jump-master-aop]");
   if(jumpBtn){
     jumpBtn.addEventListener("click", () => jumpToMasterNotationForAop(row.id));
+  }
+  const openAchievedBtn = ui.dashDetailsBody.querySelector("[data-open-achieved]");
+  if(openAchievedBtn){
+    openAchievedBtn.addEventListener("click", () => openAopNotationFromDashboard(row.id));
   }
 
   const wrap = ui.dashDetailsBody.querySelector("[data-dash-detail-deflect]");
@@ -6559,6 +6663,9 @@ function renderDashboard(){
       goalCount: parsedNotation.goals.length,
       achievementCount: parsedNotation.achievements.length,
       blockerCount: parsedNotation.blockers.length,
+      goals: parsedNotation.goals,
+      achievements: parsedNotation.achievements,
+      blockers: parsedNotation.blockers,
       canJumpNotation: hasNotation && canJumpMasterNotation
     };
     row.attentionScore = dashboardAttentionScore(row);
@@ -6631,6 +6738,7 @@ function renderDashboard(){
 
     for(const r of groupRows){
       const tr = document.createElement("tr");
+      if(dashboardUi.detailsAopId === r.id) tr.classList.add("dash-row-active");
       const adhPctRow = r.adhPlanned ? Math.round(r.adh * 100) : 0;
       const deltaClass = r.delta > 0 ? "pos" : (r.delta < 0 ? "neg" : "zero");
       const deflectionState = deflectionDeltaState(r.deflectionStart, r.deflectionEnd);
@@ -6650,9 +6758,14 @@ function renderDashboard(){
         <td class="nowrap delta ${deltaClass}">${r.delta > 0 ? `+${r.delta}` : r.delta}</td>
         <td class="nowrap adhr">${r.adhPlanned ? `${adhPctRow}% (${r.adhMatched}/${r.adhPlanned})` : "-"}</td>
         <td class="deflect-cell">
+          <div class="deflect-wrap dash-row-deflect" data-dash-row-deflect="${escapeHtml(r.id)}">
+            <input type="number" min="0" max="100" step="0.1" placeholder="SoM" title="Start of month deflection rate (%)" value="${escapeHtml(r.deflectionStart)}" data-deflect-field="deflection_start" />
+            <span class="deflect-sep">to</span>
+            <input type="number" min="0" max="100" step="0.1" placeholder="EoM" title="End of month deflection rate (%)" value="${escapeHtml(r.deflectionEnd)}" data-deflect-field="deflection_end" />
+            <span class="deflect-delta ${deflectionState.cls}" data-deflect-badge title="${escapeHtml(deflectionSummary)}">${escapeHtml(deflectionState.text)}</span>
+          </div>
           <div class="dash-row-actions">
-            <span class="deflect-delta ${deflectionState.cls}" title="${escapeHtml(deflectionSummary)}">${escapeHtml(deflectionState.text)}</span>
-            <button type="button" class="dash-detail-open" data-dash-detail-open="${escapeHtml(r.id)}">Details</button>
+            <button type="button" class="dash-detail-open" data-dash-detail-open="${escapeHtml(r.id)}">${dashboardUi.detailsAopId === r.id ? "Hide" : "Inspect"}</button>
           </div>
         </td>
       `;
@@ -6680,6 +6793,36 @@ function renderDashboard(){
       if(!id) return;
       jumpToMasterNotationForAop(id);
     });
+  });
+  ui.dashTbody.querySelectorAll("[data-dash-row-deflect]").forEach(wrap => {
+    const id = wrap.getAttribute("data-dash-row-deflect");
+    if(!id) return;
+    const inputs = Array.from(wrap.querySelectorAll("input[data-deflect-field]"));
+    const badge = wrap.querySelector("[data-deflect-badge]");
+    const updateBadge = () => {
+      if(inputs.length < 2 || !badge) return;
+      const state = deflectionDeltaState(inputs[0].value, inputs[1].value);
+      badge.className = `deflect-delta ${state.cls}`;
+      badge.textContent = state.text;
+    };
+    const commit = (el, persist) => {
+      const field = el.getAttribute("data-deflect-field");
+      if(!field) return;
+      const tmpl = setMonthlyDeflectionRate(id, st.mk, field, el.value, persist);
+      if(!tmpl) return;
+      if(persist){
+        const normalized = deflectionRateInputValue(tmpl[field]);
+        if(el.value !== normalized) el.value = normalized;
+        renderDashboard();
+        return;
+      }
+      updateBadge();
+    };
+    for(const input of inputs){
+      input.addEventListener("input", () => commit(input, false));
+      input.addEventListener("change", () => commit(input, true));
+      input.addEventListener("blur", () => commit(input, true));
+    }
   });
 
   renderDashboardDetails(st.mk);
