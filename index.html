@@ -1760,6 +1760,16 @@
       font-size: 12px;
       border-radius: 10px;
     }
+    .aop-row .actions .aop-color-input{
+      width: 36px;
+      min-width: 36px;
+      height: 34px;
+      padding: 3px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: #0b0d10;
+      cursor: pointer;
+    }
 
     .aop-list{ margin-top: 10px; display:grid; gap: 8px; }
     .aop-row{
@@ -2725,6 +2735,19 @@ function setAopArea(aopId, areaId){
   a.area = safe;
   ensureActiveAopInView();
   saveState();
+  renderAll();
+  loadMonthlyTemplate();
+  renderEntries();
+  renderDashboard();
+}
+function setAopColor(aopId, color, persist){
+  const a = view.state.aops?.[aopId];
+  if(!a) return;
+  const theme = COLOR_THEMES[currentThemeId()] || COLOR_THEMES[DEFAULT_THEME];
+  const safe = normalizeHexColor(color, a.color || theme.power);
+  if(normalizeHexColor(a.color || "", theme.power) === safe) return;
+  a.color = safe;
+  if(persist !== false) saveState();
   renderAll();
   loadMonthlyTemplate();
   renderEntries();
@@ -5154,6 +5177,24 @@ function renderAopCatalog(){
       const actions = document.createElement("div");
       actions.className = "actions";
 
+      const colorInput = document.createElement("input");
+      colorInput.type = "color";
+      colorInput.className = "aop-color-input";
+      colorInput.title = "Change AOP color";
+      colorInput.value = normalizeHexColor(a.color, (COLOR_THEMES[currentThemeId()] || COLOR_THEMES[DEFAULT_THEME]).power);
+      colorInput.addEventListener("pointerdown", (event) => event.stopPropagation());
+      colorInput.addEventListener("click", (event) => event.stopPropagation());
+      colorInput.addEventListener("keydown", (event) => event.stopPropagation());
+      colorInput.addEventListener("input", (event) => {
+        event.stopPropagation();
+        const preview = normalizeHexColor(colorInput.value, a.color);
+        sw.style.background = preview;
+      });
+      colorInput.addEventListener("change", (event) => {
+        event.stopPropagation();
+        setAopColor(id, colorInput.value, true);
+      });
+
       const areaSel = document.createElement("select");
       areaSel.innerHTML = areaOptionsHtml(aopAreaId(a));
       areaSel.title = "Move AOP to another view";
@@ -5173,6 +5214,7 @@ function renderAopCatalog(){
         removeAop(id);
       });
 
+      actions.appendChild(colorInput);
       actions.appendChild(areaSel);
       actions.appendChild(del);
 
