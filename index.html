@@ -1200,6 +1200,8 @@
       border-radius: 14px;
       background: #141414;
       padding: 10px;
+      display:grid;
+      gap:8px;
     }
     .dash-controls .row{
       display:flex;
@@ -1207,6 +1209,10 @@
       flex-wrap:wrap;
       align-items:center;
       justify-content:space-between;
+    }
+    .dash-controls .row input{
+      flex:1 1 240px;
+      min-width: 200px;
     }
     .capbox{
       display:flex;
@@ -1247,6 +1253,40 @@
       background: rgba(0,0,0,.22);
     }
     .dash-table tr:last-child td{ border-bottom: none; }
+    .dash-table tr.dash-area-row td{
+      background: rgba(255,255,255,.04);
+      border-bottom-color: rgba(255,255,255,.14);
+      padding: 0;
+    }
+    .dash-area-toggle{
+      width:100%;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      background: transparent;
+      border:none;
+      border-radius: 0;
+      box-shadow:none;
+      padding: 10px;
+      text-align:left;
+    }
+    .dash-area-toggle:hover{
+      box-shadow:none;
+      border:none;
+      background: rgba(255,255,255,.04);
+    }
+    .dash-area-meta{
+      color: var(--muted);
+      font-size: 11px;
+      font-family: var(--mono);
+    }
+    .dash-area-arrow{
+      color: var(--muted);
+      font-size: 11px;
+      font-family: var(--mono);
+      text-transform: uppercase;
+    }
     .dash-table .aopname{
       display:flex;
       align-items:center;
@@ -1323,6 +1363,84 @@
     .deflect-delta.pos{ color: rgba(34,197,94,.95); border-color: rgba(34,197,94,.52); background: rgba(34,197,94,.14); }
     .deflect-delta.neg{ color: rgba(239,68,68,.95); border-color: rgba(239,68,68,.56); background: rgba(239,68,68,.14); }
     .deflect-delta.zero{ color: var(--muted); }
+    .dash-row-actions{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      justify-content:flex-end;
+      min-width: 120px;
+    }
+    .dash-detail-open{
+      padding: 6px 8px;
+      font-size: 11px;
+      font-weight: 700;
+      border-radius: 8px;
+      background: rgba(255,255,255,.03);
+      border: 1px solid rgba(255,255,255,.16);
+    }
+    .dash-details{
+      margin-top: 10px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #131313;
+      padding: 10px;
+      display:grid;
+      gap:10px;
+    }
+    .dash-details-head{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    .dash-details-body{
+      display:grid;
+      gap:10px;
+    }
+    .dash-details-meta{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+    .dash-metric-grid{
+      display:grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap:8px;
+    }
+    @media (max-width: 820px){
+      .dash-metric-grid{
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+    .dash-metric{
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:10px;
+      padding:8px;
+      background: rgba(255,255,255,.02);
+      display:grid;
+      gap:3px;
+    }
+    .dash-metric .label{
+      font-size:11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing:.5px;
+    }
+    .dash-metric .value{
+      font-size:15px;
+      font-weight:800;
+      font-style: italic;
+    }
+    .dash-detail-note{
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:10px;
+      padding:8px;
+      background: rgba(255,255,255,.02);
+      font-size:12px;
+      color: var(--muted);
+    }
     .master-notation-panel{
       margin-top: 12px;
       border: 1px solid var(--line);
@@ -1376,6 +1494,7 @@
       align-items:center;
       gap:8px;
       min-width:0;
+      flex-wrap:wrap;
     }
     .mn-top .name{
       font-size: 13px;
@@ -1384,6 +1503,45 @@
       overflow:hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+    .mn-kpis{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+    .mn-preview{
+      font-size:12px;
+      color: var(--muted);
+      line-height:1.35;
+      border-top:1px dashed rgba(255,255,255,.12);
+      padding-top:7px;
+    }
+    .mn-detail{
+      border-top:1px solid rgba(255,255,255,.10);
+      padding-top:7px;
+    }
+    .mn-detail > summary{
+      cursor:pointer;
+      color: var(--text);
+      font-size:12px;
+      font-weight:700;
+      list-style:none;
+      user-select:none;
+    }
+    .mn-detail > summary::-webkit-details-marker{ display:none; }
+    .mn-detail > summary::before{
+      content: "Show details";
+      color: var(--muted);
+    }
+    .mn-detail[open] > summary::before{
+      content: "Hide details";
+      color: var(--text);
+    }
+    .mn-detail-body{
+      margin-top:8px;
+      display:grid;
+      gap:8px;
     }
     .mn-block{
       display:grid;
@@ -2161,6 +2319,7 @@
         <select id="dashboardSortSelect" aria-label="Sort dashboard AOP rows">
           <option value="az">A-Z</option>
           <option value="area">Area</option>
+          <option value="attention">Needs Attention</option>
         </select>
       </div>
     </div>
@@ -2189,6 +2348,19 @@
             <div class="subv" id="kpiAdhSub">-</div>
           </div>
         </div>
+        <div class="dash-controls" aria-label="Dashboard filters">
+          <div class="row">
+            <input id="dashboardSearchInput" type="search" placeholder="Search AOP or area..." autocomplete="off" />
+            <button id="dashboardClearFiltersBtn" class="btn-ghost" type="button">Clear</button>
+          </div>
+          <div class="filters">
+            <button id="dashFilterBlockersBtn" class="btn-ghost btn-toggle" type="button" aria-pressed="false">Has blockers</button>
+            <button id="dashFilterUpdatedBtn" class="btn-ghost btn-toggle" type="button" aria-pressed="false">Updated 7d</button>
+            <button id="dashFilterNoNotationBtn" class="btn-ghost btn-toggle" type="button" aria-pressed="false">No notation</button>
+            <button id="dashFilterHighDeltaBtn" class="btn-ghost btn-toggle" type="button" aria-pressed="false">High delta</button>
+          </div>
+          <div id="dashboardFilterSummary" class="small">No filters active.</div>
+        </div>
       </div>
 
       <div class="dash-table">
@@ -2205,6 +2377,13 @@
           </thead>
           <tbody id="dashTbody"></tbody>
         </table>
+      </div>
+      <div id="dashDetailsDrawer" class="dash-details" hidden>
+        <div class="dash-details-head">
+          <strong id="dashDetailsTitle">AOP details</strong>
+          <button id="dashDetailsCloseBtn" class="btn-ghost" type="button">Close</button>
+        </div>
+        <div id="dashDetailsBody" class="dash-details-body"></div>
       </div>
       <div id="masterNotationPanel" class="master-notation-panel" hidden>
         <div class="master-notation-head">
@@ -2537,7 +2716,7 @@
  *     colorTheme:string,
  *     uiPrefs:{density:"compact"|"comfortable",textScale:"normal"|"large"|"xlarge",corner:"tight"|"normal"|"round",topbarSide:"right"|"left",customColorsEnabled:boolean,customColors:{power,bg0,bg1,surface,surfaceSoft,line,text,muted,rain},highContrast:boolean,showTips:boolean,layoutPreset:"custom"|"focus"|"review"|"sync"|"dashboard",topbarOrder:string[]},
  *     masterNotationSort:"blockers_desc"|"achievements_desc"|"updated_desc"|"name_asc",
- *     dashboardSort:"az"|"area",
+ *     dashboardSort:"az"|"area"|"attention",
  *     dayNoteFilters:{thisMonth:boolean},
  *     calendarUI:{compact:boolean,markedOnly:boolean,activeOnly:boolean,focus:"both"|"planned"|"actual"}
  *   }
@@ -2650,6 +2829,18 @@ let rainDrops = [];
 let rainColumns = 0;
 let rainFontSize = 16;
 let rainResizeBound = false;
+const DASH_HIGH_DELTA_THRESHOLD = 2;
+const DASH_UPDATED_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+const dashboardUi = {
+  query: "",
+  blockersOnly: false,
+  updatedOnly: false,
+  noNotationOnly: false,
+  highDeltaOnly: false,
+  collapsedAreas: {},
+  detailsAopId: ""
+};
+let dashboardRowCache = new Map();
 const RAIN_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@$%&*+-<>[]{}|;:.,~";
 const RAIN_GLYPHS = "ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ";
 
@@ -2657,6 +2848,15 @@ function nowIso(){ return new Date().toISOString(); }
 function pad2(n){ return String(n).padStart(2,"0"); }
 function ymd(d){ return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; }
 function ymKey(year, monthIndex){ return `${year}-${pad2(monthIndex+1)}`; }
+function shiftMonthKey(monthKey, delta){
+  const m = String(monthKey || "").match(/^(\d{4})-(\d{2})$/);
+  if(!m) return "";
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  if(!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) return "";
+  const d = new Date(year, month - 1 + Number(delta || 0), 1);
+  return ymKey(d.getFullYear(), d.getMonth());
+}
 function uuid(){ return (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2)); }
 function timeShort(){ return new Date().toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"}); }
 
@@ -2680,7 +2880,9 @@ function normalizeMasterNotationSort(raw){
 }
 function normalizeDashboardSort(raw){
   const safe = String(raw || "").trim().toLowerCase();
-  return safe === "area" ? "area" : "az";
+  if(safe === "area") return "area";
+  if(safe === "attention") return "attention";
+  return "az";
 }
 function areaLabel(areaId){
   const safe = normalizeAreaViewId(areaId);
@@ -4682,9 +4884,21 @@ function setMonthlyDeflectionRate(aopId, monthKey, field, raw, persist){
   const tmpl = ensureMonthly(aopId, monthKey);
   const parsed = parseDeflectionRate(raw);
   const next = parsed === null ? "" : parsed;
+  let changed = false;
   if(tmpl[field] !== next){
     tmpl[field] = next;
     tmpl.updated_at = nowIso();
+    changed = true;
+  }
+  if(field === "deflection_end" && changed){
+    const nextMonthKey = shiftMonthKey(monthKey, 1);
+    if(nextMonthKey){
+      const nextMonth = ensureMonthly(aopId, nextMonthKey);
+      if(nextMonth.deflection_start !== next){
+        nextMonth.deflection_start = next;
+        nextMonth.updated_at = nowIso();
+      }
+    }
   }
   if(persist) saveState();
   return tmpl;
@@ -4694,9 +4908,12 @@ function ensureMonthly(aopId, monthKey){
   if(!view.state.aopMonthly[aopId]) view.state.aopMonthly[aopId] = {};
   if(!view.state.aopMonthly[aopId][monthKey]){
     const t = nowIso();
+    const prevMonthKey = shiftMonthKey(monthKey, -1);
+    const prevMonth = prevMonthKey ? view.state.aopMonthly[aopId]?.[prevMonthKey] : null;
+    const inheritedStart = prevMonth ? deflectionRateInputValue(prevMonth.deflection_end) : "";
     view.state.aopMonthly[aopId][monthKey] = {
       goal:"", comments:"", required:false,
-      deflection_start:"", deflection_end:"",
+      deflection_start: inheritedStart, deflection_end:"",
       notation:"", notation_updated_at:"",
       created_at: t, updated_at: t,
       goal_created_at:"", goal_updated_at:"",
@@ -4941,6 +5158,90 @@ function setDashboardSort(nextSort, persist){
   if(ui.dashboardSortSelect) ui.dashboardSortSelect.value = safe;
   renderDashboard();
 }
+function dashboardActiveFilterCount(){
+  let count = 0;
+  if(dashboardUi.query.trim()) count++;
+  if(dashboardUi.blockersOnly) count++;
+  if(dashboardUi.updatedOnly) count++;
+  if(dashboardUi.noNotationOnly) count++;
+  if(dashboardUi.highDeltaOnly) count++;
+  return count;
+}
+function setDashboardFilterToggle(key){
+  if(!(key in dashboardUi)) return;
+  dashboardUi[key] = !dashboardUi[key];
+  renderDashboard();
+}
+function clearDashboardFilters(){
+  dashboardUi.query = "";
+  dashboardUi.blockersOnly = false;
+  dashboardUi.updatedOnly = false;
+  dashboardUi.noNotationOnly = false;
+  dashboardUi.highDeltaOnly = false;
+  renderDashboard();
+}
+function setDashboardSearchQuery(nextQuery){
+  dashboardUi.query = String(nextQuery || "");
+  renderDashboard();
+}
+function setDashboardAreaCollapsed(areaName, collapsed){
+  const key = String(areaName || "").trim();
+  if(!key) return;
+  dashboardUi.collapsedAreas[key] = collapsed === true;
+  renderDashboard();
+}
+function isDashboardAreaCollapsed(areaName){
+  const key = String(areaName || "").trim();
+  return key ? dashboardUi.collapsedAreas[key] === true : false;
+}
+function dashboardAttentionScore(row){
+  const now = Date.now();
+  const staleWeeks = row.updatedMs ? Math.min(8, Math.floor((now - row.updatedMs) / (7 * 24 * 60 * 60 * 1000))) : 5;
+  let score = 0;
+  score += row.blockerCount * 3;
+  score += Math.abs(row.delta) * 2;
+  if(!row.hasNotation) score += 4;
+  if(staleWeeks > 0) score += staleWeeks;
+  return score;
+}
+function dashboardRowMatchesFilters(row){
+  const q = dashboardUi.query.trim().toLowerCase();
+  if(q){
+    const hay = `${row.name} ${row.areaName}`.toLowerCase();
+    if(!hay.includes(q)) return false;
+  }
+  if(dashboardUi.blockersOnly && row.blockerCount === 0) return false;
+  if(dashboardUi.updatedOnly){
+    if(!row.updatedMs) return false;
+    if((Date.now() - row.updatedMs) > DASH_UPDATED_WINDOW_MS) return false;
+  }
+  if(dashboardUi.noNotationOnly && row.hasNotation) return false;
+  if(dashboardUi.highDeltaOnly && Math.abs(row.delta) < DASH_HIGH_DELTA_THRESHOLD) return false;
+  return true;
+}
+function renderDashboardFilterControls(totalRows, shownRows){
+  if(ui.dashboardSearchInput && ui.dashboardSearchInput.value !== dashboardUi.query){
+    ui.dashboardSearchInput.value = dashboardUi.query;
+  }
+  const toggle = (el, on) => {
+    if(!el) return;
+    el.classList.toggle("on", !!on);
+    el.setAttribute("aria-pressed", on ? "true" : "false");
+  };
+  toggle(ui.dashFilterBlockersBtn, dashboardUi.blockersOnly);
+  toggle(ui.dashFilterUpdatedBtn, dashboardUi.updatedOnly);
+  toggle(ui.dashFilterNoNotationBtn, dashboardUi.noNotationOnly);
+  toggle(ui.dashFilterHighDeltaBtn, dashboardUi.highDeltaOnly);
+
+  if(ui.dashboardFilterSummary){
+    const activeCount = dashboardActiveFilterCount();
+    if(activeCount === 0){
+      ui.dashboardFilterSummary.textContent = `Showing all ${totalRows} AOPs.`;
+    }else{
+      ui.dashboardFilterSummary.textContent = `${shownRows}/${totalRows} shown | ${activeCount} filter${activeCount === 1 ? "" : "s"} active`;
+    }
+  }
+}
 function currentMasterNotationSort(){
   return normalizeMasterNotationSort(view.state?.settings?.masterNotationSort);
 }
@@ -5013,7 +5314,20 @@ function renderMasterNotationPanel(){
     }
   });
 
-  const cards = rows.map(row => {
+  const filteredRows = rows.filter(row => {
+    const dash = dashboardRowCache.get(row.id);
+    return dashboardRowMatchesFilters({
+      id: row.id,
+      name: row.name,
+      areaName: row.area,
+      delta: dash?.delta || 0,
+      blockerCount: row.blockers.length,
+      hasNotation: true,
+      updatedMs: row.updatedMs
+    });
+  });
+
+  const cards = filteredRows.map(row => {
     const goalHtml = row.goals.length
       ? `<ul class="mn-list">${row.goals.map(x => `<li>${escapeHtml(x)}</li>`).join("")}</ul>`
       : `<div class="small">No goal listed.</div>`;
@@ -5023,34 +5337,53 @@ function renderMasterNotationPanel(){
     const blockerHtml = row.blockers.length
       ? `<ul class="mn-list blockers">${row.blockers.map(x => `<li>${escapeHtml(x)}</li>`).join("")}</ul>`
       : `<div class="small">No blockers listed.</div>`;
+    const goalPreview = row.goals[0] ? escapeHtml(row.goals[0]) : "No goal listed";
+    const attention = dashboardAttentionScore({
+      blockerCount: row.blockers.length,
+      delta: dashboardRowCache.get(row.id)?.delta || 0,
+      hasNotation: true,
+      updatedMs: row.updatedMs
+    });
     return `
       <article class="mn-card" data-master-notation-aop="${escapeHtml(row.id)}">
         <div class="mn-top">
           <span class="sw" style="background:${escapeHtml(row.color)}"></span>
           <span class="name" title="${escapeHtml(row.name)}">${escapeHtml(row.name)}</span>
           <span class="status-pill">${escapeHtml(row.area)}</span>
+        </div>
+        <div class="mn-kpis">
+          <span class="status-pill">Goal: ${row.goals.length}</span>
+          <span class="status-pill">Achieved: ${row.achievements.length}</span>
+          <span class="status-pill">Blockers: ${row.blockers.length}</span>
+          <span class="status-pill">Attention: ${attention}</span>
           <span class="status-pill">Updated: ${escapeHtml(fmtIsoShort(row.updatedAt))}</span>
         </div>
-        <div class="mn-block">
-          <div class="mn-label">Goal</div>
-          ${goalHtml}
-        </div>
-        <div class="mn-block">
-          <div class="mn-label">Achieved During Sprint</div>
-          ${achHtml}
-        </div>
-        <div class="mn-block">
-          <div class="mn-label">Existing Blockers</div>
-          ${blockerHtml}
-        </div>
+        <div class="mn-preview">Goal preview: ${goalPreview}</div>
+        <details class="mn-detail">
+          <summary></summary>
+          <div class="mn-detail-body">
+            <div class="mn-block">
+              <div class="mn-label">Goal</div>
+              ${goalHtml}
+            </div>
+            <div class="mn-block">
+              <div class="mn-label">Achieved During Sprint</div>
+              ${achHtml}
+            </div>
+            <div class="mn-block">
+              <div class="mn-label">Existing Blockers</div>
+              ${blockerHtml}
+            </div>
+          </div>
+        </details>
       </article>
     `;
   });
 
-  ui.masterNotationMeta.textContent = `${mk} | ${cards.length} AOP${cards.length === 1 ? "" : "s"} with notation`;
+  ui.masterNotationMeta.textContent = `${mk} | ${cards.length}/${rows.length} AOP${rows.length === 1 ? "" : "s"} shown`;
   ui.masterNotationList.innerHTML = cards.length
     ? cards.join("")
-    : `<div class="small">No AOP notation added for this month.</div>`;
+    : `<div class="small">${rows.length ? "No notation cards match current filters." : "No AOP notation added for this month."}</div>`;
 }
 function hasMasterNotationForAopMonth(aopId, monthKey){
   if(!aopId) return false;
@@ -6084,6 +6417,89 @@ function calcMonthStats(){
   };
 }
 
+function openDashboardDetails(aopId){
+  dashboardUi.detailsAopId = aopId || "";
+  renderDashboard();
+}
+function closeDashboardDetails(){
+  dashboardUi.detailsAopId = "";
+  renderDashboard();
+}
+function renderDashboardDetails(monthKey){
+  if(!ui.dashDetailsDrawer || !ui.dashDetailsBody || !ui.dashDetailsTitle) return;
+  const row = dashboardRowCache.get(dashboardUi.detailsAopId);
+  if(!row){
+    ui.dashDetailsDrawer.hidden = true;
+    ui.dashDetailsBody.innerHTML = "";
+    return;
+  }
+  ui.dashDetailsDrawer.hidden = false;
+  ui.dashDetailsTitle.textContent = row.name;
+
+  const deflectState = deflectionDeltaState(row.deflectionStart, row.deflectionEnd);
+  const adhPct = row.adhPlanned ? Math.round(row.adh * 100) : 0;
+  ui.dashDetailsBody.innerHTML = `
+    <div class="dash-details-meta">
+      <span class="sw" style="background:${escapeHtml(row.color)}"></span>
+      <span class="status-pill">${escapeHtml(row.areaName)}</span>
+      <span class="status-pill">Attention: ${row.attentionScore}</span>
+      <span class="status-pill">Updated: ${escapeHtml(fmtIsoShort(row.notationUpdatedAt || ""))}</span>
+      ${row.canJumpNotation ? `<button type="button" class="dash-aop-link" data-jump-master-aop="${escapeHtml(row.id)}">Open Master Notation</button>` : ""}
+    </div>
+    <div class="dash-metric-grid">
+      <div class="dash-metric"><div class="label">Planned</div><div class="value">${row.planned}</div></div>
+      <div class="dash-metric"><div class="label">Actual</div><div class="value">${row.actual}</div></div>
+      <div class="dash-metric"><div class="label">Delta</div><div class="value ${row.delta > 0 ? "delta pos" : row.delta < 0 ? "delta neg" : "delta zero"}">${row.delta > 0 ? `+${row.delta}` : row.delta}</div></div>
+      <div class="dash-metric"><div class="label">Adherence (MTD)</div><div class="value">${row.adhPlanned ? `${adhPct}% (${row.adhMatched}/${row.adhPlanned})` : "-"}</div></div>
+    </div>
+    <div class="dash-metric-grid">
+      <div class="dash-metric"><div class="label">Goal lines</div><div class="value">${row.goalCount}</div></div>
+      <div class="dash-metric"><div class="label">Achieved</div><div class="value">${row.achievementCount}</div></div>
+      <div class="dash-metric"><div class="label">Blockers</div><div class="value">${row.blockerCount}</div></div>
+      <div class="dash-metric"><div class="label">Deflection Delta</div><div class="value ${deflectState.cls === "pos" ? "delta pos" : deflectState.cls === "neg" ? "delta neg" : "delta zero"}">${escapeHtml(deflectState.text)}</div></div>
+    </div>
+    <div class="deflect-wrap" data-dash-detail-deflect="${escapeHtml(row.id)}">
+      <input type="number" min="0" max="100" step="0.1" placeholder="SoM" title="Start of month deflection rate (%)" value="${escapeHtml(row.deflectionStart)}" data-deflect-field="deflection_start" />
+      <span class="deflect-sep">to</span>
+      <input type="number" min="0" max="100" step="0.1" placeholder="EoM" title="End of month deflection rate (%)" value="${escapeHtml(row.deflectionEnd)}" data-deflect-field="deflection_end" />
+      <span class="deflect-delta ${deflectState.cls}" data-deflect-badge>${escapeHtml(deflectState.text)}</span>
+    </div>
+    <div class="dash-detail-note">End-of-month value auto-carries to next month start-of-month for this AOP.</div>
+  `;
+
+  const jumpBtn = ui.dashDetailsBody.querySelector("[data-jump-master-aop]");
+  if(jumpBtn){
+    jumpBtn.addEventListener("click", () => jumpToMasterNotationForAop(row.id));
+  }
+
+  const wrap = ui.dashDetailsBody.querySelector("[data-dash-detail-deflect]");
+  const badge = wrap?.querySelector("[data-deflect-badge]");
+  const inputs = wrap ? Array.from(wrap.querySelectorAll("input[data-deflect-field]")) : [];
+  const updateBadge = () => {
+    if(!badge || inputs.length < 2) return;
+    const state = deflectionDeltaState(inputs[0].value, inputs[1].value);
+    badge.className = `deflect-delta ${state.cls}`;
+    badge.textContent = state.text;
+  };
+  const commit = (el, persist) => {
+    const field = el.getAttribute("data-deflect-field");
+    if(!field) return;
+    const tmpl = setMonthlyDeflectionRate(row.id, monthKey, field, el.value, persist);
+    if(!tmpl) return;
+    if(persist){
+      const normalized = deflectionRateInputValue(tmpl[field]);
+      if(el.value !== normalized) el.value = normalized;
+      renderDashboard();
+      return;
+    }
+    updateBadge();
+  };
+  for(const input of inputs){
+    input.addEventListener("input", () => commit(input, false));
+    input.addEventListener("change", () => commit(input, true));
+    input.addEventListener("blur", () => commit(input, true));
+  }
+}
 function renderDashboard(){
   const st = calcMonthStats();
   const canJumpMasterNotation = canAccessMasterView();
@@ -6093,7 +6509,6 @@ function renderDashboard(){
   }
   const mtdRange = (st.mtdStartDateKey && st.mtdEndDateKey) ? `${st.mtdStartDateKey} to ${st.mtdEndDateKey}` : "No MTD days yet";
   ui.dashSub.textContent = `${monthNames[view.month]} ${view.year} | View: ${areaLabel(currentAreaViewId())} | Strict match: same AOP + same day | Adherence: MTD (${mtdRange})`;
-  renderMasterNotationPanel();
 
   ui.kpiPlanned.textContent = String(st.plannedTotal);
   ui.kpiActual.textContent = String(st.actualTotal);
@@ -6108,26 +6523,24 @@ function renderDashboard(){
     ? `Matched ${st.mtdMatchedTotal} of ${st.mtdPlannedTotal} (MTD)`
     : "No planned marks in MTD range";
 
-  // Build table
-  ui.dashTbody.innerHTML = "";
-
-  const rows = (st.areaOrder || []).map(id=>{
+  const allRows = (st.areaOrder || []).map(id=>{
     const a = view.state.aops[id];
     const sMonth = st.perAop[id];
     const sMtd = st.mtdPerAop[id] || { planned:0, actual:0, matched:0 };
     const tmpl = view.state.aopMonthly?.[id]?.[st.mk] || {};
+    const monthNotation = readAopMonthlyNotation(id, st.mk);
+    const parsedNotation = parseAopNotationModel(monthNotation.notation || "");
     const planned = sMonth?.planned || 0;
     const actual = sMonth?.actual || 0;
     const adhPlanned = sMtd.planned || 0;
     const adhMatched = sMtd.matched || 0;
     const adh = adhPlanned ? (adhMatched / adhPlanned) : 0;
     const delta = actual - planned;
-    const deflectionStart = deflectionRateInputValue(tmpl.deflection_start);
-    const deflectionEnd = deflectionRateInputValue(tmpl.deflection_end);
-    const hasNotation = hasMasterNotationForAopMonth(id, st.mk);
-    const canJumpNotation = hasNotation && canJumpMasterNotation;
+    const hasNotation = parsedNotation.goals.length > 0 || parsedNotation.achievements.length > 0 || parsedNotation.blockers.length > 0;
+    const notationUpdatedAt = monthNotation.notation_updated_at || "";
+    const notationUpdatedMs = Date.parse(notationUpdatedAt) || 0;
 
-    return {
+    const row = {
       id,
       name: a?.name || "(Missing AOP)",
       color: a?.color || "#6b7280",
@@ -6138,12 +6551,31 @@ function renderDashboard(){
       adhMatched,
       adh,
       delta,
-      deflectionStart,
-      deflectionEnd,
-      canJumpNotation
+      deflectionStart: deflectionRateInputValue(tmpl.deflection_start),
+      deflectionEnd: deflectionRateInputValue(tmpl.deflection_end),
+      hasNotation,
+      notationUpdatedAt,
+      updatedMs: notationUpdatedMs,
+      goalCount: parsedNotation.goals.length,
+      achievementCount: parsedNotation.achievements.length,
+      blockerCount: parsedNotation.blockers.length,
+      canJumpNotation: hasNotation && canJumpMasterNotation
     };
+    row.attentionScore = dashboardAttentionScore(row);
+    return row;
   });
+
+  dashboardRowCache = new Map(allRows.map(row => [row.id, row]));
+
+  const rows = allRows.filter(dashboardRowMatchesFilters);
   rows.sort((a, b) => {
+    if(dashboardSort === "attention"){
+      if(b.attentionScore !== a.attentionScore) return b.attentionScore - a.attentionScore;
+      if(b.blockerCount !== a.blockerCount) return b.blockerCount - a.blockerCount;
+      if(Math.abs(b.delta) !== Math.abs(a.delta)) return Math.abs(b.delta) - Math.abs(a.delta);
+      if(b.updatedMs !== a.updatedMs) return b.updatedMs - a.updatedMs;
+      return a.name.localeCompare(b.name, undefined, { sensitivity:"base", numeric:true });
+    }
     if(dashboardSort === "area"){
       const byArea = a.areaName.localeCompare(b.areaName, undefined, { sensitivity:"base", numeric:true });
       if(byArea !== 0) return byArea;
@@ -6151,113 +6583,106 @@ function renderDashboard(){
     return a.name.localeCompare(b.name, undefined, { sensitivity:"base", numeric:true });
   });
 
-  if(rows.length === 0){
+  renderDashboardFilterControls(allRows.length, rows.length);
+  renderMasterNotationPanel();
+
+  ui.dashTbody.innerHTML = "";
+
+  if(allRows.length === 0){
     const tr = document.createElement("tr");
     tr.innerHTML = `<td colspan="6" class="small">No AOPs in ${escapeHtml(areaLabel(currentAreaViewId()))} view.</td>`;
     ui.dashTbody.appendChild(tr);
+    renderDashboardDetails(st.mk);
+    return;
+  }
+  if(rows.length === 0){
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td colspan="6" class="small">No AOP rows match the active filters.</td>`;
+    ui.dashTbody.appendChild(tr);
+    renderDashboardDetails(st.mk);
     return;
   }
 
-  for(const r of rows){
-    const tr = document.createElement("tr");
-
-    const adhPctRow = r.adhPlanned ? Math.round(r.adh*100) : 0;
-    const deltaClass = r.delta > 0 ? "pos" : (r.delta < 0 ? "neg" : "zero");
-
-    tr.innerHTML = `
-      <td>
-        <div class="aopname">
-          <span class="sw" style="background:${escapeHtml(r.color)}"></span>
-          ${r.canJumpNotation
-            ? `<button type="button" class="dash-aop-link" data-jump-master-aop="${escapeHtml(r.id)}" title="Open Master Notation">${escapeHtml(r.name)}</button>`
-            : `<span title="${escapeHtml(r.name)}" style="font-weight:700; color:var(--text);">${escapeHtml(r.name)}</span>`}
-        </div>
+  const groups = new Map();
+  for(const row of rows){
+    if(!groups.has(row.areaName)) groups.set(row.areaName, []);
+    groups.get(row.areaName).push(row);
+  }
+  const areaOrder = Array.from(groups.keys()).sort((a, b) => a.localeCompare(b, undefined, { sensitivity:"base", numeric:true }));
+  for(const areaName of areaOrder){
+    const groupRows = groups.get(areaName) || [];
+    const areaPlanned = groupRows.reduce((sum, row) => sum + row.planned, 0);
+    const areaActual = groupRows.reduce((sum, row) => sum + row.actual, 0);
+    const areaBlockers = groupRows.reduce((sum, row) => sum + row.blockerCount, 0);
+    const collapsed = isDashboardAreaCollapsed(areaName);
+    const groupTr = document.createElement("tr");
+    groupTr.className = "dash-area-row";
+    groupTr.innerHTML = `
+      <td colspan="6">
+        <button type="button" class="dash-area-toggle" data-dash-area="${escapeHtml(areaName)}">
+          <span><strong>${escapeHtml(areaName)}</strong> <span class="dash-area-meta">${groupRows.length} AOPs</span></span>
+          <span class="dash-area-meta">P ${areaPlanned} | A ${areaActual} | Blockers ${areaBlockers}</span>
+          <span class="dash-area-arrow">${collapsed ? "Expand" : "Collapse"}</span>
+        </button>
       </td>
     `;
+    ui.dashTbody.appendChild(groupTr);
+    if(collapsed) continue;
 
-    const plannedTd = document.createElement("td"); plannedTd.className="nowrap"; plannedTd.textContent = String(r.planned);
-    const actualTd = document.createElement("td"); actualTd.className="nowrap"; actualTd.textContent = String(r.actual);
-
-    const deltaTd = document.createElement("td");
-    deltaTd.className = `nowrap delta ${deltaClass}`;
-    deltaTd.textContent = (r.delta > 0 ? `+${r.delta}` : String(r.delta));
-
-    const adhTd = document.createElement("td");
-    adhTd.className = "nowrap adhr";
-    adhTd.textContent = r.adhPlanned ? `${adhPctRow}% (${r.adhMatched}/${r.adhPlanned})` : "-";
-
-    const deflectionTd = document.createElement("td");
-    deflectionTd.className = "deflect-cell";
-    const deflectWrap = document.createElement("div");
-    deflectWrap.className = "deflect-wrap";
-
-    const startInput = document.createElement("input");
-    startInput.type = "number";
-    startInput.min = "0";
-    startInput.max = "100";
-    startInput.step = "0.1";
-    startInput.placeholder = "SoM";
-    startInput.title = "Start of month deflection rate (%)";
-    startInput.value = r.deflectionStart;
-
-    const sep = document.createElement("span");
-    sep.className = "deflect-sep";
-    sep.textContent = "to";
-
-    const endInput = document.createElement("input");
-    endInput.type = "number";
-    endInput.min = "0";
-    endInput.max = "100";
-    endInput.step = "0.1";
-    endInput.placeholder = "EoM";
-    endInput.title = "End of month deflection rate (%)";
-    endInput.value = r.deflectionEnd;
-
-    const deltaBadge = document.createElement("span");
-    deltaBadge.className = "deflect-delta";
-    const updateDeflectionBadge = () => {
-      const state = deflectionDeltaState(startInput.value, endInput.value);
-      deltaBadge.className = `deflect-delta ${state.cls}`;
-      deltaBadge.textContent = state.text;
-    };
-    const commitInput = (field, el, persist) => {
-      const tmpl = setMonthlyDeflectionRate(r.id, st.mk, field, el.value, persist);
-      if(!tmpl) return;
-      if(persist){
-        const normalized = deflectionRateInputValue(tmpl[field]);
-        if(el.value !== normalized) el.value = normalized;
-      }
-      updateDeflectionBadge();
-    };
-    startInput.addEventListener("input", () => commitInput("deflection_start", startInput, false));
-    startInput.addEventListener("change", () => commitInput("deflection_start", startInput, true));
-    startInput.addEventListener("blur", () => commitInput("deflection_start", startInput, true));
-    endInput.addEventListener("input", () => commitInput("deflection_end", endInput, false));
-    endInput.addEventListener("change", () => commitInput("deflection_end", endInput, true));
-    endInput.addEventListener("blur", () => commitInput("deflection_end", endInput, true));
-
-    deflectWrap.appendChild(startInput);
-    deflectWrap.appendChild(sep);
-    deflectWrap.appendChild(endInput);
-    deflectWrap.appendChild(deltaBadge);
-    deflectionTd.appendChild(deflectWrap);
-    updateDeflectionBadge();
-
-    tr.appendChild(plannedTd);
-    tr.appendChild(actualTd);
-    tr.appendChild(deltaTd);
-    tr.appendChild(adhTd);
-    tr.appendChild(deflectionTd);
-
-    const jumpBtn = tr.querySelector("[data-jump-master-aop]");
-    if(jumpBtn){
-      jumpBtn.addEventListener("click", () => {
-        jumpToMasterNotationForAop(r.id);
-      });
+    for(const r of groupRows){
+      const tr = document.createElement("tr");
+      const adhPctRow = r.adhPlanned ? Math.round(r.adh * 100) : 0;
+      const deltaClass = r.delta > 0 ? "pos" : (r.delta < 0 ? "neg" : "zero");
+      const deflectionState = deflectionDeltaState(r.deflectionStart, r.deflectionEnd);
+      const deflectionSummary = `${r.deflectionStart || "-"} to ${r.deflectionEnd || "-"} (${deflectionState.text})`;
+      tr.innerHTML = `
+        <td>
+          <div class="aopname">
+            <span class="sw" style="background:${escapeHtml(r.color)}"></span>
+            ${r.canJumpNotation
+              ? `<button type="button" class="dash-aop-link" data-jump-master-aop="${escapeHtml(r.id)}" title="Open Master Notation">${escapeHtml(r.name)}</button>`
+              : `<span title="${escapeHtml(r.name)}" style="font-weight:700; color:var(--text);">${escapeHtml(r.name)}</span>`}
+            ${r.blockerCount ? `<span class="status-pill">B:${r.blockerCount}</span>` : ""}
+          </div>
+        </td>
+        <td class="nowrap">${r.planned}</td>
+        <td class="nowrap">${r.actual}</td>
+        <td class="nowrap delta ${deltaClass}">${r.delta > 0 ? `+${r.delta}` : r.delta}</td>
+        <td class="nowrap adhr">${r.adhPlanned ? `${adhPctRow}% (${r.adhMatched}/${r.adhPlanned})` : "-"}</td>
+        <td class="deflect-cell">
+          <div class="dash-row-actions">
+            <span class="deflect-delta ${deflectionState.cls}" title="${escapeHtml(deflectionSummary)}">${escapeHtml(deflectionState.text)}</span>
+            <button type="button" class="dash-detail-open" data-dash-detail-open="${escapeHtml(r.id)}">Details</button>
+          </div>
+        </td>
+      `;
+      ui.dashTbody.appendChild(tr);
     }
-
-    ui.dashTbody.appendChild(tr);
   }
+
+  ui.dashTbody.querySelectorAll("button[data-dash-area]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const areaName = btn.getAttribute("data-dash-area");
+      if(!areaName) return;
+      setDashboardAreaCollapsed(areaName, !isDashboardAreaCollapsed(areaName));
+    });
+  });
+  ui.dashTbody.querySelectorAll("button[data-dash-detail-open]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.getAttribute("data-dash-detail-open");
+      if(!id) return;
+      openDashboardDetails(id);
+    });
+  });
+  ui.dashTbody.querySelectorAll("button[data-jump-master-aop]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.getAttribute("data-jump-master-aop");
+      if(!id) return;
+      jumpToMasterNotationForAop(id);
+    });
+  });
+
+  renderDashboardDetails(st.mk);
 }
 
 /* --- Render All --- */
@@ -6877,6 +7302,29 @@ function hookUI(){
       setDashboardSort(ui.dashboardSortSelect.value, true);
     });
   }
+  if(ui.dashboardSearchInput){
+    ui.dashboardSearchInput.addEventListener("input", () => {
+      setDashboardSearchQuery(ui.dashboardSearchInput.value);
+    });
+  }
+  if(ui.dashboardClearFiltersBtn){
+    ui.dashboardClearFiltersBtn.addEventListener("click", clearDashboardFilters);
+  }
+  if(ui.dashFilterBlockersBtn){
+    ui.dashFilterBlockersBtn.addEventListener("click", () => setDashboardFilterToggle("blockersOnly"));
+  }
+  if(ui.dashFilterUpdatedBtn){
+    ui.dashFilterUpdatedBtn.addEventListener("click", () => setDashboardFilterToggle("updatedOnly"));
+  }
+  if(ui.dashFilterNoNotationBtn){
+    ui.dashFilterNoNotationBtn.addEventListener("click", () => setDashboardFilterToggle("noNotationOnly"));
+  }
+  if(ui.dashFilterHighDeltaBtn){
+    ui.dashFilterHighDeltaBtn.addEventListener("click", () => setDashboardFilterToggle("highDeltaOnly"));
+  }
+  if(ui.dashDetailsCloseBtn){
+    ui.dashDetailsCloseBtn.addEventListener("click", closeDashboardDetails);
+  }
 
   const onAopSelectionChange = (nextId) => {
     const id = nextId || "";
@@ -7165,6 +7613,17 @@ function init(){
     kpiActualSub: document.getElementById("kpiActualSub"),
     kpiAdhSub: document.getElementById("kpiAdhSub"),
     dashTbody: document.getElementById("dashTbody"),
+    dashboardSearchInput: document.getElementById("dashboardSearchInput"),
+    dashboardClearFiltersBtn: document.getElementById("dashboardClearFiltersBtn"),
+    dashFilterBlockersBtn: document.getElementById("dashFilterBlockersBtn"),
+    dashFilterUpdatedBtn: document.getElementById("dashFilterUpdatedBtn"),
+    dashFilterNoNotationBtn: document.getElementById("dashFilterNoNotationBtn"),
+    dashFilterHighDeltaBtn: document.getElementById("dashFilterHighDeltaBtn"),
+    dashboardFilterSummary: document.getElementById("dashboardFilterSummary"),
+    dashDetailsDrawer: document.getElementById("dashDetailsDrawer"),
+    dashDetailsTitle: document.getElementById("dashDetailsTitle"),
+    dashDetailsBody: document.getElementById("dashDetailsBody"),
+    dashDetailsCloseBtn: document.getElementById("dashDetailsCloseBtn"),
     masterNotationPanel: document.getElementById("masterNotationPanel"),
     masterNotationMeta: document.getElementById("masterNotationMeta"),
     masterNotationList: document.getElementById("masterNotationList"),
