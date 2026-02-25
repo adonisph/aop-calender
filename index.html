@@ -1367,105 +1367,11 @@
     .deflect-delta.zero{ color: var(--muted); }
     .dash-row-deflect{
       justify-content:flex-end;
-      margin-bottom: 6px;
+      margin-bottom: 0;
     }
     .dash-row-deflect input{
       width: 52px;
       min-width: 52px;
-    }
-    .dash-details{
-      margin-top: 10px;
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      background: #131313;
-      padding: 10px;
-      display:grid;
-      gap:10px;
-    }
-    .dash-details-head{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-      flex-wrap:wrap;
-    }
-    .dash-details-body{
-      display:grid;
-      gap:10px;
-    }
-    .dash-details-meta{
-      display:flex;
-      align-items:center;
-      gap:8px;
-      flex-wrap:wrap;
-    }
-    .dash-action-row{
-      display:flex;
-      align-items:center;
-      gap:8px;
-      flex-wrap:wrap;
-    }
-    .dash-reason-list{
-      display:flex;
-      align-items:center;
-      gap:8px;
-      flex-wrap:wrap;
-    }
-    .dash-reason{
-      border-color: rgba(var(--power-rgb),.34);
-      background: rgba(var(--power-rgb),.10);
-    }
-    .dash-metric-grid{
-      display:grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap:8px;
-    }
-    @media (max-width: 820px){
-      .dash-metric-grid{
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
-    }
-    .dash-metric{
-      border:1px solid rgba(255,255,255,.10);
-      border-radius:10px;
-      padding:8px;
-      background: rgba(255,255,255,.02);
-      display:grid;
-      gap:3px;
-    }
-    .dash-metric .label{
-      font-size:11px;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing:.5px;
-    }
-    .dash-metric .value{
-      font-size:15px;
-      font-weight:800;
-      font-style: italic;
-    }
-    .dash-detail-note{
-      border:1px solid rgba(255,255,255,.10);
-      border-radius:10px;
-      padding:8px;
-      background: rgba(255,255,255,.02);
-      font-size:12px;
-      color: var(--muted);
-    }
-    .dash-detail-note strong{
-      display:block;
-      color: var(--text);
-      margin-bottom: 4px;
-    }
-    .dash-detail-columns{
-      display:grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap:8px;
-    }
-    @media (max-width: 820px){
-      .dash-detail-columns{
-        grid-template-columns: 1fr;
-      }
     }
     .master-notation-panel{
       margin-top: 12px;
@@ -1535,6 +1441,12 @@
       align-items:center;
       gap:8px;
       flex-wrap:wrap;
+    }
+    .mn-edit-btn{
+      padding: 6px 10px;
+      font-size: 11px;
+      font-weight: 700;
+      border-radius: 10px;
     }
     .mn-preview{
       font-size:12px;
@@ -2442,13 +2354,6 @@
           <tbody id="dashTbody"></tbody>
         </table>
       </div>
-      <div id="dashDetailsDrawer" class="dash-details" hidden>
-        <div class="dash-details-head">
-          <strong id="dashDetailsTitle">AOP details</strong>
-          <button id="dashDetailsCloseBtn" class="btn-ghost" type="button">Close</button>
-        </div>
-        <div id="dashDetailsBody" class="dash-details-body"></div>
-      </div>
       <div id="masterNotationPanel" class="master-notation-panel" hidden>
         <div class="master-notation-head">
           <strong>Master Notation (Sprint Outcomes)</strong>
@@ -2459,6 +2364,7 @@
               <option value="blockers_desc">Blockers first</option>
               <option value="achievements_desc">Most achieved</option>
               <option value="updated_desc">Latest updated</option>
+              <option value="area_asc">Area</option>
               <option value="name_asc">AOP name</option>
             </select>
           </div>
@@ -2779,7 +2685,7 @@
  *     areaView:"master"|"pool"|"sales"|"delivery"|"aftersales"|"others_some",
  *     colorTheme:string,
  *     uiPrefs:{density:"compact"|"comfortable",textScale:"normal"|"large"|"xlarge",corner:"tight"|"normal"|"round",topbarSide:"right"|"left",customColorsEnabled:boolean,customColors:{power,bg0,bg1,surface,surfaceSoft,line,text,muted,rain},highContrast:boolean,showTips:boolean,layoutPreset:"custom"|"focus"|"review"|"sync"|"dashboard",topbarOrder:string[]},
- *     masterNotationSort:"blockers_desc"|"achievements_desc"|"updated_desc"|"name_asc",
+ *     masterNotationSort:"blockers_desc"|"achievements_desc"|"updated_desc"|"area_asc"|"name_asc",
  *     dashboardSort:"az"|"area"|"attention",
  *     dayNoteFilters:{thisMonth:boolean},
  *     calendarUI:{compact:boolean,markedOnly:boolean,activeOnly:boolean,focus:"both"|"planned"|"actual"}
@@ -2901,8 +2807,7 @@ const dashboardUi = {
   updatedOnly: false,
   noNotationOnly: false,
   highDeltaOnly: false,
-  collapsedAreas: {},
-  detailsAopId: ""
+  collapsedAreas: {}
 };
 let dashboardRowCache = new Map();
 const RAIN_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@$%&*+-<>[]{}|;:.,~";
@@ -2939,7 +2844,7 @@ function normalizeAreaViewId(raw){
 }
 function normalizeMasterNotationSort(raw){
   const safe = String(raw || "").trim().toLowerCase();
-  if(["blockers_desc","achievements_desc","updated_desc","name_asc"].includes(safe)) return safe;
+  if(["blockers_desc","achievements_desc","updated_desc","area_asc","name_asc"].includes(safe)) return safe;
   return "blockers_desc";
 }
 function normalizeDashboardSort(raw){
@@ -5279,27 +5184,6 @@ function dashboardAttentionScore(row){
   if(staleWeeks > 0) score += staleWeeks;
   return score;
 }
-function dashboardAttentionReasons(row){
-  const reasons = [];
-  if(row.blockerCount > 0){
-    reasons.push(`${row.blockerCount} blocker${row.blockerCount === 1 ? "" : "s"} to resolve`);
-  }
-  if(Math.abs(row.delta) >= DASH_HIGH_DELTA_THRESHOLD){
-    reasons.push(`High month delta (${row.delta > 0 ? "+" : ""}${row.delta})`);
-  }
-  if(!row.hasNotation){
-    reasons.push("No sprint outcome notation yet");
-  }
-  if(!row.updatedMs){
-    reasons.push("No notation update this month");
-  }else if((Date.now() - row.updatedMs) > DASH_UPDATED_WINDOW_MS){
-    reasons.push("Notation is older than 7 days");
-  }
-  if(reasons.length === 0){
-    reasons.push("Stable and on-track");
-  }
-  return reasons;
-}
 function openAopNotationFromDashboard(aopId){
   if(!aopId || !view.state?.aops?.[aopId]) return;
   if(view.state.activeAopId !== aopId){
@@ -5411,6 +5295,11 @@ function renderMasterNotationPanel(){
       case "updated_desc":
         if(b.updatedMs !== a.updatedMs) return b.updatedMs - a.updatedMs;
         return a.name.localeCompare(b.name);
+      case "area_asc": {
+        const byArea = a.area.localeCompare(b.area, undefined, { sensitivity:"base", numeric:true });
+        if(byArea !== 0) return byArea;
+        return a.name.localeCompare(b.name, undefined, { sensitivity:"base", numeric:true });
+      }
       case "name_asc":
         return a.name.localeCompare(b.name);
       case "blockers_desc":
@@ -5445,12 +5334,6 @@ function renderMasterNotationPanel(){
       ? `<ul class="mn-list blockers">${row.blockers.map(x => `<li>${escapeHtml(x)}</li>`).join("")}</ul>`
       : `<div class="small">No blockers listed.</div>`;
     const goalPreview = row.goals[0] ? escapeHtml(row.goals[0]) : "No goal listed";
-    const attention = dashboardAttentionScore({
-      blockerCount: row.blockers.length,
-      delta: dashboardRowCache.get(row.id)?.delta || 0,
-      hasNotation: true,
-      updatedMs: row.updatedMs
-    });
     return `
       <article class="mn-card" data-master-notation-aop="${escapeHtml(row.id)}">
         <div class="mn-top">
@@ -5459,8 +5342,8 @@ function renderMasterNotationPanel(){
           <span class="status-pill">${escapeHtml(row.area)}</span>
         </div>
         <div class="mn-kpis">
-          <span class="status-pill">Attention: ${attention}</span>
           <span class="status-pill">Updated: ${escapeHtml(fmtIsoShort(row.updatedAt))}</span>
+          <button type="button" class="btn-ghost mn-edit-btn" data-open-notation="${escapeHtml(row.id)}">Edit Achieved</button>
         </div>
         <div class="mn-preview">Goal preview: ${goalPreview}</div>
         <details class="mn-detail">
@@ -5488,6 +5371,13 @@ function renderMasterNotationPanel(){
   ui.masterNotationList.innerHTML = cards.length
     ? cards.join("")
     : `<div class="small">${rows.length ? "No notation cards match current filters." : "No AOP notation added for this month."}</div>`;
+  ui.masterNotationList.querySelectorAll("button[data-open-notation]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const aopId = btn.getAttribute("data-open-notation");
+      if(!aopId) return;
+      openAopNotationFromDashboard(aopId);
+    });
+  });
 }
 function hasMasterNotationForAopMonth(aopId, monthKey){
   if(!aopId) return false;
@@ -6523,118 +6413,6 @@ function calcMonthStats(){
     plannedByDay
   };
 }
-
-function openDashboardDetails(aopId){
-  const safe = String(aopId || "");
-  dashboardUi.detailsAopId = dashboardUi.detailsAopId === safe ? "" : safe;
-  renderDashboard();
-  if(!dashboardUi.detailsAopId) return;
-  requestAnimationFrame(() => {
-    if(ui.dashDetailsDrawer && !ui.dashDetailsDrawer.hidden){
-      ui.dashDetailsDrawer.scrollIntoView({ behavior:"smooth", block:"nearest", inline:"nearest" });
-    }
-  });
-}
-function closeDashboardDetails(){
-  dashboardUi.detailsAopId = "";
-  renderDashboard();
-}
-function renderDashboardDetails(monthKey){
-  if(!ui.dashDetailsDrawer || !ui.dashDetailsBody || !ui.dashDetailsTitle) return;
-  const row = dashboardRowCache.get(dashboardUi.detailsAopId);
-  if(!row){
-    ui.dashDetailsDrawer.hidden = true;
-    ui.dashDetailsBody.innerHTML = "";
-    return;
-  }
-  ui.dashDetailsDrawer.hidden = false;
-  ui.dashDetailsTitle.textContent = row.name;
-
-  const deflectState = deflectionDeltaState(row.deflectionStart, row.deflectionEnd);
-  const adhPct = row.adhPlanned ? Math.round(row.adh * 100) : 0;
-  const reasons = dashboardAttentionReasons(row);
-  const goalPreview = row.goals?.[0] ? escapeHtml(row.goals[0]) : "No goal yet.";
-  const achievedPreview = row.achievements?.length
-    ? row.achievements.slice(0, 3).map(x => `<li>${escapeHtml(x)}</li>`).join("")
-    : `<li>No achieved items yet.</li>`;
-  const blockerPreview = row.blockers?.length
-    ? row.blockers.slice(0, 3).map(x => `<li>${escapeHtml(x)}</li>`).join("")
-    : `<li>No blockers noted.</li>`;
-  ui.dashDetailsBody.innerHTML = `
-    <div class="dash-details-meta">
-      <span class="sw" style="background:${escapeHtml(row.color)}"></span>
-      <span class="status-pill">${escapeHtml(row.areaName)}</span>
-      <span class="status-pill">Attention: ${row.attentionScore}</span>
-      <span class="status-pill">Updated: ${escapeHtml(fmtIsoShort(row.notationUpdatedAt || ""))}</span>
-    </div>
-    <div class="dash-action-row">
-      <button type="button" class="btn-ghost" data-open-achieved="${escapeHtml(row.id)}">Open Achieved Editor</button>
-    </div>
-    <div class="dash-reason-list">
-      ${reasons.map(reason => `<span class="status-pill dash-reason">${escapeHtml(reason)}</span>`).join("")}
-    </div>
-    <div class="dash-metric-grid">
-      <div class="dash-metric"><div class="label">Planned</div><div class="value">${row.planned}</div></div>
-      <div class="dash-metric"><div class="label">Actual</div><div class="value">${row.actual}</div></div>
-      <div class="dash-metric"><div class="label">Delta</div><div class="value ${row.delta > 0 ? "delta pos" : row.delta < 0 ? "delta neg" : "delta zero"}">${row.delta > 0 ? `+${row.delta}` : row.delta}</div></div>
-      <div class="dash-metric"><div class="label">Adherence (MTD)</div><div class="value">${row.adhPlanned ? `${adhPct}% (${row.adhMatched}/${row.adhPlanned})` : "-"}</div></div>
-    </div>
-    <div class="dash-detail-note">
-      <strong>Goal</strong>
-      <div>${goalPreview}</div>
-    </div>
-    <div class="dash-detail-columns">
-      <div class="dash-detail-note">
-        <strong>Achieved During Sprint</strong>
-        <ul class="mn-list">${achievedPreview}</ul>
-      </div>
-      <div class="dash-detail-note">
-        <strong>Existing Blockers</strong>
-        <ul class="mn-list blockers">${blockerPreview}</ul>
-      </div>
-    </div>
-    <div class="deflect-wrap" data-dash-detail-deflect="${escapeHtml(row.id)}">
-      <input type="number" min="0" max="100" step="0.1" placeholder="SoM" title="Start of month deflection rate (%)" value="${escapeHtml(row.deflectionStart)}" data-deflect-field="deflection_start" />
-      <span class="deflect-sep">to</span>
-      <input type="number" min="0" max="100" step="0.1" placeholder="EoM" title="End of month deflection rate (%)" value="${escapeHtml(row.deflectionEnd)}" data-deflect-field="deflection_end" />
-      <span class="deflect-delta ${deflectState.cls}" data-deflect-badge>${escapeHtml(deflectState.text)}</span>
-    </div>
-    <div class="dash-detail-note">End-of-month value auto-carries to next month start-of-month for this AOP.</div>
-  `;
-
-  const openAchievedBtn = ui.dashDetailsBody.querySelector("[data-open-achieved]");
-  if(openAchievedBtn){
-    openAchievedBtn.addEventListener("click", () => openAopNotationFromDashboard(row.id));
-  }
-
-  const wrap = ui.dashDetailsBody.querySelector("[data-dash-detail-deflect]");
-  const badge = wrap?.querySelector("[data-deflect-badge]");
-  const inputs = wrap ? Array.from(wrap.querySelectorAll("input[data-deflect-field]")) : [];
-  const updateBadge = () => {
-    if(!badge || inputs.length < 2) return;
-    const state = deflectionDeltaState(inputs[0].value, inputs[1].value);
-    badge.className = `deflect-delta ${state.cls}`;
-    badge.textContent = state.text;
-  };
-  const commit = (el, persist) => {
-    const field = el.getAttribute("data-deflect-field");
-    if(!field) return;
-    const tmpl = setMonthlyDeflectionRate(row.id, monthKey, field, el.value, persist);
-    if(!tmpl) return;
-    if(persist){
-      const normalized = deflectionRateInputValue(tmpl[field]);
-      if(el.value !== normalized) el.value = normalized;
-      renderDashboard();
-      return;
-    }
-    updateBadge();
-  };
-  for(const input of inputs){
-    input.addEventListener("input", () => commit(input, false));
-    input.addEventListener("change", () => commit(input, true));
-    input.addEventListener("blur", () => commit(input, true));
-  }
-}
 function renderDashboard(){
   const st = calcMonthStats();
   const canJumpMasterNotation = canAccessMasterView();
@@ -6730,14 +6508,12 @@ function renderDashboard(){
     const tr = document.createElement("tr");
     tr.innerHTML = `<td colspan="6" class="small">No AOPs in ${escapeHtml(areaLabel(currentAreaViewId()))} view.</td>`;
     ui.dashTbody.appendChild(tr);
-    renderDashboardDetails(st.mk);
     return;
   }
   if(rows.length === 0){
     const tr = document.createElement("tr");
     tr.innerHTML = `<td colspan="6" class="small">No AOP rows match the active filters.</td>`;
     ui.dashTbody.appendChild(tr);
-    renderDashboardDetails(st.mk);
     return;
   }
 
@@ -6845,8 +6621,6 @@ function renderDashboard(){
     }
   });
 
-  dashboardUi.detailsAopId = "";
-  renderDashboardDetails(st.mk);
 }
 
 /* --- Render All --- */
@@ -7486,9 +7260,6 @@ function hookUI(){
   if(ui.dashFilterHighDeltaBtn){
     ui.dashFilterHighDeltaBtn.addEventListener("click", () => setDashboardFilterToggle("highDeltaOnly"));
   }
-  if(ui.dashDetailsCloseBtn){
-    ui.dashDetailsCloseBtn.addEventListener("click", closeDashboardDetails);
-  }
 
   const onAopSelectionChange = (nextId) => {
     const id = nextId || "";
@@ -7784,10 +7555,6 @@ function init(){
     dashFilterNoNotationBtn: document.getElementById("dashFilterNoNotationBtn"),
     dashFilterHighDeltaBtn: document.getElementById("dashFilterHighDeltaBtn"),
     dashboardFilterSummary: document.getElementById("dashboardFilterSummary"),
-    dashDetailsDrawer: document.getElementById("dashDetailsDrawer"),
-    dashDetailsTitle: document.getElementById("dashDetailsTitle"),
-    dashDetailsBody: document.getElementById("dashDetailsBody"),
-    dashDetailsCloseBtn: document.getElementById("dashDetailsCloseBtn"),
     masterNotationPanel: document.getElementById("masterNotationPanel"),
     masterNotationMeta: document.getElementById("masterNotationMeta"),
     masterNotationList: document.getElementById("masterNotationList"),
