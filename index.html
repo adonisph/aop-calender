@@ -2346,7 +2346,7 @@
         </div>
         <div class="aop-notation">
           <label for="aopNotation">Achieved during Sprint</label>
-          <textarea id="aopNotation" placeholder="Track sprint outcomes using ✅ lines and Existing Blockers:"></textarea>
+          <textarea id="aopNotation" placeholder="Track sprint outcomes in this order: Goal, Achieved during Sprint, Existing Blockers."></textarea>
           <div class="aop-notation-tools">
             <button id="aopNotationTemplateBtn" class="btn-ghost" type="button">Use Sprint Outcome Model</button>
           </div>
@@ -2577,9 +2577,13 @@ const COLOR_THEMES = {
   crimson: { power:"#ff5f6f", powerRgb:"255,95,111",   bg0:"#100609", bg1:"#220d13", rainRgb:"255,144,156", rainAlpha:.34, rainSpeed:"33s", rainSpeed2:"49s" }
 };
 const AOP_OUTCOME_TEMPLATE = [
-  "✅ Achieved during Sprint: [what was solved]",
-  "✅ Achieved during Sprint: [what improved]",
-  "✅ Achieved during Sprint: [what is now working]",
+  "Goal:",
+  "- [goal for this sprint]",
+  "",
+  "Achieved during Sprint:",
+  "✅ [what was solved]",
+  "✅ [what improved]",
+  "✅ [what is now working]",
   "",
   "Existing Blockers:",
   "- [blocker 1]",
@@ -4837,36 +4841,53 @@ function readAopMonthlyNotation(aopId, monthKey){
   };
 }
 function parseAopNotationModel(raw){
+  const goals = [];
   const achievements = [];
   const blockers = [];
-  let inBlockers = false;
+  let section = "achievements";
   const lines = String(raw || "")
     .split(/\r?\n/)
     .map(line => line.trim())
     .filter(Boolean);
   for(const line of lines){
-    const blockerMatch = line.match(/^existing\s*blockers?\s*:\s*(.*)$/i);
+    const goalMatch = line.match(/^goal\s*:?\s*(.*)$/i);
+    if(goalMatch){
+      section = "goal";
+      const rest = goalMatch[1] ? goalMatch[1].trim() : "";
+      if(rest) goals.push(rest.replace(/^[-*•]\s*/, "").trim());
+      continue;
+    }
+    const achievedMatch = line.match(/^achieved\s*during\s*sprint\s*:?\s*(.*)$/i);
+    if(achievedMatch){
+      section = "achievements";
+      const rest = achievedMatch[1] ? achievedMatch[1].trim() : "";
+      if(rest){
+        const cleanedRest = rest.replace(/^[✅✔☑]\s*/, "").replace(/^[-*•]\s*/, "").trim();
+        if(cleanedRest) achievements.push(cleanedRest);
+      }
+      continue;
+    }
+    const blockerMatch = line.match(/^existing\s*blockers?\s*:?\s*(.*)$/i);
     if(blockerMatch){
-      inBlockers = true;
+      section = "blockers";
       const rest = blockerMatch[1] ? blockerMatch[1].trim() : "";
       if(rest) blockers.push(rest.replace(/^[-*•]\s*/, "").trim());
       continue;
     }
-    const isCheck = /^[✅✔☑]\s*/.test(line);
-    if(isCheck){
-      const item = line.replace(/^[✅✔☑]\s*/, "").trim();
-      if(item) achievements.push(item);
-      continue;
-    }
-    const cleaned = line.replace(/^[-*•]\s*/, "").trim();
+    const cleaned = line
+      .replace(/^[✅✔☑]\s*/, "")
+      .replace(/^[-*•]\s*/, "")
+      .trim();
     if(!cleaned) continue;
-    if(inBlockers){
+    if(section === "goal"){
+      goals.push(cleaned);
+    }else if(section === "blockers"){
       blockers.push(cleaned);
     }else{
       achievements.push(cleaned);
     }
   }
-  return { achievements, blockers };
+  return { goals, achievements, blockers };
 }
 function applyAopNotationTemplate(){
   if(!ui.aopNotation) return;
@@ -4923,7 +4944,7 @@ function renderMasterNotationPanel(){
     const raw = String(monthData.notation || "").trim();
     if(!raw) continue;
     const parsed = parseAopNotationModel(raw);
-    if(parsed.achievements.length === 0 && parsed.blockers.length === 0) continue;
+    if(parsed.goals.length === 0 && parsed.achievements.length === 0 && parsed.blockers.length === 0) continue;
     rows.push({
       id,
       name: aop.name || "(Missing AOP)",
@@ -4931,6 +4952,7 @@ function renderMasterNotationPanel(){
       area: areaLabel(aopAreaId(aop)),
       updatedAt: monthData.notation_updated_at || "",
       updatedMs: Date.parse(monthData.notation_updated_at || "") || 0,
+      goals: parsed.goals,
       achievements: parsed.achievements,
       blockers: parsed.blockers
     });
@@ -4956,6 +4978,9 @@ function renderMasterNotationPanel(){
   });
 
   const cards = rows.map(row => {
+    const goalHtml = row.goals.length
+      ? `<ul class="mn-list">${row.goals.map(x => `<li>${escapeHtml(x)}</li>`).join("")}</ul>`
+      : `<div class="small">No goal listed.</div>`;
     const achHtml = row.achievements.length
       ? `<ul class="mn-list">${row.achievements.map(x => `<li>${escapeHtml(x)}</li>`).join("")}</ul>`
       : `<div class="small">No achieved items listed.</div>`;
@@ -4969,6 +4994,10 @@ function renderMasterNotationPanel(){
           <span class="name" title="${escapeHtml(row.name)}">${escapeHtml(row.name)}</span>
           <span class="status-pill">${escapeHtml(row.area)}</span>
           <span class="status-pill">Updated: ${escapeHtml(fmtIsoShort(row.updatedAt))}</span>
+        </div>
+        <div class="mn-block">
+          <div class="mn-label">Goal</div>
+          ${goalHtml}
         </div>
         <div class="mn-block">
           <div class="mn-label">Achieved During Sprint</div>
@@ -4993,7 +5022,7 @@ function hasMasterNotationForAopMonth(aopId, monthKey){
   const raw = String(monthData.notation || "").trim();
   if(!raw) return false;
   const parsed = parseAopNotationModel(raw);
-  return parsed.achievements.length > 0 || parsed.blockers.length > 0;
+  return parsed.goals.length > 0 || parsed.achievements.length > 0 || parsed.blockers.length > 0;
 }
 function findMasterNotationCard(aopId){
   if(!ui.masterNotationList || !aopId) return null;
