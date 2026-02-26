@@ -1345,6 +1345,16 @@
       font-size:11px;
       font-weight:700;
       padding: 5px 5px;
+      font-variant-numeric: tabular-nums;
+    }
+    .deflect-wrap input.pct-input{
+      width: 56px;
+      min-width: 56px;
+    }
+    .deflect-wrap input.convo-input{
+      width: 80px;
+      min-width: 80px;
+      text-align:right;
     }
     .deflect-sep{
       color: var(--muted);
@@ -4880,7 +4890,7 @@ function parseConversationTotal(raw){
 function deflectionRateInputValue(raw){
   const num = parseDeflectionRate(raw);
   if(num === null) return "";
-  return Number.isInteger(num) ? String(num) : String(num);
+  return num.toFixed(1);
 }
 function conversationTotalInputValue(raw){
   const num = parseConversationTotal(raw);
@@ -4895,7 +4905,7 @@ function deflectionDeltaState(startRaw, endRaw){
   }
   const delta = Math.round((end - start) * 10) / 10;
   const sign = delta > 0 ? "+" : "";
-  const text = `${sign}${Number.isInteger(delta) ? delta.toFixed(0) : delta.toFixed(1)}%`;
+  const text = `${sign}${delta.toFixed(1)}%`;
   const cls = delta > 0 ? "pos" : (delta < 0 ? "neg" : "zero");
   return { text, cls };
 }
@@ -6694,15 +6704,15 @@ function renderDashboard(){
           <div class="deflect-wrap dash-row-deflect" data-dash-row-deflect="${escapeHtml(r.id)}">
             <span class="deflect-group-label">%</span>
             <span class="deflect-block">
-              <input type="number" min="0" max="100" step="0.1" placeholder="S" title="Start of month deflection rate (%)" value="${escapeHtml(r.deflectionStart)}" data-deflect-field="deflection_start" />
+              <input class="pct-input" type="number" min="0" max="100" step="0.1" placeholder="S" title="Start of month deflection rate (%)" value="${escapeHtml(r.deflectionStart)}" data-deflect-field="deflection_start" />
               <span class="deflect-sep">to</span>
-              <input type="number" min="0" max="100" step="0.1" placeholder="E" title="End of month deflection rate (%)" value="${escapeHtml(r.deflectionEnd)}" data-deflect-field="deflection_end" />
+              <input class="pct-input" type="number" min="0" max="100" step="0.1" placeholder="E" title="End of month deflection rate (%)" value="${escapeHtml(r.deflectionEnd)}" data-deflect-field="deflection_end" />
             </span>
             <span class="deflect-group-label">C</span>
             <span class="deflect-block">
-              <input type="number" min="0" step="1" placeholder="S" title="Start of month conversations (inherited from previous EoM)" value="${escapeHtml(r.conversationStart)}" data-deflect-field="conversation_start" />
+              <input class="convo-input" type="number" min="0" step="1" placeholder="S" title="Start of month conversations (inherited from previous EoM)" value="${escapeHtml(r.conversationStart)}" data-deflect-field="conversation_start" />
               <span class="deflect-sep">to</span>
-              <input type="number" min="0" step="1" placeholder="E" title="End of month conversations (transfers to next month SoM)" value="${escapeHtml(r.conversationEnd)}" data-deflect-field="conversation_end" />
+              <input class="convo-input" type="number" min="0" step="1" placeholder="E" title="End of month conversations (transfers to next month SoM)" value="${escapeHtml(r.conversationEnd)}" data-deflect-field="conversation_end" />
             </span>
             <span class="deflect-delta ${deflectionState.cls}" data-deflect-badge title="${escapeHtml(deflectionSummary)}">${escapeHtml(deflectionState.text)}</span>
             <span class="deflect-volume ${convoState.cls}" data-deflect-volume-badge title="${escapeHtml(convoState.detail || "Estimated deflected conversations from SoM to EoM conversation volumes")}">${escapeHtml(convoState.text)}</span>
