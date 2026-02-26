@@ -1388,7 +1388,7 @@
       font-family: var(--mono);
       font-size: 10px;
       letter-spacing:.2px;
-      min-width: 12px;
+      min-width: 22px;
       text-align:right;
     }
     .deflect-block{
@@ -6670,7 +6670,7 @@ function renderDashboard(){
         <td class="nowrap adhr">${r.adhPlanned ? `${adhPctRow}% (${r.adhMatched}/${r.adhPlanned})` : "-"}</td>
         <td class="deflect-cell">
           <div class="deflect-wrap dash-row-deflect" data-dash-row-deflect="${escapeHtml(r.id)}">
-            <span class="deflect-group-label">C</span>
+            <span class="deflect-group-label">Amt</span>
             <span class="deflect-block">
               <input class="convo-input" type="number" min="0" step="1" placeholder="S" title="Start of month conversations (inherited from previous EoM)" value="${escapeHtml(r.conversationStart)}" data-deflect-field="conversation_start" />
               <span class="deflect-sep">to</span>
