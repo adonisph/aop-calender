@@ -1329,7 +1329,7 @@
     .delta.zero{ color: var(--muted); font-weight:700; }
     .adhr{ font-family: var(--mono); }
     .deflect-cell{
-      min-width: 350px;
+      min-width: 312px;
     }
     .deflect-wrap{
       display:flex;
@@ -1339,8 +1339,8 @@
       flex-wrap:nowrap;
     }
     .deflect-wrap input{
-      width: 44px;
-      min-width: 44px;
+      width: 42px;
+      min-width: 42px;
       text-align:center;
       font-size:11px;
       font-weight:700;
@@ -1358,6 +1358,7 @@
       text-align:right;
       font-size: 10px;
       font-family: var(--mono);
+      font-weight: 700;
       border:1px solid var(--line);
       border-radius: 999px;
       padding: 3px 6px;
@@ -1375,7 +1376,7 @@
       font-family: var(--mono);
       font-size: 10px;
       letter-spacing:.2px;
-      min-width: 14px;
+      min-width: 12px;
       text-align:right;
     }
     .deflect-block{
@@ -1388,10 +1389,11 @@
       padding: 2px 4px;
     }
     .deflect-volume{
-      min-width: 78px;
+      min-width: 50px;
       text-align:right;
       font-size: 10px;
       font-family: var(--mono);
+      font-weight: 700;
       border:1px solid var(--line);
       border-radius: 999px;
       padding: 3px 6px;
@@ -4903,17 +4905,18 @@ function deflectionConversationContextState(startRaw, endRaw, totalRaw){
   const deflectionStart = parseDeflectionRate(startRaw);
   const deflectionEnd = parseDeflectionRate(endRaw);
   if(convoStart === null || convoEnd === null){
-    return { text:"set C", cls:"zero" };
+    return { text:"C?", detail:"Set conversation SoM/EoM", cls:"zero" };
   }
   if(deflectionStart === null || deflectionEnd === null){
-    return { text:"set %", cls:"zero" };
+    return { text:"%?", detail:"Set deflection SoM/EoM", cls:"zero" };
   }
   const som = Math.round((convoStart * deflectionStart) / 100);
   const eom = Math.round((convoEnd * deflectionEnd) / 100);
   const delta = eom - som;
   const sign = delta > 0 ? "+" : "";
   return {
-    text: `S${som}|E${eom}|Δ${sign}${delta}`,
+    text: `ΔC${sign}${delta}`,
+    detail: `S:${som} E:${eom} Δ:${sign}${delta}`,
     cls: delta > 0 ? "pos" : (delta < 0 ? "neg" : "zero")
   };
 }
@@ -6691,18 +6694,18 @@ function renderDashboard(){
           <div class="deflect-wrap dash-row-deflect" data-dash-row-deflect="${escapeHtml(r.id)}">
             <span class="deflect-group-label">%</span>
             <span class="deflect-block">
-              <input type="number" min="0" max="100" step="0.1" placeholder="SoM" title="Start of month deflection rate (%)" value="${escapeHtml(r.deflectionStart)}" data-deflect-field="deflection_start" />
+              <input type="number" min="0" max="100" step="0.1" placeholder="S" title="Start of month deflection rate (%)" value="${escapeHtml(r.deflectionStart)}" data-deflect-field="deflection_start" />
               <span class="deflect-sep">to</span>
-              <input type="number" min="0" max="100" step="0.1" placeholder="EoM" title="End of month deflection rate (%)" value="${escapeHtml(r.deflectionEnd)}" data-deflect-field="deflection_end" />
+              <input type="number" min="0" max="100" step="0.1" placeholder="E" title="End of month deflection rate (%)" value="${escapeHtml(r.deflectionEnd)}" data-deflect-field="deflection_end" />
             </span>
             <span class="deflect-group-label">C</span>
             <span class="deflect-block">
-              <input type="number" min="0" step="1" placeholder="SoM" title="Start of month conversations (inherited from previous EoM)" value="${escapeHtml(r.conversationStart)}" data-deflect-field="conversation_start" />
+              <input type="number" min="0" step="1" placeholder="S" title="Start of month conversations (inherited from previous EoM)" value="${escapeHtml(r.conversationStart)}" data-deflect-field="conversation_start" />
               <span class="deflect-sep">to</span>
-              <input type="number" min="0" step="1" placeholder="EoM" title="End of month conversations (transfers to next month SoM)" value="${escapeHtml(r.conversationEnd)}" data-deflect-field="conversation_end" />
+              <input type="number" min="0" step="1" placeholder="E" title="End of month conversations (transfers to next month SoM)" value="${escapeHtml(r.conversationEnd)}" data-deflect-field="conversation_end" />
             </span>
             <span class="deflect-delta ${deflectionState.cls}" data-deflect-badge title="${escapeHtml(deflectionSummary)}">${escapeHtml(deflectionState.text)}</span>
-            <span class="deflect-volume ${convoState.cls}" data-deflect-volume-badge title="Estimated deflected conversations from SoM to EoM conversation volumes">${escapeHtml(convoState.text)}</span>
+            <span class="deflect-volume ${convoState.cls}" data-deflect-volume-badge title="${escapeHtml(convoState.detail || "Estimated deflected conversations from SoM to EoM conversation volumes")}">${escapeHtml(convoState.text)}</span>
           </div>
         </td>
       `;
@@ -6751,6 +6754,7 @@ function renderDashboard(){
         );
         volumeBadge.className = `deflect-volume ${convoState.cls}`;
         volumeBadge.textContent = convoState.text;
+        volumeBadge.title = convoState.detail || "Estimated deflected conversations from SoM to EoM conversation volumes";
       }
     };
     const commit = (el, persist) => {
