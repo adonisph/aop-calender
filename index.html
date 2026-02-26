@@ -2408,7 +2408,7 @@
               <th class="nowrap">Actual</th>
               <th class="nowrap">Delta</th>
               <th class="nowrap">Adherence (MTD)</th>
-              <th class="nowrap">Deflection + Convos (SoM to EoM)</th>
+              <th class="nowrap">Amt + % (SoM to EoM)</th>
             </tr>
           </thead>
           <tbody id="dashTbody"></tbody>
@@ -6650,10 +6650,15 @@ function renderDashboard(){
     return;
   }
 
+  const singleAreaMode = currentAreaViewId() !== MASTER_VIEW_ID;
   const groups = new Map();
-  for(const row of rows){
-    if(!groups.has(row.areaName)) groups.set(row.areaName, []);
-    groups.get(row.areaName).push(row);
+  if(singleAreaMode){
+    groups.set(areaLabel(currentAreaViewId()), rows);
+  }else{
+    for(const row of rows){
+      if(!groups.has(row.areaName)) groups.set(row.areaName, []);
+      groups.get(row.areaName).push(row);
+    }
   }
   const areaOrder = Array.from(groups.keys()).sort((a, b) => a.localeCompare(b, undefined, { sensitivity:"base", numeric:true }));
   for(const areaName of areaOrder){
@@ -6662,20 +6667,22 @@ function renderDashboard(){
     const areaActual = groupRows.reduce((sum, row) => sum + row.actual, 0);
     const areaBlockers = groupRows.reduce((sum, row) => sum + row.blockerCount, 0);
     const areaConversations = groupRows.reduce((sum, row) => sum + (parseConversationTotal(row.conversationEnd) || 0), 0);
-    const collapsed = isDashboardAreaCollapsed(areaName);
-    const groupTr = document.createElement("tr");
-    groupTr.className = "dash-area-row";
-    groupTr.innerHTML = `
-      <td colspan="6">
-        <button type="button" class="dash-area-toggle" data-dash-area="${escapeHtml(areaName)}">
-          <span><strong>${escapeHtml(areaName)}</strong> <span class="dash-area-meta">${groupRows.length} AOPs</span></span>
-          <span class="dash-area-meta">P ${areaPlanned} | A ${areaActual} | Convos ${areaConversations} | Blockers ${areaBlockers}</span>
-          <span class="dash-area-arrow">${collapsed ? "Expand" : "Collapse"}</span>
-        </button>
-      </td>
-    `;
-    ui.dashTbody.appendChild(groupTr);
-    if(collapsed) continue;
+    if(!singleAreaMode){
+      const collapsed = isDashboardAreaCollapsed(areaName);
+      const groupTr = document.createElement("tr");
+      groupTr.className = "dash-area-row";
+      groupTr.innerHTML = `
+        <td colspan="6">
+          <button type="button" class="dash-area-toggle" data-dash-area="${escapeHtml(areaName)}">
+            <span><strong>${escapeHtml(areaName)}</strong> <span class="dash-area-meta">${groupRows.length} AOPs</span></span>
+            <span class="dash-area-meta">P ${areaPlanned} | A ${areaActual} | Convos ${areaConversations} | Blockers ${areaBlockers}</span>
+            <span class="dash-area-arrow">${collapsed ? "Expand" : "Collapse"}</span>
+          </button>
+        </td>
+      `;
+      ui.dashTbody.appendChild(groupTr);
+      if(collapsed) continue;
+    }
 
     for(const r of groupRows){
       const tr = document.createElement("tr");
