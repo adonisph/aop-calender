@@ -1330,15 +1330,16 @@
     .delta.zero{ color: var(--muted); font-weight:700; }
     .adhr{ font-family: var(--mono); }
     .deflect-cell{
-      min-width: 292px;
+      min-width: 372px;
+      white-space: nowrap;
     }
     .deflect-wrap{
       display:flex;
       align-items:center;
       justify-content:flex-end;
       gap:4px;
-      flex-wrap:wrap;
-      row-gap:3px;
+      flex-wrap:nowrap;
+      row-gap:0;
     }
     .deflect-wrap input{
       width: 42px;
@@ -1388,7 +1389,7 @@
       font-family: var(--mono);
       font-size: 10px;
       letter-spacing:.2px;
-      min-width: 22px;
+      min-width: 18px;
       text-align:right;
     }
     .deflect-block{
