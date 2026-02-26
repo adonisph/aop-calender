@@ -2150,6 +2150,7 @@
         <option value="delivery">Delivery</option>
         <option value="aftersales">Aftersales</option>
         <option value="others_some">Others/SoMe</option>
+        <option value="special_events">Special Events</option>
       </select></div>
       <div class="tb-item" data-tb-key="customize">
         <div class="customize-wrap" id="customizeWrap">
@@ -2524,6 +2525,7 @@
               <option value="delivery">Delivery</option>
               <option value="aftersales">Aftersales</option>
               <option value="others_some">Others/SoMe</option>
+              <option value="special_events">Special Events</option>
             </select>
           </div>
           <div>
@@ -2741,7 +2743,7 @@
  * - settings: {
  *     sectionVisibility:{dashboard:boolean,calendars:boolean,aopNotes:boolean,tools:boolean},
  *     aopPane:"catalog"|"notation",
- *     areaView:"master"|"pool"|"sales"|"delivery"|"aftersales"|"others_some",
+ *     areaView:"master"|"pool"|"sales"|"delivery"|"aftersales"|"others_some"|"special_events",
  *     colorTheme:string,
  *     uiPrefs:{density:"compact"|"comfortable",textScale:"normal"|"large"|"xlarge",corner:"tight"|"normal"|"round",topbarSide:"right"|"left",customColorsEnabled:boolean,customColors:{power,bg0,bg1,surface,surfaceSoft,line,text,muted,rain},highContrast:boolean,showTips:boolean,layoutPreset:"custom"|"focus"|"review"|"sync"|"dashboard",topbarOrder:string[]},
  *     masterNotationSort:"blockers_desc"|"achievements_desc"|"updated_desc"|"area_asc"|"name_asc",
@@ -2774,7 +2776,8 @@ const AREA_VIEWS = [
   { id:"sales", label:"Sales" },
   { id:"delivery", label:"Delivery" },
   { id:"aftersales", label:"Aftersales" },
-  { id:"others_some", label:"Others/SoMe" }
+  { id:"others_some", label:"Others/SoMe" },
+  { id:"special_events", label:"Special Events" }
 ];
 const MASTER_VIEW_ID = "master";
 const DEFAULT_AREA_VIEW = "pool";
