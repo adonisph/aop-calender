@@ -1233,7 +1233,8 @@
       margin-top: 12px;
       border: 1px solid var(--line);
       border-radius: 14px;
-      overflow:hidden;
+      overflow-x:auto;
+      overflow-y:hidden;
       background: #131313;
     }
     .dash-table table{
@@ -1329,14 +1330,15 @@
     .delta.zero{ color: var(--muted); font-weight:700; }
     .adhr{ font-family: var(--mono); }
     .deflect-cell{
-      min-width: 312px;
+      min-width: 292px;
     }
     .deflect-wrap{
       display:flex;
       align-items:center;
       justify-content:flex-end;
       gap:4px;
-      flex-wrap:nowrap;
+      flex-wrap:wrap;
+      row-gap:3px;
     }
     .deflect-wrap input{
       width: 42px;
@@ -1352,8 +1354,8 @@
       min-width: 56px;
     }
     .deflect-wrap input.convo-input{
-      width: 80px;
-      min-width: 80px;
+      width: 72px;
+      min-width: 72px;
       text-align:right;
     }
     .deflect-sep{
@@ -1374,6 +1376,7 @@
       padding: 3px 6px;
       background: rgba(255,255,255,.03);
       color: var(--muted);
+      margin-left:auto;
     }
     .deflect-delta.pos{ color: rgba(34,197,94,.95); border-color: rgba(34,197,94,.52); background: rgba(34,197,94,.14); }
     .deflect-delta.neg{ color: rgba(239,68,68,.95); border-color: rgba(239,68,68,.56); background: rgba(239,68,68,.14); }
