@@ -1376,7 +1376,6 @@
       padding: 3px 6px;
       background: rgba(255,255,255,.03);
       color: var(--muted);
-      margin-left:auto;
     }
     .deflect-delta.pos{ color: rgba(34,197,94,.95); border-color: rgba(34,197,94,.52); background: rgba(34,197,94,.14); }
     .deflect-delta.neg{ color: rgba(239,68,68,.95); border-color: rgba(239,68,68,.56); background: rgba(239,68,68,.14); }
@@ -1400,6 +1399,12 @@
       border-radius: 999px;
       background: rgba(255,255,255,.02);
       padding: 2px 4px;
+    }
+    .deflect-pct-cluster{
+      display:inline-flex;
+      align-items:center;
+      gap:4px;
+      flex-wrap:nowrap;
     }
     .master-notation-panel{
       margin-top: 12px;
@@ -6671,13 +6676,15 @@ function renderDashboard(){
               <span class="deflect-sep">to</span>
               <input class="convo-input" type="number" min="0" step="1" placeholder="E" title="End of month conversations (transfers to next month SoM)" value="${escapeHtml(r.conversationEnd)}" data-deflect-field="conversation_end" />
             </span>
-            <span class="deflect-group-label">%</span>
-            <span class="deflect-block">
-              <input class="pct-input" type="number" min="0" max="100" step="0.1" placeholder="S" title="Start of month deflection rate (%)" value="${escapeHtml(r.deflectionStart)}" data-deflect-field="deflection_start" />
-              <span class="deflect-sep">to</span>
-              <input class="pct-input" type="number" min="0" max="100" step="0.1" placeholder="E" title="End of month deflection rate (%)" value="${escapeHtml(r.deflectionEnd)}" data-deflect-field="deflection_end" />
+            <span class="deflect-pct-cluster">
+              <span class="deflect-group-label">%</span>
+              <span class="deflect-block">
+                <input class="pct-input" type="number" min="0" max="100" step="0.1" placeholder="S" title="Start of month deflection rate (%)" value="${escapeHtml(r.deflectionStart)}" data-deflect-field="deflection_start" />
+                <span class="deflect-sep">to</span>
+                <input class="pct-input" type="number" min="0" max="100" step="0.1" placeholder="E" title="End of month deflection rate (%)" value="${escapeHtml(r.deflectionEnd)}" data-deflect-field="deflection_end" />
+              </span>
+              <span class="deflect-delta ${deflectionState.cls}" data-deflect-badge title="${escapeHtml(deflectionSummary)}">${escapeHtml(deflectionState.text)}</span>
             </span>
-            <span class="deflect-delta ${deflectionState.cls}" data-deflect-badge title="${escapeHtml(deflectionSummary)}">${escapeHtml(deflectionState.text)}</span>
           </div>
         </td>
       `;
