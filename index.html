@@ -1329,36 +1329,38 @@
     .delta.zero{ color: var(--muted); font-weight:700; }
     .adhr{ font-family: var(--mono); }
     .deflect-cell{
-      min-width: 310px;
+      min-width: 350px;
     }
     .deflect-wrap{
       display:flex;
       align-items:center;
-      gap:6px;
+      justify-content:flex-end;
+      gap:4px;
       flex-wrap:nowrap;
     }
     .deflect-wrap input{
-      width: 56px;
-      min-width: 56px;
+      width: 44px;
+      min-width: 44px;
       text-align:center;
       font-size:11px;
       font-weight:700;
-      padding: 6px 6px;
+      padding: 5px 5px;
     }
     .deflect-sep{
       color: var(--muted);
       font-family: var(--mono);
-      font-size: 11px;
+      font-size: 10px;
       user-select:none;
+      opacity:.8;
     }
     .deflect-delta{
-      min-width: 54px;
+      min-width: 40px;
       text-align:right;
-      font-size: 11px;
+      font-size: 10px;
       font-family: var(--mono);
       border:1px solid var(--line);
       border-radius: 999px;
-      padding: 4px 7px;
+      padding: 3px 6px;
       background: rgba(255,255,255,.03);
       color: var(--muted);
     }
@@ -1366,45 +1368,33 @@
     .deflect-delta.neg{ color: rgba(239,68,68,.95); border-color: rgba(239,68,68,.56); background: rgba(239,68,68,.14); }
     .deflect-delta.zero{ color: var(--muted); }
     .dash-row-deflect{
-      justify-content:flex-end;
       margin-bottom: 0;
     }
-    .dash-row-deflect input{
-      width: 52px;
-      min-width: 52px;
+    .deflect-group-label{
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing:.2px;
+      min-width: 14px;
+      text-align:right;
     }
-    .deflect-context{
-      margin-top: 6px;
-      display:flex;
-      align-items:center;
-      justify-content:flex-end;
-      gap:6px;
-      flex-wrap: nowrap;
-    }
-    .deflect-convo{
+    .deflect-block{
       display:inline-flex;
       align-items:center;
-      gap:6px;
-      color: var(--muted);
-      font-size: 11px;
-      font-family: var(--mono);
-    }
-    .deflect-convo input{
-      width: 84px;
-      min-width: 84px;
-      text-align:center;
-      font-size:11px;
-      font-weight:700;
-      padding: 6px 6px;
+      gap:4px;
+      border:1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255,255,255,.02);
+      padding: 2px 4px;
     }
     .deflect-volume{
-      min-width: 144px;
+      min-width: 78px;
       text-align:right;
-      font-size: 11px;
+      font-size: 10px;
       font-family: var(--mono);
       border:1px solid var(--line);
       border-radius: 999px;
-      padding: 4px 8px;
+      padding: 3px 6px;
       background: rgba(255,255,255,.03);
       color: var(--muted);
     }
@@ -2731,7 +2721,7 @@
  * - aops: {id:{id,name,color,area}}
  * - aopMonthly: { [aopId]: { [YYYY-MM]: {
  *      goal, comments, required:boolean,
- *      deflection_start, deflection_end, conversation_total,
+ *      deflection_start, deflection_end, conversation_start, conversation_end,
  *      notation, notation_updated_at,
  *      created_at, updated_at,
  *      goal_created_at, goal_updated_at,
@@ -4089,7 +4079,9 @@ function migrateIfNeeded(st){
       const required = !!t.required;
       const deflection_start = parseDeflectionRate(t.deflection_start);
       const deflection_end = parseDeflectionRate(t.deflection_end);
-      const conversation_total = parseConversationTotal(t.conversation_total);
+      const legacyConversationTotal = parseConversationTotal(t.conversation_total);
+      const conversation_start = parseConversationTotal(t.conversation_start);
+      const conversation_end = parseConversationTotal(t.conversation_end);
 
       st.aopMonthly[aopId][mk] = {
         goal,
@@ -4097,7 +4089,12 @@ function migrateIfNeeded(st){
         required,
         deflection_start: deflection_start === null ? "" : deflection_start,
         deflection_end: deflection_end === null ? "" : deflection_end,
-        conversation_total: conversation_total === null ? "" : conversation_total,
+        conversation_start: conversation_start === null
+          ? (legacyConversationTotal === null ? "" : legacyConversationTotal)
+          : conversation_start,
+        conversation_end: conversation_end === null
+          ? (legacyConversationTotal === null ? "" : legacyConversationTotal)
+          : conversation_end,
         notation,
         notation_updated_at,
         created_at,
@@ -4124,7 +4121,8 @@ function migrateIfNeeded(st){
       if(!st.aopMonthly[aopId][nowMonthKey]){
         st.aopMonthly[aopId][nowMonthKey] = {
           goal:"", comments:"", required:false,
-          deflection_start:"", deflection_end:"", conversation_total:"",
+          deflection_start:"", deflection_end:"",
+          conversation_start:"", conversation_end:"",
           notation: "", notation_updated_at: "",
           created_at: t, updated_at: t,
           goal_created_at:"", goal_updated_at:"",
@@ -4900,21 +4898,22 @@ function deflectionDeltaState(startRaw, endRaw){
   return { text, cls };
 }
 function deflectionConversationContextState(startRaw, endRaw, totalRaw){
-  const total = parseConversationTotal(totalRaw);
-  const start = parseDeflectionRate(startRaw);
-  const end = parseDeflectionRate(endRaw);
-  if(total === null){
-    return { text:"Set convos", cls:"zero" };
+  const convoStart = parseConversationTotal(totalRaw?.start);
+  const convoEnd = parseConversationTotal(totalRaw?.end);
+  const deflectionStart = parseDeflectionRate(startRaw);
+  const deflectionEnd = parseDeflectionRate(endRaw);
+  if(convoStart === null || convoEnd === null){
+    return { text:"set C", cls:"zero" };
   }
-  if(start === null || end === null){
-    return { text:"Set SoM/EoM", cls:"zero" };
+  if(deflectionStart === null || deflectionEnd === null){
+    return { text:"set %", cls:"zero" };
   }
-  const som = Math.round((total * start) / 100);
-  const eom = Math.round((total * end) / 100);
+  const som = Math.round((convoStart * deflectionStart) / 100);
+  const eom = Math.round((convoEnd * deflectionEnd) / 100);
   const delta = eom - som;
   const sign = delta > 0 ? "+" : "";
   return {
-    text: `S:${som} E:${eom} Δ:${sign}${delta}`,
+    text: `S${som}|E${eom}|Δ${sign}${delta}`,
     cls: delta > 0 ? "pos" : (delta < 0 ? "neg" : "zero")
   };
 }
@@ -4943,14 +4942,27 @@ function setMonthlyDeflectionRate(aopId, monthKey, field, raw, persist){
   if(persist) saveState();
   return tmpl;
 }
-function setMonthlyConversationTotal(aopId, monthKey, raw, persist){
+function setMonthlyConversationTotal(aopId, monthKey, field, raw, persist){
   if(!aopId || !monthKey) return null;
+  if(field !== "conversation_start" && field !== "conversation_end") return null;
   const tmpl = ensureMonthly(aopId, monthKey);
   const parsed = parseConversationTotal(raw);
   const next = parsed === null ? "" : parsed;
-  if(tmpl.conversation_total !== next){
-    tmpl.conversation_total = next;
+  let changed = false;
+  if(tmpl[field] !== next){
+    tmpl[field] = next;
     tmpl.updated_at = nowIso();
+    changed = true;
+  }
+  if(field === "conversation_end" && changed){
+    const nextMonthKey = shiftMonthKey(monthKey, 1);
+    if(nextMonthKey){
+      const nextMonth = ensureMonthly(aopId, nextMonthKey);
+      if(nextMonth.conversation_start !== next){
+        nextMonth.conversation_start = next;
+        nextMonth.updated_at = nowIso();
+      }
+    }
   }
   if(persist) saveState();
   return tmpl;
@@ -4963,9 +4975,11 @@ function ensureMonthly(aopId, monthKey){
     const prevMonthKey = shiftMonthKey(monthKey, -1);
     const prevMonth = prevMonthKey ? view.state.aopMonthly[aopId]?.[prevMonthKey] : null;
     const inheritedStart = prevMonth ? deflectionRateInputValue(prevMonth.deflection_end) : "";
+    const inheritedConversationStart = prevMonth ? conversationTotalInputValue(prevMonth.conversation_end) : "";
     view.state.aopMonthly[aopId][monthKey] = {
       goal:"", comments:"", required:false,
-      deflection_start: inheritedStart, deflection_end:"", conversation_total:"",
+      deflection_start: inheritedStart, deflection_end:"",
+      conversation_start: inheritedConversationStart, conversation_end:"",
       notation:"", notation_updated_at:"",
       created_at: t, updated_at: t,
       goal_created_at:"", goal_updated_at:"",
@@ -4976,11 +4990,25 @@ function ensureMonthly(aopId, monthKey){
   const tmpl = view.state.aopMonthly[aopId][monthKey];
   if(!("deflection_start" in tmpl)) tmpl.deflection_start = "";
   if(!("deflection_end" in tmpl)) tmpl.deflection_end = "";
-  if(!("conversation_total" in tmpl)){
-    tmpl.conversation_total = "";
-  }else{
-    const parsedConvos = parseConversationTotal(tmpl.conversation_total);
-    tmpl.conversation_total = parsedConvos === null ? "" : parsedConvos;
+  if(!("conversation_start" in tmpl)){
+    const prevMonthKey = shiftMonthKey(monthKey, -1);
+    const prevMonth = prevMonthKey ? view.state.aopMonthly[aopId]?.[prevMonthKey] : null;
+    const legacyConversationTotal = parseConversationTotal(tmpl.conversation_total);
+    if(legacyConversationTotal !== null){
+      tmpl.conversation_start = legacyConversationTotal;
+    }else{
+      const inherited = prevMonth ? parseConversationTotal(prevMonth.conversation_end) : null;
+      tmpl.conversation_start = inherited === null ? "" : inherited;
+    }
+  }
+  if(!("conversation_end" in tmpl)){
+    const legacyConversationTotal = parseConversationTotal(tmpl.conversation_total);
+    tmpl.conversation_end = legacyConversationTotal === null ? "" : legacyConversationTotal;
+  }
+  tmpl.conversation_start = parseConversationTotal(tmpl.conversation_start) ?? "";
+  tmpl.conversation_end = parseConversationTotal(tmpl.conversation_end) ?? "";
+  if("conversation_total" in tmpl){
+    delete tmpl.conversation_total;
   }
   return tmpl;
 }
@@ -6555,7 +6583,8 @@ function renderDashboard(){
       delta,
       deflectionStart: deflectionRateInputValue(tmpl.deflection_start),
       deflectionEnd: deflectionRateInputValue(tmpl.deflection_end),
-      conversationTotal: conversationTotalInputValue(tmpl.conversation_total),
+      conversationStart: conversationTotalInputValue(tmpl.conversation_start),
+      conversationEnd: conversationTotalInputValue(tmpl.conversation_end),
       hasNotation,
       notationUpdatedAt,
       updatedMs: notationUpdatedMs,
@@ -6618,7 +6647,7 @@ function renderDashboard(){
     const areaPlanned = groupRows.reduce((sum, row) => sum + row.planned, 0);
     const areaActual = groupRows.reduce((sum, row) => sum + row.actual, 0);
     const areaBlockers = groupRows.reduce((sum, row) => sum + row.blockerCount, 0);
-    const areaConversations = groupRows.reduce((sum, row) => sum + (parseConversationTotal(row.conversationTotal) || 0), 0);
+    const areaConversations = groupRows.reduce((sum, row) => sum + (parseConversationTotal(row.conversationEnd) || 0), 0);
     const collapsed = isDashboardAreaCollapsed(areaName);
     const groupTr = document.createElement("tr");
     groupTr.className = "dash-area-row";
@@ -6639,7 +6668,10 @@ function renderDashboard(){
       const adhPctRow = r.adhPlanned ? Math.round(r.adh * 100) : 0;
       const deltaClass = r.delta > 0 ? "pos" : (r.delta < 0 ? "neg" : "zero");
       const deflectionState = deflectionDeltaState(r.deflectionStart, r.deflectionEnd);
-      const convoState = deflectionConversationContextState(r.deflectionStart, r.deflectionEnd, r.conversationTotal);
+      const convoState = deflectionConversationContextState(r.deflectionStart, r.deflectionEnd, {
+        start: r.conversationStart,
+        end: r.conversationEnd
+      });
       const deflectionSummary = `${r.deflectionStart || "-"} to ${r.deflectionEnd || "-"} (${deflectionState.text})`;
       tr.innerHTML = `
         <td>
@@ -6657,17 +6689,20 @@ function renderDashboard(){
         <td class="nowrap adhr">${r.adhPlanned ? `${adhPctRow}% (${r.adhMatched}/${r.adhPlanned})` : "-"}</td>
         <td class="deflect-cell">
           <div class="deflect-wrap dash-row-deflect" data-dash-row-deflect="${escapeHtml(r.id)}">
-            <input type="number" min="0" max="100" step="0.1" placeholder="SoM" title="Start of month deflection rate (%)" value="${escapeHtml(r.deflectionStart)}" data-deflect-field="deflection_start" />
-            <span class="deflect-sep">to</span>
-            <input type="number" min="0" max="100" step="0.1" placeholder="EoM" title="End of month deflection rate (%)" value="${escapeHtml(r.deflectionEnd)}" data-deflect-field="deflection_end" />
+            <span class="deflect-group-label">%</span>
+            <span class="deflect-block">
+              <input type="number" min="0" max="100" step="0.1" placeholder="SoM" title="Start of month deflection rate (%)" value="${escapeHtml(r.deflectionStart)}" data-deflect-field="deflection_start" />
+              <span class="deflect-sep">to</span>
+              <input type="number" min="0" max="100" step="0.1" placeholder="EoM" title="End of month deflection rate (%)" value="${escapeHtml(r.deflectionEnd)}" data-deflect-field="deflection_end" />
+            </span>
+            <span class="deflect-group-label">C</span>
+            <span class="deflect-block">
+              <input type="number" min="0" step="1" placeholder="SoM" title="Start of month conversations (inherited from previous EoM)" value="${escapeHtml(r.conversationStart)}" data-deflect-field="conversation_start" />
+              <span class="deflect-sep">to</span>
+              <input type="number" min="0" step="1" placeholder="EoM" title="End of month conversations (transfers to next month SoM)" value="${escapeHtml(r.conversationEnd)}" data-deflect-field="conversation_end" />
+            </span>
             <span class="deflect-delta ${deflectionState.cls}" data-deflect-badge title="${escapeHtml(deflectionSummary)}">${escapeHtml(deflectionState.text)}</span>
-          </div>
-          <div class="deflect-context">
-            <label class="deflect-convo">
-              <span>Convos</span>
-              <input type="number" min="0" step="1" placeholder="Total" title="Total conversations for this AOP in this month" value="${escapeHtml(r.conversationTotal)}" data-deflect-field="conversation_total" />
-            </label>
-            <span class="deflect-volume ${convoState.cls}" data-deflect-volume-badge title="Estimated deflected conversations based on monthly total">${escapeHtml(convoState.text)}</span>
+            <span class="deflect-volume ${convoState.cls}" data-deflect-volume-badge title="Estimated deflected conversations from SoM to EoM conversation volumes">${escapeHtml(convoState.text)}</span>
           </div>
         </td>
       `;
@@ -6695,9 +6730,10 @@ function renderDashboard(){
     const inputs = Array.from(wrap.querySelectorAll("input[data-deflect-field]"));
     const startInput = wrap.querySelector('input[data-deflect-field="deflection_start"]');
     const endInput = wrap.querySelector('input[data-deflect-field="deflection_end"]');
-    const convoInput = wrap.querySelector('input[data-deflect-field="conversation_total"]');
+    const convoStartInput = wrap.querySelector('input[data-deflect-field="conversation_start"]');
+    const convoEndInput = wrap.querySelector('input[data-deflect-field="conversation_end"]');
     const badge = wrap.querySelector("[data-deflect-badge]");
-    const volumeBadge = wrap.closest(".deflect-cell")?.querySelector("[data-deflect-volume-badge]");
+    const volumeBadge = wrap.querySelector("[data-deflect-volume-badge]");
     const updateBadge = () => {
       if(startInput && endInput && badge){
         const state = deflectionDeltaState(startInput.value, endInput.value);
@@ -6708,7 +6744,10 @@ function renderDashboard(){
         const convoState = deflectionConversationContextState(
           startInput?.value || "",
           endInput?.value || "",
-          convoInput?.value || ""
+          {
+            start: convoStartInput?.value || "",
+            end: convoEndInput?.value || ""
+          }
         );
         volumeBadge.className = `deflect-volume ${convoState.cls}`;
         volumeBadge.textContent = convoState.text;
@@ -6717,12 +6756,12 @@ function renderDashboard(){
     const commit = (el, persist) => {
       const field = el.getAttribute("data-deflect-field");
       if(!field) return;
-      const tmpl = field === "conversation_total"
-        ? setMonthlyConversationTotal(id, st.mk, el.value, persist)
+      const tmpl = (field === "conversation_start" || field === "conversation_end")
+        ? setMonthlyConversationTotal(id, st.mk, field, el.value, persist)
         : setMonthlyDeflectionRate(id, st.mk, field, el.value, persist);
       if(!tmpl) return;
       if(persist){
-        const normalized = field === "conversation_total"
+        const normalized = (field === "conversation_start" || field === "conversation_end")
           ? conversationTotalInputValue(tmpl[field])
           : deflectionRateInputValue(tmpl[field]);
         if(el.value !== normalized) el.value = normalized;
