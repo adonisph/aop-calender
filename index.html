@@ -1112,6 +1112,72 @@
       padding: 6px 10px;
       font-size: 12px;
     }
+    .aop-evidence{
+      margin-top: 12px;
+      padding: 10px;
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: 12px;
+      background: #111111;
+      display:grid;
+      gap: 10px;
+    }
+    .aop-evidence-head{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+    .aop-evidence-grid{
+      display:grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+      gap: 8px;
+      align-items:end;
+    }
+    @media (max-width: 980px){
+      .aop-evidence-grid{ grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 560px){
+      .aop-evidence-grid{ grid-template-columns: 1fr; }
+    }
+    .aop-evidence-grid input[type="file"]{
+      padding: 8px;
+      border-radius: 10px;
+    }
+    .aop-evidence-list{
+      display:grid;
+      gap: 10px;
+    }
+    .aop-evidence-item{
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #161616;
+      overflow: hidden;
+    }
+    .aop-evidence-item img{
+      width: 100%;
+      max-height: 230px;
+      object-fit: contain;
+      display:block;
+      background: #0b0b0b;
+    }
+    .aop-evidence-meta{
+      padding: 8px 10px 10px;
+      display:grid;
+      gap: 8px;
+    }
+    .aop-evidence-kpis{
+      display:flex;
+      gap:8px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+    .aop-evidence-actions{
+      display:flex;
+      gap:8px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
     .inline-controls{
       display:flex;
       gap:8px;
@@ -1533,27 +1599,6 @@
       border-top:1px dashed rgba(255,255,255,.12);
       padding-top:7px;
     }
-    .mn-detail{
-      border-top:1px solid rgba(255,255,255,.10);
-      padding-top:7px;
-    }
-    .mn-detail > summary{
-      cursor:pointer;
-      color: var(--text);
-      font-size:12px;
-      font-weight:700;
-      list-style:none;
-      user-select:none;
-    }
-    .mn-detail > summary::-webkit-details-marker{ display:none; }
-    .mn-detail > summary::before{
-      content: "Show details";
-      color: var(--muted);
-    }
-    .mn-detail[open] > summary::before{
-      content: "Hide details";
-      color: var(--text);
-    }
     .mn-detail-body{
       margin-top:8px;
       display:grid;
@@ -1576,9 +1621,6 @@
       gap:3px;
       font-size:12px;
       color: var(--text);
-    }
-    .mn-list.blockers li{
-      color: rgba(255,186,186,.95);
     }
     .reqbox{
       display:flex; align-items:center; gap:8px;
@@ -2395,7 +2437,7 @@
           <div class="kpi">
             <div class="lbl">Matched</div>
             <div class="val" id="kpiMatched">0</div>
-            <div class="subv">Strict: same AOP + same day</div>
+            <div class="subv">Weighted strict: same AOP + same day</div>
           </div>
           <div class="kpi">
             <div class="lbl">Adherence</div>
@@ -2409,7 +2451,6 @@
             <button id="dashboardClearFiltersBtn" class="btn-ghost" type="button">Clear</button>
           </div>
           <div class="filters">
-            <button id="dashFilterBlockersBtn" class="btn-ghost btn-toggle" type="button" aria-pressed="false">Has blockers</button>
             <button id="dashFilterUpdatedBtn" class="btn-ghost btn-toggle" type="button" aria-pressed="false">Updated 7d</button>
             <button id="dashFilterNoNotationBtn" class="btn-ghost btn-toggle" type="button" aria-pressed="false">No notation</button>
             <button id="dashFilterHighDeltaBtn" class="btn-ghost btn-toggle" type="button" aria-pressed="false">High delta</button>
@@ -2440,7 +2481,6 @@
             <span id="masterNotationMeta" class="small">-</span>
             <label for="masterNotationSort" class="small" style="margin:0;">Sort</label>
             <select id="masterNotationSort" aria-label="Sort master notation">
-              <option value="blockers_desc">Blockers first</option>
               <option value="achievements_desc">Most achieved</option>
               <option value="updated_desc">Latest updated</option>
               <option value="area_asc">Area</option>
@@ -2586,11 +2626,38 @@
         </div>
         <div class="aop-notation">
           <label for="aopNotation">Achieved during Sprint</label>
-          <textarea id="aopNotation" placeholder="Track sprint outcomes in this order: Goal, Achieved during Sprint, Existing Blockers."></textarea>
+          <textarea id="aopNotation" placeholder="Track sprint outcomes in this order: Goal, Achieved during Sprint."></textarea>
           <div class="aop-notation-tools">
             <button id="aopNotationTemplateBtn" class="btn-ghost" type="button">Use Sprint Outcome Model</button>
           </div>
           <div class="hint" id="aopNotationState">Select an AOP to edit notation.</div>
+        </div>
+
+        <div class="aop-evidence" id="aopEvidenceSection">
+          <div class="aop-evidence-head">
+            <strong style="font-size:12px; font-weight:800; font-style:italic;">Deflection/Total Screenshot Match</strong>
+            <span id="aopEvidenceHint" class="status-pill">No AOP selected</span>
+          </div>
+          <div class="aop-evidence-grid">
+            <div>
+              <label for="aopEvidenceDeflection">Deflection rate (%)</label>
+              <input id="aopEvidenceDeflection" type="number" min="0" max="100" step="0.1" placeholder="e.g. 74.0" />
+            </div>
+            <div>
+              <label for="aopEvidenceTotal">Total count (#)</label>
+              <input id="aopEvidenceTotal" type="number" min="0" step="1" placeholder="e.g. 5643" />
+            </div>
+            <div>
+              <label for="aopEvidenceFile">Screenshot</label>
+              <input id="aopEvidenceFile" type="file" accept="image/*" />
+            </div>
+            <div>
+              <button id="aopEvidenceAddBtn" class="btn-primary" type="button" style="width:100%;">Add Snapshot</button>
+            </div>
+          </div>
+          <div class="small" id="aopEvidenceState">Select an AOP to add screenshot evidence.</div>
+          <div class="small" id="aopEvidenceAudit">-</div>
+          <div id="aopEvidenceList" class="aop-evidence-list"></div>
         </div>
       </div>
 
@@ -2765,7 +2832,7 @@
  *     areaView:"master"|"pool"|"sales"|"delivery"|"aftersales"|"others_some"|"special_events",
  *     colorTheme:string,
  *     uiPrefs:{density:"compact"|"comfortable",textScale:"normal"|"large"|"xlarge",corner:"tight"|"normal"|"round",topbarSide:"right"|"left",customColorsEnabled:boolean,customColors:{power,bg0,bg1,surface,surfaceSoft,line,text,muted,rain},highContrast:boolean,showTips:boolean,layoutPreset:"custom"|"focus"|"review"|"sync"|"dashboard",topbarOrder:string[]},
- *     masterNotationSort:"blockers_desc"|"achievements_desc"|"updated_desc"|"area_asc"|"name_asc",
+ *     masterNotationSort:"achievements_desc"|"updated_desc"|"area_asc"|"name_asc",
  *     dashboardSort:"az"|"area"|"attention",
  *     dayNoteFilters:{thisMonth:boolean},
  *     calendarUI:{compact:boolean,markedOnly:boolean,activeOnly:boolean,focus:"both"|"planned"|"actual"}
@@ -2778,7 +2845,8 @@
  *      created_at, updated_at,
  *      goal_created_at, goal_updated_at,
  *      comments_created_at, comments_updated_at,
- *      required_created_at, required_updated_at
+ *      required_created_at, required_updated_at,
+ *      evidence:[{id,image_data,image_name,deflection_rate,total_count,created_at}], evidence_updated_at
  *   } } }
  * - entries: { [YYYY-MM-DD]: { planned:[{id,aopId,ts}], actual:[...]} }
  * - dayNotes: { [YYYY-MM-DD]: { text, created_at, updated_at } }
@@ -2802,6 +2870,10 @@ const MASTER_VIEW_ID = "master";
 const DEFAULT_AREA_VIEW = "pool";
 const DEFAULT_THEME = "ember";
 const DAY_NOTE_AUTOSAVE_MS = 700;
+const EVIDENCE_MAX_PER_MONTH_AOP = 8;
+const EVIDENCE_IMAGE_MAX_DIMENSION = 1600;
+const EVIDENCE_IMAGE_QUALITY = 0.84;
+const EVIDENCE_MAX_DATAURL_CHARS = 1600000;
 const BASE_UI_COLORS = {
   surface:"#101010",
   surfaceSoft:"#171717",
@@ -2825,11 +2897,7 @@ const AOP_OUTCOME_TEMPLATE = [
   "Achieved during Sprint:",
   "✅ [what was solved]",
   "✅ [what improved]",
-  "✅ [what is now working]",
-  "",
-  "Existing Blockers:",
-  "- [blocker 1]",
-  "- [blocker 2]"
+  "✅ [what is now working]"
 ].join("\n");
 
 let ui = {};
@@ -2880,11 +2948,10 @@ let rainDrops = [];
 let rainColumns = 0;
 let rainFontSize = 16;
 let rainResizeBound = false;
-const DASH_HIGH_DELTA_THRESHOLD = 2;
+const DASH_HIGH_DELTA_THRESHOLD = 0.5;
 const DASH_UPDATED_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const dashboardUi = {
   query: "",
-  blockersOnly: false,
   updatedOnly: false,
   noNotationOnly: false,
   highDeltaOnly: false,
@@ -2925,8 +2992,8 @@ function normalizeAreaViewId(raw){
 }
 function normalizeMasterNotationSort(raw){
   const safe = String(raw || "").trim().toLowerCase();
-  if(["blockers_desc","achievements_desc","updated_desc","area_asc","name_asc"].includes(safe)) return safe;
-  return "blockers_desc";
+  if(["achievements_desc","updated_desc","area_asc","name_asc"].includes(safe)) return safe;
+  return "achievements_desc";
 }
 function normalizeDashboardSort(raw){
   const safe = String(raw || "").trim().toLowerCase();
@@ -4030,7 +4097,7 @@ function defaultState(){
       },
       rainEnabled: true,
       teamSyncOpen: false,
-      masterNotationSort: "blockers_desc",
+      masterNotationSort: "achievements_desc",
       dashboardSort: "az",
       dayNoteFilters: { thisMonth:false },
       calendarUI: { compact:false, markedOnly:false, activeOnly:false, focus:"both" }
@@ -4042,6 +4109,37 @@ function defaultState(){
     entries: {},
     dayNotes: {}
   };
+}
+
+function sanitizeEvidenceImageData(raw){
+  const txt = String(raw || "").trim();
+  if(!txt) return "";
+  if(!/^data:image\/(png|jpe?g|webp|gif);base64,[a-z0-9+/=]+$/i.test(txt)) return "";
+  if(txt.length > EVIDENCE_MAX_DATAURL_CHARS) return "";
+  return txt;
+}
+
+function normalizeEvidenceItems(raw){
+  if(!Array.isArray(raw)) return [];
+  const out = [];
+  for(const item of raw){
+    if(!item || typeof item !== "object") continue;
+    const image_data = sanitizeEvidenceImageData(item.image_data || item.image || "");
+    if(!image_data) continue;
+    const deflection = parseDeflectionRate(item.deflection_rate);
+    const total = parseConversationTotal(item.total_count);
+    const id = String(item.id || uuid()).trim() || uuid();
+    out.push({
+      id,
+      image_data,
+      image_name: String(item.image_name || "screenshot").slice(0, 120),
+      deflection_rate: deflection === null ? "" : deflection,
+      total_count: total === null ? "" : total,
+      created_at: item.created_at || nowIso()
+    });
+    if(out.length >= EVIDENCE_MAX_PER_MONTH_AOP) break;
+  }
+  return out;
 }
 
 function migrateIfNeeded(st){
@@ -4135,6 +4233,7 @@ function migrateIfNeeded(st){
       const legacyConversationTotal = parseConversationTotal(t.conversation_total);
       const conversation_start = parseConversationTotal(t.conversation_start);
       const conversation_end = parseConversationTotal(t.conversation_end);
+      const evidence = normalizeEvidenceItems(t.evidence);
 
       st.aopMonthly[aopId][mk] = {
         goal,
@@ -4150,6 +4249,8 @@ function migrateIfNeeded(st){
           : conversation_end,
         notation,
         notation_updated_at,
+        evidence,
+        evidence_updated_at: t.evidence_updated_at || (evidence.length ? updated_at : ""),
         created_at,
         updated_at,
 
@@ -4177,6 +4278,7 @@ function migrateIfNeeded(st){
           deflection_start:"", deflection_end:"",
           conversation_start:"", conversation_end:"",
           notation: "", notation_updated_at: "",
+          evidence: [], evidence_updated_at: "",
           created_at: t, updated_at: t,
           goal_created_at:"", goal_updated_at:"",
           comments_created_at:"", comments_updated_at:"",
@@ -5014,6 +5116,7 @@ function ensureMonthly(aopId, monthKey){
       deflection_start: inheritedStart, deflection_end:"",
       conversation_start: inheritedConversationStart, conversation_end:"",
       notation:"", notation_updated_at:"",
+      evidence: [], evidence_updated_at:"",
       created_at: t, updated_at: t,
       goal_created_at:"", goal_updated_at:"",
       comments_created_at:"", comments_updated_at:"",
@@ -5040,6 +5143,8 @@ function ensureMonthly(aopId, monthKey){
   }
   tmpl.conversation_start = parseConversationTotal(tmpl.conversation_start) ?? "";
   tmpl.conversation_end = parseConversationTotal(tmpl.conversation_end) ?? "";
+  tmpl.evidence = normalizeEvidenceItems(tmpl.evidence);
+  if(!("evidence_updated_at" in tmpl)) tmpl.evidence_updated_at = tmpl.evidence.length ? (tmpl.updated_at || nowIso()) : "";
   if("conversation_total" in tmpl){
     delete tmpl.conversation_total;
   }
@@ -5198,7 +5303,6 @@ function readAopMonthlyNotation(aopId, monthKey){
 function parseAopNotationModel(raw){
   const goals = [];
   const achievements = [];
-  const blockers = [];
   let section = "achievements";
   const lines = String(raw || "")
     .split(/\r?\n/)
@@ -5222,11 +5326,8 @@ function parseAopNotationModel(raw){
       }
       continue;
     }
-    const blockerMatch = line.match(/^existing\s*blockers?\s*:?\s*(.*)$/i);
-    if(blockerMatch){
-      section = "blockers";
-      const rest = blockerMatch[1] ? blockerMatch[1].trim() : "";
-      if(rest) blockers.push(rest.replace(/^[-*•]\s*/, "").trim());
+    if(/^existing\s*blockers?\s*:?\s*(.*)$/i.test(line)){
+      section = "ignore";
       continue;
     }
     const cleaned = line
@@ -5236,20 +5337,37 @@ function parseAopNotationModel(raw){
     if(!cleaned) continue;
     if(section === "goal"){
       goals.push(cleaned);
-    }else if(section === "blockers"){
-      blockers.push(cleaned);
-    }else{
+    }else if(section === "achievements"){
       achievements.push(cleaned);
     }
   }
-  return { goals, achievements, blockers };
+  return { goals, achievements };
+}
+function stripLegacyBlockersNotation(raw){
+  const text = String(raw || "").replace(/\r\n/g, "\n");
+  if(!/existing\s*blockers?/i.test(text)) return text;
+  const parsed = parseAopNotationModel(text);
+  const lines = [];
+  if(parsed.goals.length){
+    lines.push("Goal:");
+    for(const goal of parsed.goals){
+      lines.push(`- ${goal}`);
+    }
+  }
+  if(parsed.achievements.length){
+    if(lines.length) lines.push("");
+    lines.push("Achieved during Sprint:");
+    for(const item of parsed.achievements){
+      lines.push(`✅ ${item}`);
+    }
+  }
+  return lines.join("\n");
 }
 function aopNotationPreviewText(raw){
   const parsed = parseAopNotationModel(raw);
   const primary =
     (parsed.goals[0] ? `Goal: ${parsed.goals[0]}` : "") ||
-    (parsed.achievements[0] ? `Achieved: ${parsed.achievements[0]}` : "") ||
-    (parsed.blockers[0] ? `Blocker: ${parsed.blockers[0]}` : "");
+    (parsed.achievements[0] ? `Achieved: ${parsed.achievements[0]}` : "");
   const fallback = String(raw || "").replace(/\s+/g, " ").trim();
   const text = (primary || fallback || "").trim();
   if(!text) return "";
@@ -5291,7 +5409,6 @@ function setDashboardSort(nextSort, persist){
 function dashboardActiveFilterCount(){
   let count = 0;
   if(dashboardUi.query.trim()) count++;
-  if(dashboardUi.blockersOnly) count++;
   if(dashboardUi.updatedOnly) count++;
   if(dashboardUi.noNotationOnly) count++;
   if(dashboardUi.highDeltaOnly) count++;
@@ -5304,7 +5421,6 @@ function setDashboardFilterToggle(key){
 }
 function clearDashboardFilters(){
   dashboardUi.query = "";
-  dashboardUi.blockersOnly = false;
   dashboardUi.updatedOnly = false;
   dashboardUi.noNotationOnly = false;
   dashboardUi.highDeltaOnly = false;
@@ -5328,7 +5444,6 @@ function dashboardAttentionScore(row){
   const now = Date.now();
   const staleWeeks = row.updatedMs ? Math.min(8, Math.floor((now - row.updatedMs) / (7 * 24 * 60 * 60 * 1000))) : 5;
   let score = 0;
-  score += row.blockerCount * 3;
   score += Math.abs(row.delta) * 2;
   if(!row.hasNotation) score += 4;
   if(staleWeeks > 0) score += staleWeeks;
@@ -5350,7 +5465,6 @@ function dashboardRowMatchesFilters(row){
     const hay = `${row.name} ${row.areaName}`.toLowerCase();
     if(!hay.includes(q)) return false;
   }
-  if(dashboardUi.blockersOnly && row.blockerCount === 0) return false;
   if(dashboardUi.updatedOnly){
     if(!row.updatedMs) return false;
     if((Date.now() - row.updatedMs) > DASH_UPDATED_WINDOW_MS) return false;
@@ -5368,7 +5482,6 @@ function renderDashboardFilterControls(totalRows, shownRows){
     el.classList.toggle("on", !!on);
     el.setAttribute("aria-pressed", on ? "true" : "false");
   };
-  toggle(ui.dashFilterBlockersBtn, dashboardUi.blockersOnly);
   toggle(ui.dashFilterUpdatedBtn, dashboardUi.updatedOnly);
   toggle(ui.dashFilterNoNotationBtn, dashboardUi.noNotationOnly);
   toggle(ui.dashFilterHighDeltaBtn, dashboardUi.highDeltaOnly);
@@ -5422,7 +5535,7 @@ function renderMasterNotationPanel(){
     const raw = String(monthData.notation || "").trim();
     if(!raw) continue;
     const parsed = parseAopNotationModel(raw);
-    if(parsed.goals.length === 0 && parsed.achievements.length === 0 && parsed.blockers.length === 0) continue;
+    if(parsed.goals.length === 0 && parsed.achievements.length === 0) continue;
     rows.push({
       id,
       name: aop.name || "(Missing AOP)",
@@ -5431,8 +5544,7 @@ function renderMasterNotationPanel(){
       updatedAt: monthData.notation_updated_at || "",
       updatedMs: Date.parse(monthData.notation_updated_at || "") || 0,
       goals: parsed.goals,
-      achievements: parsed.achievements,
-      blockers: parsed.blockers
+      achievements: parsed.achievements
     });
   }
 
@@ -5440,7 +5552,6 @@ function renderMasterNotationPanel(){
     switch(sort){
       case "achievements_desc":
         if(b.achievements.length !== a.achievements.length) return b.achievements.length - a.achievements.length;
-        if(b.blockers.length !== a.blockers.length) return b.blockers.length - a.blockers.length;
         return a.name.localeCompare(b.name);
       case "updated_desc":
         if(b.updatedMs !== a.updatedMs) return b.updatedMs - a.updatedMs;
@@ -5452,9 +5563,7 @@ function renderMasterNotationPanel(){
       }
       case "name_asc":
         return a.name.localeCompare(b.name);
-      case "blockers_desc":
       default:
-        if(b.blockers.length !== a.blockers.length) return b.blockers.length - a.blockers.length;
         if(b.achievements.length !== a.achievements.length) return b.achievements.length - a.achievements.length;
         return a.name.localeCompare(b.name);
     }
@@ -5467,7 +5576,6 @@ function renderMasterNotationPanel(){
       name: row.name,
       areaName: row.area,
       delta: dash?.delta || 0,
-      blockerCount: row.blockers.length,
       hasNotation: true,
       updatedMs: row.updatedMs
     });
@@ -5480,9 +5588,6 @@ function renderMasterNotationPanel(){
     const achHtml = row.achievements.length
       ? `<ul class="mn-list">${row.achievements.map(x => `<li>${escapeHtml(x)}</li>`).join("")}</ul>`
       : `<div class="small">No achieved items listed.</div>`;
-    const blockerHtml = row.blockers.length
-      ? `<ul class="mn-list blockers">${row.blockers.map(x => `<li>${escapeHtml(x)}</li>`).join("")}</ul>`
-      : `<div class="small">No blockers listed.</div>`;
     const goalPreview = row.goals[0] ? escapeHtml(row.goals[0]) : "No goal listed";
     return `
       <article class="mn-card" data-master-notation-aop="${escapeHtml(row.id)}">
@@ -5496,8 +5601,6 @@ function renderMasterNotationPanel(){
           <button type="button" class="btn-ghost mn-edit-btn" data-open-notation="${escapeHtml(row.id)}">Edit</button>
         </div>
         <div class="mn-preview">Goal preview: ${goalPreview}</div>
-        <details class="mn-detail">
-          <summary></summary>
           <div class="mn-detail-body">
             <div class="mn-block">
               <div class="mn-label">Goal</div>
@@ -5507,12 +5610,7 @@ function renderMasterNotationPanel(){
               <div class="mn-label">Achieved During Sprint</div>
               ${achHtml}
             </div>
-            <div class="mn-block">
-              <div class="mn-label">Existing Blockers</div>
-              ${blockerHtml}
-            </div>
           </div>
-        </details>
       </article>
     `;
   });
@@ -5535,7 +5633,7 @@ function hasMasterNotationForAopMonth(aopId, monthKey){
   const raw = String(monthData.notation || "").trim();
   if(!raw) return false;
   const parsed = parseAopNotationModel(raw);
-  return parsed.goals.length > 0 || parsed.achievements.length > 0 || parsed.blockers.length > 0;
+  return parsed.goals.length > 0 || parsed.achievements.length > 0;
 }
 function findMasterNotationCard(aopId){
   if(!ui.masterNotationList || !aopId) return null;
@@ -5581,18 +5679,25 @@ function loadAopNotationUI(){
     ui.aopNotation.value = "";
     ui.aopNotation.disabled = true;
     setAopNotationState("Select an AOP to edit notation.");
+    loadAopEvidenceUI();
     return;
   }
   const monthData = readAopMonthlyNotation(aopId, monthKey);
+  const normalizedNotation = stripLegacyBlockersNotation(monthData.notation || "");
+  if(normalizedNotation !== (monthData.notation || "")){
+    persistAopNotation(aopId, monthKey, normalizedNotation);
+  }
+  const latestMonthData = readAopMonthlyNotation(aopId, monthKey);
   ui.aopNotation.disabled = false;
-  ui.aopNotation.value = monthData.notation || "";
-  setAopNotationState(`${monthKey} | Last updated: ${fmtIsoShort(monthData.notation_updated_at || "")}`);
+  ui.aopNotation.value = normalizedNotation;
+  setAopNotationState(`${monthKey} | Last updated: ${fmtIsoShort(latestMonthData.notation_updated_at || "")}`);
+  loadAopEvidenceUI();
 }
 
 function persistAopNotation(aopId, monthKey, rawText){
   if(!aopId || !view.state.aops[aopId]) return false;
   const month = ensureMonthly(aopId, monthKey);
-  const normalized = String(rawText || "").replace(/\r\n/g, "\n");
+  const normalized = stripLegacyBlockersNotation(String(rawText || "").replace(/\r\n/g, "\n"));
   const next = normalized.trim().length ? normalized : "";
   if((month.notation || "") === next){
     if(selectedAopForNotation() === aopId && selectedNotationMonthKey() === monthKey){
@@ -5634,6 +5739,216 @@ function scheduleAopNotationSave(){
     aopNotationSaveTimer = null;
     persistAopNotation(aopId, monthKey, snapshot);
   }, 450);
+}
+
+function setAopEvidenceState(msg, isError){
+  if(!ui.aopEvidenceState) return;
+  const txt = String(msg || "").trim();
+  ui.aopEvidenceState.textContent = txt || "";
+  ui.aopEvidenceState.style.color = (isError && txt) ? "rgba(255,133,133,.95)" : "var(--muted)";
+}
+
+function readEvidenceImageFile(file){
+  return new Promise((resolve, reject) => {
+    if(!file) return reject(new Error("Select an image file."));
+    if(!String(file.type || "").toLowerCase().startsWith("image/")){
+      return reject(new Error("Only image files are supported."));
+    }
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Could not read the selected image."));
+    reader.onload = () => {
+      const src = String(reader.result || "");
+      if(!src.startsWith("data:image/")){
+        reject(new Error("Invalid image format."));
+        return;
+      }
+      const img = new Image();
+      img.onerror = () => reject(new Error("Could not decode image."));
+      img.onload = () => {
+        const w0 = Math.max(1, Number(img.naturalWidth || img.width || 1));
+        const h0 = Math.max(1, Number(img.naturalHeight || img.height || 1));
+        const ratio = Math.min(1, EVIDENCE_IMAGE_MAX_DIMENSION / Math.max(w0, h0));
+        const w = Math.max(1, Math.round(w0 * ratio));
+        const h = Math.max(1, Math.round(h0 * ratio));
+
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d", { alpha:false });
+        if(!ctx){
+          reject(new Error("Image processing is unavailable."));
+          return;
+        }
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, 0, 0, w, h);
+
+        const type = String(file.type || "").toLowerCase();
+        let dataUrl = type === "image/png"
+          ? canvas.toDataURL("image/png")
+          : canvas.toDataURL("image/jpeg", EVIDENCE_IMAGE_QUALITY);
+
+        if(dataUrl.length > EVIDENCE_MAX_DATAURL_CHARS){
+          dataUrl = canvas.toDataURL("image/jpeg", 0.72);
+        }
+
+        const safeData = sanitizeEvidenceImageData(dataUrl);
+        if(!safeData){
+          reject(new Error("Image is too large. Try a smaller screenshot."));
+          return;
+        }
+        resolve(safeData);
+      };
+      img.src = src;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function loadAopEvidenceUI(){
+  if(!ui.aopEvidenceList) return;
+  const aopId = selectedAopForNotation();
+  const monthKey = selectedNotationMonthKey();
+
+  const hasAop = !!(aopId && view.state.aops[aopId]);
+  const controls = [ui.aopEvidenceDeflection, ui.aopEvidenceTotal, ui.aopEvidenceFile, ui.aopEvidenceAddBtn].filter(Boolean);
+  controls.forEach(el => { el.disabled = !hasAop; });
+
+  if(!hasAop){
+    if(ui.aopEvidenceHint) ui.aopEvidenceHint.textContent = "No AOP selected";
+    if(ui.aopEvidenceDeflection) ui.aopEvidenceDeflection.value = "";
+    if(ui.aopEvidenceTotal) ui.aopEvidenceTotal.value = "";
+    if(ui.aopEvidenceFile) ui.aopEvidenceFile.value = "";
+    if(ui.aopEvidenceAudit) ui.aopEvidenceAudit.textContent = "-";
+    ui.aopEvidenceList.innerHTML = `<div class="small">Select an AOP to attach screenshots.</div>`;
+    setAopEvidenceState("Select an AOP to add screenshot evidence.");
+    return;
+  }
+
+  const tmpl = ensureMonthly(aopId, monthKey);
+  tmpl.evidence = normalizeEvidenceItems(tmpl.evidence);
+
+  if(ui.aopEvidenceDeflection) ui.aopEvidenceDeflection.value = deflectionRateInputValue(tmpl.deflection_end);
+  if(ui.aopEvidenceTotal) ui.aopEvidenceTotal.value = conversationTotalInputValue(tmpl.conversation_end);
+  if(ui.aopEvidenceHint) ui.aopEvidenceHint.textContent = `${view.state.aops[aopId].name} | ${monthKey}`;
+
+  const evidence = tmpl.evidence || [];
+  const latest = evidence.length ? fmtIsoShort(evidence[0].created_at) : "-";
+  if(ui.aopEvidenceAudit){
+    ui.aopEvidenceAudit.textContent = `${monthKey} | Snapshots: ${evidence.length}/${EVIDENCE_MAX_PER_MONTH_AOP} | Latest: ${latest}`;
+  }
+
+  if(!evidence.length){
+    ui.aopEvidenceList.innerHTML = `<div class="small">No screenshots added for this AOP in ${escapeHtml(monthKey)}.</div>`;
+  }else{
+    ui.aopEvidenceList.innerHTML = evidence.map(item => {
+      const defTxt = deflectionRateInputValue(item.deflection_rate);
+      const totalTxt = conversationTotalInputValue(item.total_count);
+      return `
+        <article class="aop-evidence-item">
+          <img src="${escapeHtml(item.image_data)}" alt="AOP evidence screenshot" loading="lazy" />
+          <div class="aop-evidence-meta">
+            <div class="aop-evidence-kpis">
+              <span class="badge planned">Deflection: ${escapeHtml(defTxt ? `${defTxt}%` : "-")}</span>
+              <span class="badge actual">Total: ${escapeHtml(totalTxt || "-")}</span>
+              <span class="status-pill">${escapeHtml(item.image_name || "screenshot")}</span>
+            </div>
+            <div class="small">Captured: ${escapeHtml(fmtIsoShort(item.created_at))}</div>
+            <div class="aop-evidence-actions">
+              <a class="chip" href="${escapeHtml(item.image_data)}" target="_blank" rel="noopener">Open</a>
+              <button type="button" class="btn-danger" data-evidence-del="${escapeHtml(item.id)}">Remove</button>
+            </div>
+          </div>
+        </article>
+      `;
+    }).join("");
+  }
+
+  ui.aopEvidenceList.querySelectorAll("button[data-evidence-del]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const evidenceId = btn.getAttribute("data-evidence-del");
+      if(!evidenceId) return;
+      removeAopEvidenceSnapshot(aopId, monthKey, evidenceId);
+    });
+  });
+
+  setAopEvidenceState(`Ready for ${view.state.aops[aopId].name}.`);
+}
+
+async function addAopEvidenceSnapshot(){
+  const aopId = selectedAopForNotation();
+  const monthKey = selectedNotationMonthKey();
+  if(!aopId || !view.state.aops[aopId]){
+    setAopEvidenceState("Select an AOP first.", true);
+    return;
+  }
+
+  const deflection = parseDeflectionRate(ui.aopEvidenceDeflection?.value || "");
+  if(deflection === null){
+    setAopEvidenceState("Enter deflection rate (0-100).", true);
+    return;
+  }
+  const total = parseConversationTotal(ui.aopEvidenceTotal?.value || "");
+  if(total === null){
+    setAopEvidenceState("Enter total count (0 or more).", true);
+    return;
+  }
+
+  const file = ui.aopEvidenceFile?.files?.[0];
+  if(!file){
+    setAopEvidenceState("Select a screenshot image.", true);
+    return;
+  }
+
+  const tmpl = ensureMonthly(aopId, monthKey);
+  const evidence = normalizeEvidenceItems(tmpl.evidence);
+  if(evidence.length >= EVIDENCE_MAX_PER_MONTH_AOP){
+    setAopEvidenceState(`Max ${EVIDENCE_MAX_PER_MONTH_AOP} screenshots per AOP/month. Remove one first.`, true);
+    return;
+  }
+
+  setAopEvidenceState("Processing screenshot...");
+  try{
+    const imageData = await readEvidenceImageFile(file);
+    const t = nowIso();
+    evidence.unshift({
+      id: uuid(),
+      image_data: imageData,
+      image_name: String(file.name || "screenshot").slice(0, 120),
+      deflection_rate: deflection,
+      total_count: total,
+      created_at: t
+    });
+
+    tmpl.evidence = evidence;
+    tmpl.evidence_updated_at = t;
+    setMonthlyDeflectionRate(aopId, monthKey, "deflection_end", deflection, false);
+    setMonthlyConversationTotal(aopId, monthKey, "conversation_end", total, false);
+    tmpl.updated_at = t;
+
+    saveState();
+    if(ui.aopEvidenceFile) ui.aopEvidenceFile.value = "";
+    loadAopEvidenceUI();
+    renderDashboard();
+    setAopEvidenceState(`Snapshot saved ${timeShort()}.`);
+  }catch(err){
+    setAopEvidenceState(`Upload failed: ${err?.message || err}`, true);
+  }
+}
+
+function removeAopEvidenceSnapshot(aopId, monthKey, evidenceId){
+  if(!aopId || !monthKey || !evidenceId) return;
+  const tmpl = ensureMonthly(aopId, monthKey);
+  const current = normalizeEvidenceItems(tmpl.evidence);
+  const next = current.filter(item => item.id !== evidenceId);
+  if(next.length === current.length) return;
+  tmpl.evidence = next;
+  tmpl.evidence_updated_at = next.length ? nowIso() : "";
+  tmpl.updated_at = nowIso();
+  saveState();
+  loadAopEvidenceUI();
+  renderDashboard();
+  setAopEvidenceState("Snapshot removed.");
 }
 
 /* --- AOP catalog UI --- */
@@ -6458,6 +6773,38 @@ function monthDateKeys(year, month){
   }
   return keys;
 }
+function uniqueAopIds(entries){
+  const out = [];
+  const seen = new Set();
+  for(const e of (entries || [])){
+    const id = String(e?.aopId || "");
+    if(!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
+}
+function dayShareMap(entries){
+  const ids = uniqueAopIds(entries);
+  const count = ids.length;
+  const total = count > 0 ? 1 : 0;
+  const share = count > 0 ? (1 / count) : 0;
+  const map = new Map(ids.map(id => [id, share]));
+  return { ids, count, total, share, map };
+}
+function formatDayValue(raw){
+  const num = Number(raw);
+  if(!Number.isFinite(num)) return "0";
+  const rounded = Math.round(num * 100) / 100;
+  if(Math.abs(rounded) < 0.000001) return "0";
+  return rounded.toFixed(2).replace(/\.?0+$/, "");
+}
+function formatPercentValue(raw, decimals){
+  const num = Number(raw);
+  if(!Number.isFinite(num)) return "0%";
+  const places = Number.isInteger(decimals) ? Math.max(0, decimals) : 1;
+  return `${num.toFixed(places)}%`;
+}
 
 function calcMonthStats(){
   const mk = currentMonthKey();
@@ -6476,34 +6823,34 @@ function calcMonthStats(){
     const b = view.state.entries[dateKey];
     const plannedArr = filterEntriesByArea(b?.planned);
     const actualArr = filterEntriesByArea(b?.actual);
+    const plannedInfo = dayShareMap(plannedArr);
+    const actualInfo = dayShareMap(actualArr);
 
-    plannedByDay[dateKey] = plannedArr.length;
+    plannedByDay[dateKey] = plannedInfo.total;
 
-    plannedTotal += plannedArr.length;
-    actualTotal += actualArr.length;
+    plannedTotal += plannedInfo.total;
+    actualTotal += actualInfo.total;
 
-    const plannedSet = new Set(plannedArr.map(x=>x.aopId));
-    const actualSet = new Set(actualArr.map(x=>x.aopId));
-
-    // per AOP counts
-    for(const e of plannedArr){
-      if(perAop[e.aopId]) perAop[e.aopId].planned++;
+    // per AOP weighted day-shares
+    for(const aopId of plannedInfo.ids){
+      if(perAop[aopId]) perAop[aopId].planned += plannedInfo.share;
     }
-    for(const e of actualArr){
-      if(perAop[e.aopId]) perAop[e.aopId].actual++;
-    }
-
-    // strict matches (same AOP + same day)
-    for(const aopId of plannedSet){
-      if(actualSet.has(aopId)){
-        matchedTotal++;
-        if(perAop[aopId]) perAop[aopId].matched++;
-      }
+    for(const aopId of actualInfo.ids){
+      if(perAop[aopId]) perAop[aopId].actual += actualInfo.share;
     }
 
-    // unplanned actuals count (actual AOPs not planned that day)
-    for(const aopId of actualSet){
-      if(!plannedSet.has(aopId)) unplannedActualTotal++;
+    // strict matches (same AOP + same day), weighted by lower share
+    for(const aopId of plannedInfo.ids){
+      if(!actualInfo.map.has(aopId)) continue;
+      const matchedShare = Math.min(plannedInfo.map.get(aopId) || 0, actualInfo.map.get(aopId) || 0);
+      matchedTotal += matchedShare;
+      if(perAop[aopId]) perAop[aopId].matched += matchedShare;
+    }
+
+    // unplanned actuals weighted by actual share
+    for(const aopId of actualInfo.ids){
+      if(plannedInfo.map.has(aopId)) continue;
+      unplannedActualTotal += actualInfo.share;
     }
   }
 
@@ -6525,23 +6872,24 @@ function calcMonthStats(){
     const b = view.state.entries[dateKey];
     const plannedArr = filterEntriesByArea(b?.planned);
     const actualArr = filterEntriesByArea(b?.actual);
-    const plannedSet = new Set(plannedArr.map(x => x.aopId));
-    const actualSet = new Set(actualArr.map(x => x.aopId));
+    const plannedInfo = dayShareMap(plannedArr);
+    const actualInfo = dayShareMap(actualArr);
 
-    mtdPlannedTotal += plannedArr.length;
-    mtdActualTotal += actualArr.length;
+    mtdPlannedTotal += plannedInfo.total;
+    mtdActualTotal += actualInfo.total;
 
-    for(const e of plannedArr){
-      if(mtdPerAop[e.aopId]) mtdPerAop[e.aopId].planned++;
+    for(const aopId of plannedInfo.ids){
+      if(mtdPerAop[aopId]) mtdPerAop[aopId].planned += plannedInfo.share;
     }
-    for(const e of actualArr){
-      if(mtdPerAop[e.aopId]) mtdPerAop[e.aopId].actual++;
+    for(const aopId of actualInfo.ids){
+      if(mtdPerAop[aopId]) mtdPerAop[aopId].actual += actualInfo.share;
     }
 
-    for(const aopId of plannedSet){
-      if(!actualSet.has(aopId)) continue;
-      mtdMatchedTotal++;
-      if(mtdPerAop[aopId]) mtdPerAop[aopId].matched++;
+    for(const aopId of plannedInfo.ids){
+      if(!actualInfo.map.has(aopId)) continue;
+      const matchedShare = Math.min(plannedInfo.map.get(aopId) || 0, actualInfo.map.get(aopId) || 0);
+      mtdMatchedTotal += matchedShare;
+      if(mtdPerAop[aopId]) mtdPerAop[aopId].matched += matchedShare;
     }
   }
 
@@ -6571,19 +6919,19 @@ function renderDashboard(){
     ui.dashboardSortSelect.value = dashboardSort;
   }
   const mtdRange = (st.mtdStartDateKey && st.mtdEndDateKey) ? `${st.mtdStartDateKey} to ${st.mtdEndDateKey}` : "No MTD days yet";
-  ui.dashSub.textContent = `${monthNames[view.month]} ${view.year} | View: ${areaLabel(currentAreaViewId())} | Strict match: same AOP + same day | Adherence: MTD (${mtdRange})`;
+  ui.dashSub.textContent = `${monthNames[view.month]} ${view.year} | View: ${areaLabel(currentAreaViewId())} | Weighted day-share by selected AOPs/day | Adherence: MTD (${mtdRange})`;
 
-  ui.kpiPlanned.textContent = String(st.plannedTotal);
-  ui.kpiActual.textContent = String(st.actualTotal);
-  ui.kpiMatched.textContent = String(st.matchedTotal);
+  ui.kpiPlanned.textContent = formatDayValue(st.plannedTotal);
+  ui.kpiActual.textContent = formatDayValue(st.actualTotal);
+  ui.kpiMatched.textContent = formatDayValue(st.matchedTotal);
 
-  const adhPct = Math.round(st.adherence * 100);
-  ui.kpiAdh.textContent = `${adhPct}%`;
+  const adhPct = st.adherence * 100;
+  ui.kpiAdh.textContent = formatPercentValue(adhPct, 1);
 
-  ui.kpiPlannedSub.textContent = `Unplanned actuals: ${st.unplannedActualTotal}`;
+  ui.kpiPlannedSub.textContent = `Unplanned actuals: ${formatDayValue(st.unplannedActualTotal)}`;
   ui.kpiActualSub.textContent = `Month key: ${st.mk}`;
   ui.kpiAdhSub.textContent = st.mtdPlannedTotal
-    ? `Matched ${st.mtdMatchedTotal} of ${st.mtdPlannedTotal} (MTD)`
+    ? `Matched ${formatDayValue(st.mtdMatchedTotal)} of ${formatDayValue(st.mtdPlannedTotal)} (MTD)`
     : "No planned marks in MTD range";
 
   const allRows = (st.areaOrder || []).map(id=>{
@@ -6599,7 +6947,7 @@ function renderDashboard(){
     const adhMatched = sMtd.matched || 0;
     const adh = adhPlanned ? (adhMatched / adhPlanned) : 0;
     const delta = actual - planned;
-    const hasNotation = parsedNotation.goals.length > 0 || parsedNotation.achievements.length > 0 || parsedNotation.blockers.length > 0;
+    const hasNotation = parsedNotation.goals.length > 0 || parsedNotation.achievements.length > 0;
     const notationUpdatedAt = monthNotation.notation_updated_at || "";
     const notationUpdatedMs = Date.parse(notationUpdatedAt) || 0;
 
@@ -6618,15 +6966,14 @@ function renderDashboard(){
       deflectionEnd: deflectionRateInputValue(tmpl.deflection_end),
       conversationStart: conversationTotalInputValue(tmpl.conversation_start),
       conversationEnd: conversationTotalInputValue(tmpl.conversation_end),
+      evidenceCount: normalizeEvidenceItems(tmpl.evidence).length,
       hasNotation,
       notationUpdatedAt,
       updatedMs: notationUpdatedMs,
       goalCount: parsedNotation.goals.length,
       achievementCount: parsedNotation.achievements.length,
-      blockerCount: parsedNotation.blockers.length,
       goals: parsedNotation.goals,
       achievements: parsedNotation.achievements,
-      blockers: parsedNotation.blockers,
       canJumpNotation: hasNotation && canJumpMasterNotation
     };
     row.attentionScore = dashboardAttentionScore(row);
@@ -6639,7 +6986,6 @@ function renderDashboard(){
   rows.sort((a, b) => {
     if(dashboardSort === "attention"){
       if(b.attentionScore !== a.attentionScore) return b.attentionScore - a.attentionScore;
-      if(b.blockerCount !== a.blockerCount) return b.blockerCount - a.blockerCount;
       if(Math.abs(b.delta) !== Math.abs(a.delta)) return Math.abs(b.delta) - Math.abs(a.delta);
       if(b.updatedMs !== a.updatedMs) return b.updatedMs - a.updatedMs;
       return a.name.localeCompare(b.name, undefined, { sensitivity:"base", numeric:true });
@@ -6684,7 +7030,6 @@ function renderDashboard(){
     const groupRows = groups.get(areaName) || [];
     const areaPlanned = groupRows.reduce((sum, row) => sum + row.planned, 0);
     const areaActual = groupRows.reduce((sum, row) => sum + row.actual, 0);
-    const areaBlockers = groupRows.reduce((sum, row) => sum + row.blockerCount, 0);
     const areaConversations = groupRows.reduce((sum, row) => sum + (parseConversationTotal(row.conversationEnd) || 0), 0);
     if(!singleAreaMode){
       const collapsed = isDashboardAreaCollapsed(areaName);
@@ -6694,7 +7039,7 @@ function renderDashboard(){
         <td colspan="6">
           <button type="button" class="dash-area-toggle" data-dash-area="${escapeHtml(areaName)}">
             <span><strong>${escapeHtml(areaName)}</strong> <span class="dash-area-meta">${groupRows.length} AOPs</span></span>
-            <span class="dash-area-meta">P ${areaPlanned} | A ${areaActual} | Convos ${areaConversations} | Blockers ${areaBlockers}</span>
+            <span class="dash-area-meta">P ${formatDayValue(areaPlanned)} | A ${formatDayValue(areaActual)} | Convos ${areaConversations}</span>
             <span class="dash-area-arrow">${collapsed ? "Expand" : "Collapse"}</span>
           </button>
         </td>
@@ -6705,10 +7050,15 @@ function renderDashboard(){
 
     for(const r of groupRows){
       const tr = document.createElement("tr");
-      const adhPctRow = r.adhPlanned ? Math.round(r.adh * 100) : 0;
+      const adhPctRow = r.adhPlanned ? (r.adh * 100) : 0;
       const deltaClass = r.delta > 0 ? "pos" : (r.delta < 0 ? "neg" : "zero");
       const deflectionState = deflectionDeltaState(r.deflectionStart, r.deflectionEnd);
       const deflectionSummary = `${r.deflectionStart || "-"} to ${r.deflectionEnd || "-"} (${deflectionState.text})`;
+      const plannedText = formatDayValue(r.planned);
+      const actualText = formatDayValue(r.actual);
+      const deltaAbs = formatDayValue(Math.abs(r.delta));
+      const deltaText = r.delta > 0 ? `+${deltaAbs}` : (r.delta < 0 ? `-${deltaAbs}` : "0");
+      const adhDetail = `${formatDayValue(r.adhMatched)}/${formatDayValue(r.adhPlanned)}`;
       tr.innerHTML = `
         <td>
           <div class="aopname">
@@ -6716,13 +7066,13 @@ function renderDashboard(){
             ${r.canJumpNotation
               ? `<button type="button" class="dash-aop-link" data-jump-master-aop="${escapeHtml(r.id)}" title="Open Master Notation">${escapeHtml(r.name)}</button>`
               : `<span title="${escapeHtml(r.name)}" style="font-weight:700; color:var(--text);">${escapeHtml(r.name)}</span>`}
-            ${r.blockerCount ? `<span class="status-pill">B:${r.blockerCount}</span>` : ""}
+            
           </div>
         </td>
-        <td class="nowrap">${r.planned}</td>
-        <td class="nowrap">${r.actual}</td>
-        <td class="nowrap delta ${deltaClass}">${r.delta > 0 ? `+${r.delta}` : r.delta}</td>
-        <td class="nowrap adhr">${r.adhPlanned ? `${adhPctRow}% (${r.adhMatched}/${r.adhPlanned})` : "-"}</td>
+        <td class="nowrap">${plannedText}</td>
+        <td class="nowrap">${actualText}</td>
+        <td class="nowrap delta ${deltaClass}">${deltaText}</td>
+        <td class="nowrap adhr">${r.adhPlanned ? `${formatPercentValue(adhPctRow, 1)} (${adhDetail})` : "-"}</td>
         <td class="deflect-cell">
           <div class="deflect-wrap dash-row-deflect" data-dash-row-deflect="${escapeHtml(r.id)}">
             <span class="deflect-group-label">Amt</span>
@@ -6740,6 +7090,7 @@ function renderDashboard(){
               </span>
               <span class="deflect-delta ${deflectionState.cls}" data-deflect-badge title="${escapeHtml(deflectionSummary)}">${escapeHtml(deflectionState.text)}</span>
             </span>
+            <span class="status-pill">Shots: ${r.evidenceCount}</span>
           </div>
         </td>
       `;
@@ -6885,7 +7236,7 @@ function exportCsvForMonth(){
 
   const lines = [];
   lines.push([
-    "Date","AOP","Type","Goal","Comments","Required","DayNote","MarkedAt"
+    "Date","AOP","Type","Goal","Comments","Required","DeflectionRateEoM","TotalCountEoM","ScreenshotCount","DayNote","MarkedAt"
   ].join(","));
 
   for(const dateKey of keys){
@@ -7408,6 +7759,21 @@ function hookUI(){
   if(ui.aopNotationTemplateBtn){
     ui.aopNotationTemplateBtn.addEventListener("click", applyAopNotationTemplate);
   }
+  if(ui.aopEvidenceAddBtn){
+    ui.aopEvidenceAddBtn.addEventListener("click", () => {
+      addAopEvidenceSnapshot();
+    });
+  }
+  if(ui.aopEvidenceFile){
+    ui.aopEvidenceFile.addEventListener("change", () => {
+      const file = ui.aopEvidenceFile.files?.[0];
+      if(!file){
+        setAopEvidenceState("Select an AOP to add screenshot evidence.");
+        return;
+      }
+      setAopEvidenceState(`Ready to upload: ${file.name}`);
+    });
+  }
   if(ui.masterNotationSort){
     ui.masterNotationSort.addEventListener("change", () => {
       setMasterNotationSort(ui.masterNotationSort.value, true);
@@ -7425,9 +7791,6 @@ function hookUI(){
   }
   if(ui.dashboardClearFiltersBtn){
     ui.dashboardClearFiltersBtn.addEventListener("click", clearDashboardFilters);
-  }
-  if(ui.dashFilterBlockersBtn){
-    ui.dashFilterBlockersBtn.addEventListener("click", () => setDashboardFilterToggle("blockersOnly"));
   }
   if(ui.dashFilterUpdatedBtn){
     ui.dashFilterUpdatedBtn.addEventListener("click", () => setDashboardFilterToggle("updatedOnly"));
@@ -7728,7 +8091,6 @@ function init(){
     dashTbody: document.getElementById("dashTbody"),
     dashboardSearchInput: document.getElementById("dashboardSearchInput"),
     dashboardClearFiltersBtn: document.getElementById("dashboardClearFiltersBtn"),
-    dashFilterBlockersBtn: document.getElementById("dashFilterBlockersBtn"),
     dashFilterUpdatedBtn: document.getElementById("dashFilterUpdatedBtn"),
     dashFilterNoNotationBtn: document.getElementById("dashFilterNoNotationBtn"),
     dashFilterHighDeltaBtn: document.getElementById("dashFilterHighDeltaBtn"),
@@ -7760,6 +8122,15 @@ function init(){
     aopNotation: document.getElementById("aopNotation"),
     aopNotationTemplateBtn: document.getElementById("aopNotationTemplateBtn"),
     aopNotationState: document.getElementById("aopNotationState"),
+    aopEvidenceSection: document.getElementById("aopEvidenceSection"),
+    aopEvidenceHint: document.getElementById("aopEvidenceHint"),
+    aopEvidenceDeflection: document.getElementById("aopEvidenceDeflection"),
+    aopEvidenceTotal: document.getElementById("aopEvidenceTotal"),
+    aopEvidenceFile: document.getElementById("aopEvidenceFile"),
+    aopEvidenceAddBtn: document.getElementById("aopEvidenceAddBtn"),
+    aopEvidenceState: document.getElementById("aopEvidenceState"),
+    aopEvidenceAudit: document.getElementById("aopEvidenceAudit"),
+    aopEvidenceList: document.getElementById("aopEvidenceList"),
     aopSelect: document.getElementById("aopSelect"),
     aopNotationSelect: document.getElementById("aopNotationSelect"),
     aopSelectGoals: document.getElementById("aopSelectGoals"),
@@ -7866,3 +8237,17 @@ init();
 </script>
 </body>
 </html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
