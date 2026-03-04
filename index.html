@@ -1112,72 +1112,6 @@
       padding: 6px 10px;
       font-size: 12px;
     }
-    .aop-evidence{
-      margin-top: 12px;
-      padding: 10px;
-      border: 1px solid rgba(255,255,255,.10);
-      border-radius: 12px;
-      background: #111111;
-      display:grid;
-      gap: 10px;
-    }
-    .aop-evidence-head{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:8px;
-      flex-wrap:wrap;
-    }
-    .aop-evidence-grid{
-      display:grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
-      gap: 8px;
-      align-items:end;
-    }
-    @media (max-width: 980px){
-      .aop-evidence-grid{ grid-template-columns: 1fr 1fr; }
-    }
-    @media (max-width: 560px){
-      .aop-evidence-grid{ grid-template-columns: 1fr; }
-    }
-    .aop-evidence-grid input[type="file"]{
-      padding: 8px;
-      border-radius: 10px;
-    }
-    .aop-evidence-list{
-      display:grid;
-      gap: 10px;
-    }
-    .aop-evidence-item{
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      background: #161616;
-      overflow: hidden;
-    }
-    .aop-evidence-item img{
-      width: 100%;
-      max-height: 230px;
-      object-fit: contain;
-      display:block;
-      background: #0b0b0b;
-    }
-    .aop-evidence-meta{
-      padding: 8px 10px 10px;
-      display:grid;
-      gap: 8px;
-    }
-    .aop-evidence-kpis{
-      display:flex;
-      gap:8px;
-      align-items:center;
-      flex-wrap:wrap;
-    }
-    .aop-evidence-actions{
-      display:flex;
-      gap:8px;
-      align-items:center;
-      flex-wrap:wrap;
-    }
     .inline-controls{
       display:flex;
       gap:8px;
@@ -2633,34 +2567,6 @@
           <div class="hint" id="aopNotationState">Select an AOP to edit notation.</div>
         </div>
 
-        <div class="aop-evidence" id="aopEvidenceSection">
-          <div class="aop-evidence-head">
-            <strong style="font-size:12px; font-weight:800; font-style:italic;">Deflection/Total Screenshot Match</strong>
-            <span id="aopEvidenceHint" class="status-pill">No AOP selected</span>
-          </div>
-          <div class="aop-evidence-grid">
-            <div>
-              <label for="aopEvidenceDeflection">Deflection rate (%)</label>
-              <input id="aopEvidenceDeflection" type="number" min="0" max="100" step="0.1" placeholder="e.g. 74.0" />
-            </div>
-            <div>
-              <label for="aopEvidenceTotal">Total count (#)</label>
-              <input id="aopEvidenceTotal" type="number" min="0" step="1" placeholder="e.g. 5643" />
-            </div>
-            <div>
-              <label for="aopEvidenceFile">Screenshot</label>
-              <input id="aopEvidenceFile" type="file" accept="image/*" />
-            </div>
-            <div>
-              <button id="aopEvidenceAddBtn" class="btn-primary" type="button" style="width:100%;">Add Snapshot</button>
-            </div>
-          </div>
-          <div class="small" id="aopEvidenceState">Select an AOP to add screenshot evidence.</div>
-          <div class="small" id="aopEvidenceAudit">-</div>
-          <div id="aopEvidenceList" class="aop-evidence-list"></div>
-        </div>
-      </div>
-
       <div class="section-pad panel-pane goals-highlight" id="paneTemplate" hidden>
         <div class="goals-banner">
           <div>
@@ -2845,8 +2751,7 @@
  *      created_at, updated_at,
  *      goal_created_at, goal_updated_at,
  *      comments_created_at, comments_updated_at,
- *      required_created_at, required_updated_at,
- *      evidence:[{id,image_data,image_name,deflection_rate,total_count,created_at}], evidence_updated_at
+ *      required_created_at, required_updated_at
  *   } } }
  * - entries: { [YYYY-MM-DD]: { planned:[{id,aopId,ts}], actual:[...]} }
  * - dayNotes: { [YYYY-MM-DD]: { text, created_at, updated_at } }
@@ -2870,10 +2775,6 @@ const MASTER_VIEW_ID = "master";
 const DEFAULT_AREA_VIEW = "pool";
 const DEFAULT_THEME = "ember";
 const DAY_NOTE_AUTOSAVE_MS = 700;
-const EVIDENCE_MAX_PER_MONTH_AOP = 8;
-const EVIDENCE_IMAGE_MAX_DIMENSION = 1600;
-const EVIDENCE_IMAGE_QUALITY = 0.84;
-const EVIDENCE_MAX_DATAURL_CHARS = 1600000;
 const BASE_UI_COLORS = {
   surface:"#101010",
   surfaceSoft:"#171717",
@@ -4111,37 +4012,6 @@ function defaultState(){
   };
 }
 
-function sanitizeEvidenceImageData(raw){
-  const txt = String(raw || "").trim();
-  if(!txt) return "";
-  if(!/^data:image\/(png|jpe?g|webp|gif);base64,[a-z0-9+/=]+$/i.test(txt)) return "";
-  if(txt.length > EVIDENCE_MAX_DATAURL_CHARS) return "";
-  return txt;
-}
-
-function normalizeEvidenceItems(raw){
-  if(!Array.isArray(raw)) return [];
-  const out = [];
-  for(const item of raw){
-    if(!item || typeof item !== "object") continue;
-    const image_data = sanitizeEvidenceImageData(item.image_data || item.image || "");
-    if(!image_data) continue;
-    const deflection = parseDeflectionRate(item.deflection_rate);
-    const total = parseConversationTotal(item.total_count);
-    const id = String(item.id || uuid()).trim() || uuid();
-    out.push({
-      id,
-      image_data,
-      image_name: String(item.image_name || "screenshot").slice(0, 120),
-      deflection_rate: deflection === null ? "" : deflection,
-      total_count: total === null ? "" : total,
-      created_at: item.created_at || nowIso()
-    });
-    if(out.length >= EVIDENCE_MAX_PER_MONTH_AOP) break;
-  }
-  return out;
-}
-
 function migrateIfNeeded(st){
   if(!st || typeof st !== "object") return defaultState();
 
@@ -4233,7 +4103,6 @@ function migrateIfNeeded(st){
       const legacyConversationTotal = parseConversationTotal(t.conversation_total);
       const conversation_start = parseConversationTotal(t.conversation_start);
       const conversation_end = parseConversationTotal(t.conversation_end);
-      const evidence = normalizeEvidenceItems(t.evidence);
 
       st.aopMonthly[aopId][mk] = {
         goal,
@@ -4249,8 +4118,6 @@ function migrateIfNeeded(st){
           : conversation_end,
         notation,
         notation_updated_at,
-        evidence,
-        evidence_updated_at: t.evidence_updated_at || (evidence.length ? updated_at : ""),
         created_at,
         updated_at,
 
@@ -4278,7 +4145,6 @@ function migrateIfNeeded(st){
           deflection_start:"", deflection_end:"",
           conversation_start:"", conversation_end:"",
           notation: "", notation_updated_at: "",
-          evidence: [], evidence_updated_at: "",
           created_at: t, updated_at: t,
           goal_created_at:"", goal_updated_at:"",
           comments_created_at:"", comments_updated_at:"",
@@ -5116,7 +4982,6 @@ function ensureMonthly(aopId, monthKey){
       deflection_start: inheritedStart, deflection_end:"",
       conversation_start: inheritedConversationStart, conversation_end:"",
       notation:"", notation_updated_at:"",
-      evidence: [], evidence_updated_at:"",
       created_at: t, updated_at: t,
       goal_created_at:"", goal_updated_at:"",
       comments_created_at:"", comments_updated_at:"",
@@ -5143,8 +5008,6 @@ function ensureMonthly(aopId, monthKey){
   }
   tmpl.conversation_start = parseConversationTotal(tmpl.conversation_start) ?? "";
   tmpl.conversation_end = parseConversationTotal(tmpl.conversation_end) ?? "";
-  tmpl.evidence = normalizeEvidenceItems(tmpl.evidence);
-  if(!("evidence_updated_at" in tmpl)) tmpl.evidence_updated_at = tmpl.evidence.length ? (tmpl.updated_at || nowIso()) : "";
   if("conversation_total" in tmpl){
     delete tmpl.conversation_total;
   }
@@ -5679,7 +5542,6 @@ function loadAopNotationUI(){
     ui.aopNotation.value = "";
     ui.aopNotation.disabled = true;
     setAopNotationState("Select an AOP to edit notation.");
-    loadAopEvidenceUI();
     return;
   }
   const monthData = readAopMonthlyNotation(aopId, monthKey);
@@ -5691,7 +5553,6 @@ function loadAopNotationUI(){
   ui.aopNotation.disabled = false;
   ui.aopNotation.value = normalizedNotation;
   setAopNotationState(`${monthKey} | Last updated: ${fmtIsoShort(latestMonthData.notation_updated_at || "")}`);
-  loadAopEvidenceUI();
 }
 
 function persistAopNotation(aopId, monthKey, rawText){
@@ -5739,216 +5600,6 @@ function scheduleAopNotationSave(){
     aopNotationSaveTimer = null;
     persistAopNotation(aopId, monthKey, snapshot);
   }, 450);
-}
-
-function setAopEvidenceState(msg, isError){
-  if(!ui.aopEvidenceState) return;
-  const txt = String(msg || "").trim();
-  ui.aopEvidenceState.textContent = txt || "";
-  ui.aopEvidenceState.style.color = (isError && txt) ? "rgba(255,133,133,.95)" : "var(--muted)";
-}
-
-function readEvidenceImageFile(file){
-  return new Promise((resolve, reject) => {
-    if(!file) return reject(new Error("Select an image file."));
-    if(!String(file.type || "").toLowerCase().startsWith("image/")){
-      return reject(new Error("Only image files are supported."));
-    }
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error("Could not read the selected image."));
-    reader.onload = () => {
-      const src = String(reader.result || "");
-      if(!src.startsWith("data:image/")){
-        reject(new Error("Invalid image format."));
-        return;
-      }
-      const img = new Image();
-      img.onerror = () => reject(new Error("Could not decode image."));
-      img.onload = () => {
-        const w0 = Math.max(1, Number(img.naturalWidth || img.width || 1));
-        const h0 = Math.max(1, Number(img.naturalHeight || img.height || 1));
-        const ratio = Math.min(1, EVIDENCE_IMAGE_MAX_DIMENSION / Math.max(w0, h0));
-        const w = Math.max(1, Math.round(w0 * ratio));
-        const h = Math.max(1, Math.round(h0 * ratio));
-
-        const canvas = document.createElement("canvas");
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext("2d", { alpha:false });
-        if(!ctx){
-          reject(new Error("Image processing is unavailable."));
-          return;
-        }
-        ctx.fillStyle = "#ffffff";
-        ctx.fillRect(0, 0, w, h);
-        ctx.drawImage(img, 0, 0, w, h);
-
-        const type = String(file.type || "").toLowerCase();
-        let dataUrl = type === "image/png"
-          ? canvas.toDataURL("image/png")
-          : canvas.toDataURL("image/jpeg", EVIDENCE_IMAGE_QUALITY);
-
-        if(dataUrl.length > EVIDENCE_MAX_DATAURL_CHARS){
-          dataUrl = canvas.toDataURL("image/jpeg", 0.72);
-        }
-
-        const safeData = sanitizeEvidenceImageData(dataUrl);
-        if(!safeData){
-          reject(new Error("Image is too large. Try a smaller screenshot."));
-          return;
-        }
-        resolve(safeData);
-      };
-      img.src = src;
-    };
-    reader.readAsDataURL(file);
-  });
-}
-
-function loadAopEvidenceUI(){
-  if(!ui.aopEvidenceList) return;
-  const aopId = selectedAopForNotation();
-  const monthKey = selectedNotationMonthKey();
-
-  const hasAop = !!(aopId && view.state.aops[aopId]);
-  const controls = [ui.aopEvidenceDeflection, ui.aopEvidenceTotal, ui.aopEvidenceFile, ui.aopEvidenceAddBtn].filter(Boolean);
-  controls.forEach(el => { el.disabled = !hasAop; });
-
-  if(!hasAop){
-    if(ui.aopEvidenceHint) ui.aopEvidenceHint.textContent = "No AOP selected";
-    if(ui.aopEvidenceDeflection) ui.aopEvidenceDeflection.value = "";
-    if(ui.aopEvidenceTotal) ui.aopEvidenceTotal.value = "";
-    if(ui.aopEvidenceFile) ui.aopEvidenceFile.value = "";
-    if(ui.aopEvidenceAudit) ui.aopEvidenceAudit.textContent = "-";
-    ui.aopEvidenceList.innerHTML = `<div class="small">Select an AOP to attach screenshots.</div>`;
-    setAopEvidenceState("Select an AOP to add screenshot evidence.");
-    return;
-  }
-
-  const tmpl = ensureMonthly(aopId, monthKey);
-  tmpl.evidence = normalizeEvidenceItems(tmpl.evidence);
-
-  if(ui.aopEvidenceDeflection) ui.aopEvidenceDeflection.value = deflectionRateInputValue(tmpl.deflection_end);
-  if(ui.aopEvidenceTotal) ui.aopEvidenceTotal.value = conversationTotalInputValue(tmpl.conversation_end);
-  if(ui.aopEvidenceHint) ui.aopEvidenceHint.textContent = `${view.state.aops[aopId].name} | ${monthKey}`;
-
-  const evidence = tmpl.evidence || [];
-  const latest = evidence.length ? fmtIsoShort(evidence[0].created_at) : "-";
-  if(ui.aopEvidenceAudit){
-    ui.aopEvidenceAudit.textContent = `${monthKey} | Snapshots: ${evidence.length}/${EVIDENCE_MAX_PER_MONTH_AOP} | Latest: ${latest}`;
-  }
-
-  if(!evidence.length){
-    ui.aopEvidenceList.innerHTML = `<div class="small">No screenshots added for this AOP in ${escapeHtml(monthKey)}.</div>`;
-  }else{
-    ui.aopEvidenceList.innerHTML = evidence.map(item => {
-      const defTxt = deflectionRateInputValue(item.deflection_rate);
-      const totalTxt = conversationTotalInputValue(item.total_count);
-      return `
-        <article class="aop-evidence-item">
-          <img src="${escapeHtml(item.image_data)}" alt="AOP evidence screenshot" loading="lazy" />
-          <div class="aop-evidence-meta">
-            <div class="aop-evidence-kpis">
-              <span class="badge planned">Deflection: ${escapeHtml(defTxt ? `${defTxt}%` : "-")}</span>
-              <span class="badge actual">Total: ${escapeHtml(totalTxt || "-")}</span>
-              <span class="status-pill">${escapeHtml(item.image_name || "screenshot")}</span>
-            </div>
-            <div class="small">Captured: ${escapeHtml(fmtIsoShort(item.created_at))}</div>
-            <div class="aop-evidence-actions">
-              <a class="chip" href="${escapeHtml(item.image_data)}" target="_blank" rel="noopener">Open</a>
-              <button type="button" class="btn-danger" data-evidence-del="${escapeHtml(item.id)}">Remove</button>
-            </div>
-          </div>
-        </article>
-      `;
-    }).join("");
-  }
-
-  ui.aopEvidenceList.querySelectorAll("button[data-evidence-del]").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const evidenceId = btn.getAttribute("data-evidence-del");
-      if(!evidenceId) return;
-      removeAopEvidenceSnapshot(aopId, monthKey, evidenceId);
-    });
-  });
-
-  setAopEvidenceState(`Ready for ${view.state.aops[aopId].name}.`);
-}
-
-async function addAopEvidenceSnapshot(){
-  const aopId = selectedAopForNotation();
-  const monthKey = selectedNotationMonthKey();
-  if(!aopId || !view.state.aops[aopId]){
-    setAopEvidenceState("Select an AOP first.", true);
-    return;
-  }
-
-  const deflection = parseDeflectionRate(ui.aopEvidenceDeflection?.value || "");
-  if(deflection === null){
-    setAopEvidenceState("Enter deflection rate (0-100).", true);
-    return;
-  }
-  const total = parseConversationTotal(ui.aopEvidenceTotal?.value || "");
-  if(total === null){
-    setAopEvidenceState("Enter total count (0 or more).", true);
-    return;
-  }
-
-  const file = ui.aopEvidenceFile?.files?.[0];
-  if(!file){
-    setAopEvidenceState("Select a screenshot image.", true);
-    return;
-  }
-
-  const tmpl = ensureMonthly(aopId, monthKey);
-  const evidence = normalizeEvidenceItems(tmpl.evidence);
-  if(evidence.length >= EVIDENCE_MAX_PER_MONTH_AOP){
-    setAopEvidenceState(`Max ${EVIDENCE_MAX_PER_MONTH_AOP} screenshots per AOP/month. Remove one first.`, true);
-    return;
-  }
-
-  setAopEvidenceState("Processing screenshot...");
-  try{
-    const imageData = await readEvidenceImageFile(file);
-    const t = nowIso();
-    evidence.unshift({
-      id: uuid(),
-      image_data: imageData,
-      image_name: String(file.name || "screenshot").slice(0, 120),
-      deflection_rate: deflection,
-      total_count: total,
-      created_at: t
-    });
-
-    tmpl.evidence = evidence;
-    tmpl.evidence_updated_at = t;
-    setMonthlyDeflectionRate(aopId, monthKey, "deflection_end", deflection, false);
-    setMonthlyConversationTotal(aopId, monthKey, "conversation_end", total, false);
-    tmpl.updated_at = t;
-
-    saveState();
-    if(ui.aopEvidenceFile) ui.aopEvidenceFile.value = "";
-    loadAopEvidenceUI();
-    renderDashboard();
-    setAopEvidenceState(`Snapshot saved ${timeShort()}.`);
-  }catch(err){
-    setAopEvidenceState(`Upload failed: ${err?.message || err}`, true);
-  }
-}
-
-function removeAopEvidenceSnapshot(aopId, monthKey, evidenceId){
-  if(!aopId || !monthKey || !evidenceId) return;
-  const tmpl = ensureMonthly(aopId, monthKey);
-  const current = normalizeEvidenceItems(tmpl.evidence);
-  const next = current.filter(item => item.id !== evidenceId);
-  if(next.length === current.length) return;
-  tmpl.evidence = next;
-  tmpl.evidence_updated_at = next.length ? nowIso() : "";
-  tmpl.updated_at = nowIso();
-  saveState();
-  loadAopEvidenceUI();
-  renderDashboard();
-  setAopEvidenceState("Snapshot removed.");
 }
 
 /* --- AOP catalog UI --- */
@@ -6966,7 +6617,6 @@ function renderDashboard(){
       deflectionEnd: deflectionRateInputValue(tmpl.deflection_end),
       conversationStart: conversationTotalInputValue(tmpl.conversation_start),
       conversationEnd: conversationTotalInputValue(tmpl.conversation_end),
-      evidenceCount: normalizeEvidenceItems(tmpl.evidence).length,
       hasNotation,
       notationUpdatedAt,
       updatedMs: notationUpdatedMs,
@@ -7090,7 +6740,6 @@ function renderDashboard(){
               </span>
               <span class="deflect-delta ${deflectionState.cls}" data-deflect-badge title="${escapeHtml(deflectionSummary)}">${escapeHtml(deflectionState.text)}</span>
             </span>
-            <span class="status-pill">Shots: ${r.evidenceCount}</span>
           </div>
         </td>
       `;
@@ -7236,7 +6885,7 @@ function exportCsvForMonth(){
 
   const lines = [];
   lines.push([
-    "Date","AOP","Type","Goal","Comments","Required","DeflectionRateEoM","TotalCountEoM","ScreenshotCount","DayNote","MarkedAt"
+    "Date","AOP","Type","Goal","Comments","Required","DayNote","MarkedAt"
   ].join(","));
 
   for(const dateKey of keys){
@@ -7759,21 +7408,6 @@ function hookUI(){
   if(ui.aopNotationTemplateBtn){
     ui.aopNotationTemplateBtn.addEventListener("click", applyAopNotationTemplate);
   }
-  if(ui.aopEvidenceAddBtn){
-    ui.aopEvidenceAddBtn.addEventListener("click", () => {
-      addAopEvidenceSnapshot();
-    });
-  }
-  if(ui.aopEvidenceFile){
-    ui.aopEvidenceFile.addEventListener("change", () => {
-      const file = ui.aopEvidenceFile.files?.[0];
-      if(!file){
-        setAopEvidenceState("Select an AOP to add screenshot evidence.");
-        return;
-      }
-      setAopEvidenceState(`Ready to upload: ${file.name}`);
-    });
-  }
   if(ui.masterNotationSort){
     ui.masterNotationSort.addEventListener("change", () => {
       setMasterNotationSort(ui.masterNotationSort.value, true);
@@ -8122,15 +7756,6 @@ function init(){
     aopNotation: document.getElementById("aopNotation"),
     aopNotationTemplateBtn: document.getElementById("aopNotationTemplateBtn"),
     aopNotationState: document.getElementById("aopNotationState"),
-    aopEvidenceSection: document.getElementById("aopEvidenceSection"),
-    aopEvidenceHint: document.getElementById("aopEvidenceHint"),
-    aopEvidenceDeflection: document.getElementById("aopEvidenceDeflection"),
-    aopEvidenceTotal: document.getElementById("aopEvidenceTotal"),
-    aopEvidenceFile: document.getElementById("aopEvidenceFile"),
-    aopEvidenceAddBtn: document.getElementById("aopEvidenceAddBtn"),
-    aopEvidenceState: document.getElementById("aopEvidenceState"),
-    aopEvidenceAudit: document.getElementById("aopEvidenceAudit"),
-    aopEvidenceList: document.getElementById("aopEvidenceList"),
     aopSelect: document.getElementById("aopSelect"),
     aopNotationSelect: document.getElementById("aopNotationSelect"),
     aopSelectGoals: document.getElementById("aopSelectGoals"),
@@ -8237,17 +7862,6 @@ init();
 </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
 
 
 
