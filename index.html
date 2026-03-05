@@ -1,6 +1,6 @@
 <!-- POWER Planner v7 (single-file HTML)
      Current highlights:
-     - Monthly dashboard with planned/actual/adherence
+     - Monthly dashboard with planned/actual/adherence (MTD, first workweek Mon-Fri excluded)
      - Planned vs Actual strict matching (same AOP + same day)
      - AOP catalog for daily calendar marking
      - Dedicated Day Notes section + searchable all-day-notes list
@@ -2126,7 +2126,7 @@
     <div id="headerInfo">
       <h1>AOP Calender R&D</h1>
       <div class="sub">
-        Plan your month (Planned) per AOP. Track execution (Actual), write Day Notes, and use Diff Mode + Dashboard to see adherence.
+        Plan per AOP in Planned, track execution in Actual, and review dashboard adherence using weighted strict matching (same AOP + same day), MTD with the first workweek (Mon-Fri) excluded.
       </div>
       <div class="context-pills" id="contextPills">
         <span class="context-pill" id="contextMonthPill">Month: -</span>
@@ -6457,6 +6457,26 @@ function formatPercentValue(raw, decimals){
   return `${num.toFixed(places)}%`;
 }
 
+function getFirstWorkweekRange(year, monthIndex){
+  const first = new Date(year, monthIndex, 1);
+  const jsDay = first.getDay(); // 0 Sun .. 6 Sat
+  const add = ((1 - jsDay) + 7) % 7; // first Monday on/after day 1
+  const monday = new Date(year, monthIndex, 1 + add);
+  const friday = new Date(monday);
+  friday.setDate(monday.getDate() + 4);
+  return { monday, friday };
+}
+
+function isDateKeyInFirstWorkweek(dateKey, year, monthIndex){
+  if(!dateKey || !String(dateKey).startsWith(`${year}-${pad2(monthIndex+1)}-`)) return false;
+  const day = Number(String(dateKey).slice(8, 10));
+  if(!Number.isFinite(day) || day < 1) return false;
+  const d = new Date(year, monthIndex, day);
+  if(isWeekend(d)) return false;
+  const { monday, friday } = getFirstWorkweekRange(year, monthIndex);
+  return d >= monday && d <= friday;
+}
+
 function calcMonthStats(){
   const mk = currentMonthKey();
   const keys = monthDateKeys(view.year, view.month);
@@ -6509,7 +6529,9 @@ function calcMonthStats(){
   const isPastMonth = (view.year < now.getFullYear()) || (view.year === now.getFullYear() && view.month < now.getMonth());
   const isCurrentMonth = (view.year === now.getFullYear() && view.month === now.getMonth());
   const cutoffDay = isPastMonth ? keys.length : (isCurrentMonth ? Math.min(now.getDate(), keys.length) : 0);
-  const mtdKeys = cutoffDay > 0 ? keys.slice(0, cutoffDay) : [];
+  const mtdRawKeys = cutoffDay > 0 ? keys.slice(0, cutoffDay) : [];
+  const mtdKeys = mtdRawKeys.filter(dateKey => !isDateKeyInFirstWorkweek(dateKey, view.year, view.month));
+  const mtdExcludedFirstWorkweekDays = Math.max(0, mtdRawKeys.length - mtdKeys.length);
   const mtdStartDateKey = mtdKeys[0] || null;
   const mtdEndDateKey = mtdKeys[mtdKeys.length - 1] || null;
 
@@ -6558,6 +6580,7 @@ function calcMonthStats(){
     mtdActualTotal,
     mtdMatchedTotal,
     mtdPerAop,
+    mtdExcludedFirstWorkweekDays,
     unplannedActualTotal,
     plannedByDay
   };
@@ -6570,7 +6593,7 @@ function renderDashboard(){
     ui.dashboardSortSelect.value = dashboardSort;
   }
   const mtdRange = (st.mtdStartDateKey && st.mtdEndDateKey) ? `${st.mtdStartDateKey} to ${st.mtdEndDateKey}` : "No MTD days yet";
-  ui.dashSub.textContent = `${monthNames[view.month]} ${view.year} | View: ${areaLabel(currentAreaViewId())} | Weighted day-share by selected AOPs/day | Adherence: MTD (${mtdRange})`;
+  ui.dashSub.textContent = `${monthNames[view.month]} ${view.year} | View: ${areaLabel(currentAreaViewId())} | Weighted day-share by selected AOPs/day | Adherence: MTD (first workweek excluded) (${mtdRange})`;
 
   ui.kpiPlanned.textContent = formatDayValue(st.plannedTotal);
   ui.kpiActual.textContent = formatDayValue(st.actualTotal);
@@ -6582,8 +6605,8 @@ function renderDashboard(){
   ui.kpiPlannedSub.textContent = `Unplanned actuals: ${formatDayValue(st.unplannedActualTotal)}`;
   ui.kpiActualSub.textContent = `Month key: ${st.mk}`;
   ui.kpiAdhSub.textContent = st.mtdPlannedTotal
-    ? `Matched ${formatDayValue(st.mtdMatchedTotal)} of ${formatDayValue(st.mtdPlannedTotal)} (MTD)`
-    : "No planned marks in MTD range";
+    ? `Matched ${formatDayValue(st.mtdMatchedTotal)} of ${formatDayValue(st.mtdPlannedTotal)} (MTD, first workweek excluded)`
+    : "No planned marks in MTD range after first-workweek exclusion";
 
   const allRows = (st.areaOrder || []).map(id=>{
     const a = view.state.aops[id];
@@ -7862,6 +7885,9 @@ init();
 </script>
 </body>
 </html>
+
+
+
 
 
 
