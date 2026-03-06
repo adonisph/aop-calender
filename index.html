@@ -1580,6 +1580,13 @@
     .cal-wrap.compact .day .marks{ left: 5px; right: 5px; bottom: 4px; gap: 3px; }
     .cal-wrap.compact .mark{ height: 5px; }
     .cal-wrap.compact .mark.more{ font-size: 9px; }
+    /* When Catalog pane is open beside calendars, stack Planned/Actual for legibility */
+    .grid:not(.single):not(.aop-achieved-wide) .cal-wrap{
+      grid-template-columns: 1fr;
+    }
+    .grid:not(.single):not(.aop-achieved-wide) .cal-wrap.compact .day{
+      min-height: 72px;
+    }
     @media (max-width: 980px){ .cal-wrap{ grid-template-columns: 1fr; } }
 
     .calendar{
@@ -2797,9 +2804,9 @@ const AOP_OUTCOME_TEMPLATE = [
   "- [goal for this sprint]",
   "",
   "Achieved during Sprint:",
-  "✅ [what was solved]",
-  "✅ [what improved]",
-  "✅ [what is now working]"
+  "? [what was solved]",
+  "? [what improved]",
+  "? [what is now working]"
 ].join("\n");
 
 let ui = {};
@@ -2861,7 +2868,7 @@ const dashboardUi = {
 };
 let dashboardRowCache = new Map();
 const RAIN_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@$%&*+-<>[]{}|;:.,~";
-const RAIN_GLYPHS = "ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ";
+const RAIN_GLYPHS = "?????????????????????????????????????????????";
 
 function nowIso(){ return new Date().toISOString(); }
 function pad2(n){ return String(n).padStart(2,"0"); }
@@ -5329,7 +5336,7 @@ function parseAopNotationModel(raw){
     if(goalMatch){
       section = "goal";
       const rest = goalMatch[1] ? goalMatch[1].trim() : "";
-      if(rest) goals.push(rest.replace(/^[-*•]\s*/, "").trim());
+      if(rest) goals.push(rest.replace(/^[-*�]\s*/, "").trim());
       continue;
     }
     const achievedMatch = line.match(/^achieved\s*during\s*sprint\s*:?\s*(.*)$/i);
@@ -5337,7 +5344,7 @@ function parseAopNotationModel(raw){
       section = "achievements";
       const rest = achievedMatch[1] ? achievedMatch[1].trim() : "";
       if(rest){
-        const cleanedRest = rest.replace(/^[✅✔☑]\s*/, "").replace(/^[-*•]\s*/, "").trim();
+        const cleanedRest = rest.replace(/^[???]\s*/, "").replace(/^[-*�]\s*/, "").trim();
         if(cleanedRest) achievements.push(cleanedRest);
       }
       continue;
@@ -5347,8 +5354,8 @@ function parseAopNotationModel(raw){
       continue;
     }
     const cleaned = line
-      .replace(/^[✅✔☑]\s*/, "")
-      .replace(/^[-*•]\s*/, "")
+      .replace(/^[???]\s*/, "")
+      .replace(/^[-*�]\s*/, "")
       .trim();
     if(!cleaned) continue;
     if(section === "goal"){
@@ -5374,7 +5381,7 @@ function stripLegacyBlockersNotation(raw){
     if(lines.length) lines.push("");
     lines.push("Achieved during Sprint:");
     for(const item of parsed.achievements){
-      lines.push(`✅ ${item}`);
+      lines.push(`? ${item}`);
     }
   }
   return lines.join("\n");
