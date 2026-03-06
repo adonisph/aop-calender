@@ -2889,28 +2889,60 @@ function appearanceStorageKey(profileId){
   return `${LOCAL_APPEARANCE_KEY_PREFIX}:${safe}`;
 }
 
-function snapshotAppearanceSettings(stateObj){
-  const source = stateObj && typeof stateObj === "object" ? stateObj : view.state;
-  const settings = source?.settings || {};
-  const themeId = COLOR_THEMES[settings.colorTheme] ? settings.colorTheme : DEFAULT_THEME;
-  const uiPrefs = settings.uiPrefs || {};
+function normalizeCustomizationSettings(rawSettings){
+  const src = rawSettings && typeof rawSettings === "object" ? rawSettings : {};
+  const section = src.sectionVisibility || {};
+  const up = src.uiPrefs || {};
+  const dayNoteFilters = src.dayNoteFilters || {};
+  const calUI = src.calendarUI || {};
+  const themeId = COLOR_THEMES[src.colorTheme] ? src.colorTheme : DEFAULT_THEME;
+
   return {
+    sectionVisibility: {
+      dashboard: section.dashboard !== false,
+      calendars: section.calendars !== false,
+      aopNotes: section.aopNotes !== false,
+      tools: section.tools !== false
+    },
+    aopPane: ["catalog","notation"].includes(src.aopPane) ? src.aopPane : "notation",
+    areaView: normalizeAreaViewId(src.areaView),
     colorTheme: themeId,
-    customColorsEnabled: uiPrefs.customColorsEnabled === true,
-    customColors: normalizeCustomColors(uiPrefs.customColors, themeId)
+    uiPrefs: {
+      density: up.density === "comfortable" ? "comfortable" : "compact",
+      textScale: up.textScale === "large" || up.textScale === "xlarge" ? up.textScale : "normal",
+      corner: up.corner === "tight" || up.corner === "round" ? up.corner : "normal",
+      topbarSide: normalizeTopbarSide(up.topbarSide),
+      customColorsEnabled: up.customColorsEnabled === true,
+      customColors: normalizeCustomColors(up.customColors, themeId),
+      highContrast: up.highContrast === true,
+      showTips: up.showTips !== false,
+      layoutPreset: ["custom","focus","review","sync","dashboard"].includes(up.layoutPreset) ? up.layoutPreset : "custom",
+      topbarOrder: normalizeTopbarOrder(up.topbarOrder)
+    },
+    rainEnabled: src.rainEnabled !== false,
+    teamSyncOpen: src.teamSyncOpen === true,
+    masterNotationSort: normalizeMasterNotationSort(src.masterNotationSort),
+    dashboardSort: normalizeDashboardSort(src.dashboardSort),
+    dayNoteFilters: {
+      thisMonth: dayNoteFilters.thisMonth === true
+    },
+    calendarUI: {
+      compact: calUI.compact === true,
+      markedOnly: calUI.markedOnly === true,
+      activeOnly: calUI.activeOnly === true,
+      focus: (calUI.focus === "planned" || calUI.focus === "actual") ? calUI.focus : "both"
+    }
   };
 }
 
+function snapshotAppearanceSettings(stateObj){
+  const source = stateObj && typeof stateObj === "object" ? stateObj : view.state;
+  return normalizeCustomizationSettings(source?.settings || {});
+}
+
 function applyAppearanceSettingsSnapshot(stateObj, snap){
-  if(!stateObj?.settings) return;
-  const safe = snap && typeof snap === "object" ? snap : snapshotAppearanceSettings(stateObj);
-  const themeId = COLOR_THEMES[safe.colorTheme] ? safe.colorTheme : DEFAULT_THEME;
-  stateObj.settings.colorTheme = themeId;
-  if(!stateObj.settings.uiPrefs || typeof stateObj.settings.uiPrefs !== "object"){
-    stateObj.settings.uiPrefs = {};
-  }
-  stateObj.settings.uiPrefs.customColorsEnabled = safe.customColorsEnabled === true;
-  stateObj.settings.uiPrefs.customColors = normalizeCustomColors(safe.customColors, themeId);
+  if(!stateObj || typeof stateObj !== "object") return;
+  stateObj.settings = normalizeCustomizationSettings(snap || stateObj.settings || {});
 }
 
 function readAppearanceProfile(profileId){
@@ -2918,12 +2950,22 @@ function readAppearanceProfile(profileId){
     const raw = localStorage.getItem(appearanceStorageKey(profileId));
     if(!raw) return null;
     const parsed = JSON.parse(raw);
-    const themeId = COLOR_THEMES[parsed?.colorTheme] ? parsed.colorTheme : DEFAULT_THEME;
-    return {
-      colorTheme: themeId,
-      customColorsEnabled: parsed?.customColorsEnabled === true,
-      customColors: normalizeCustomColors(parsed?.customColors, themeId)
-    };
+    if(!parsed || typeof parsed !== "object") return null;
+
+    // Backward compatibility: old profiles stored only appearance fields.
+    if(!("sectionVisibility" in parsed) && ("colorTheme" in parsed || "customColors" in parsed || "customColorsEnabled" in parsed)){
+      const base = snapshotAppearanceSettings(view.state);
+      const merged = JSON.parse(JSON.stringify(base));
+      if(COLOR_THEMES[parsed.colorTheme]) merged.colorTheme = parsed.colorTheme;
+      if(!merged.uiPrefs || typeof merged.uiPrefs !== "object") merged.uiPrefs = {};
+      if(typeof parsed.customColorsEnabled === "boolean") merged.uiPrefs.customColorsEnabled = parsed.customColorsEnabled;
+      if(parsed.customColors && typeof parsed.customColors === "object"){
+        merged.uiPrefs.customColors = { ...(merged.uiPrefs.customColors || {}), ...parsed.customColors };
+      }
+      return normalizeCustomizationSettings(merged);
+    }
+
+    return normalizeCustomizationSettings(parsed);
   }catch{
     return null;
   }
@@ -2931,13 +2973,8 @@ function readAppearanceProfile(profileId){
 
 function writeAppearanceProfile(profileId, snap){
   if(!snap || typeof snap !== "object") return;
-  const themeId = COLOR_THEMES[snap.colorTheme] ? snap.colorTheme : DEFAULT_THEME;
-  const payload = {
-    colorTheme: themeId,
-    customColorsEnabled: snap.customColorsEnabled === true,
-    customColors: normalizeCustomColors(snap.customColors, themeId)
-  };
-  localStorage.setItem(appearanceStorageKey(profileId), JSON.stringify(payload));
+  const normalized = normalizeCustomizationSettings(snap);
+  localStorage.setItem(appearanceStorageKey(profileId), JSON.stringify(normalized));
 }
 
 function persistLocalAppearanceProfile(){
@@ -2954,11 +2991,7 @@ function applyLocalAppearanceProfile(profileId){
 }
 
 function sharedAppearanceBaseline(){
-  return {
-    colorTheme: DEFAULT_THEME,
-    customColorsEnabled: false,
-    customColors: normalizeCustomColors({}, DEFAULT_THEME)
-  };
+  return normalizeCustomizationSettings(defaultState().settings);
 }
 
 function buildSharedSyncState(){
@@ -2966,7 +2999,6 @@ function buildSharedSyncState(){
   applyAppearanceSettingsSnapshot(clone, sharedAppearanceBaseline());
   return clone;
 }
-
 function currentThemeId(){
   const id = view.state?.settings?.colorTheme;
   return COLOR_THEMES[id] ? id : DEFAULT_THEME;
@@ -4300,7 +4332,10 @@ function loadState(){
     return defaultState();
   }
 }
-function saveStateLocal(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(view.state)); }
+function saveStateLocal(){
+  persistLocalAppearanceProfile();
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(view.state));
+}
 function saveState(){
   saveStateLocal();
   scheduleTeamSyncSave("local-change");
@@ -4898,6 +4933,12 @@ async function connectTeamSync(opts){
     teamSync.userEmail = user.email || "";
     const role = user.user_metadata?.role || user.app_metadata?.role || "member";
     setSyncRole(role);
+
+    // Load per-user customization profile when account context becomes known.
+    if(!applyLocalAppearanceProfile()){
+      persistLocalAppearanceProfile();
+    }
+    saveStateLocal();
 
     await ensureTeamWorkspaceExists();
     teamSync.connected = true;
@@ -6980,6 +7021,7 @@ async function importJson(file){
   const incoming = parsed.state || parsed;
   if(!isValidImportedState(incoming)) throw new Error("Invalid JSON.");
   view.state = migrateIfNeeded(incoming);
+  applyLocalAppearanceProfile();
   saveState();
   if(teamSync.connected && teamSync.supabase){
     if(teamSyncSaveTimer){
@@ -7998,6 +8040,10 @@ init();
 </script>
 </body>
 </html>
+
+
+
+
 
 
 
