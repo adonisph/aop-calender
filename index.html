@@ -2759,6 +2759,7 @@
 
 const STORAGE_KEY = "power_aop_planner_v7";
 const TEAM_SYNC_CONFIG_KEY = "power_aop_team_sync_v1";
+const LOCAL_APPEARANCE_KEY_PREFIX = "power_aop_user_appearance_v1";
 const DOW = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const AOP_PANES = ["catalog","notation"];
@@ -2878,6 +2879,94 @@ function shiftMonthKey(monthKey, delta){
 function uuid(){ return (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2)); }
 function timeShort(){ return new Date().toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"}); }
 
+function appearanceProfileId(){
+  const email = String(teamSync?.userEmail || "").trim().toLowerCase();
+  return email || "local";
+}
+
+function appearanceStorageKey(profileId){
+  const safe = String(profileId || "local").trim().toLowerCase().replace(/[^a-z0-9@._-]/g, "_") || "local";
+  return `${LOCAL_APPEARANCE_KEY_PREFIX}:${safe}`;
+}
+
+function snapshotAppearanceSettings(stateObj){
+  const source = stateObj && typeof stateObj === "object" ? stateObj : view.state;
+  const settings = source?.settings || {};
+  const themeId = COLOR_THEMES[settings.colorTheme] ? settings.colorTheme : DEFAULT_THEME;
+  const uiPrefs = settings.uiPrefs || {};
+  return {
+    colorTheme: themeId,
+    customColorsEnabled: uiPrefs.customColorsEnabled === true,
+    customColors: normalizeCustomColors(uiPrefs.customColors, themeId)
+  };
+}
+
+function applyAppearanceSettingsSnapshot(stateObj, snap){
+  if(!stateObj?.settings) return;
+  const safe = snap && typeof snap === "object" ? snap : snapshotAppearanceSettings(stateObj);
+  const themeId = COLOR_THEMES[safe.colorTheme] ? safe.colorTheme : DEFAULT_THEME;
+  stateObj.settings.colorTheme = themeId;
+  if(!stateObj.settings.uiPrefs || typeof stateObj.settings.uiPrefs !== "object"){
+    stateObj.settings.uiPrefs = {};
+  }
+  stateObj.settings.uiPrefs.customColorsEnabled = safe.customColorsEnabled === true;
+  stateObj.settings.uiPrefs.customColors = normalizeCustomColors(safe.customColors, themeId);
+}
+
+function readAppearanceProfile(profileId){
+  try{
+    const raw = localStorage.getItem(appearanceStorageKey(profileId));
+    if(!raw) return null;
+    const parsed = JSON.parse(raw);
+    const themeId = COLOR_THEMES[parsed?.colorTheme] ? parsed.colorTheme : DEFAULT_THEME;
+    return {
+      colorTheme: themeId,
+      customColorsEnabled: parsed?.customColorsEnabled === true,
+      customColors: normalizeCustomColors(parsed?.customColors, themeId)
+    };
+  }catch{
+    return null;
+  }
+}
+
+function writeAppearanceProfile(profileId, snap){
+  if(!snap || typeof snap !== "object") return;
+  const themeId = COLOR_THEMES[snap.colorTheme] ? snap.colorTheme : DEFAULT_THEME;
+  const payload = {
+    colorTheme: themeId,
+    customColorsEnabled: snap.customColorsEnabled === true,
+    customColors: normalizeCustomColors(snap.customColors, themeId)
+  };
+  localStorage.setItem(appearanceStorageKey(profileId), JSON.stringify(payload));
+}
+
+function persistLocalAppearanceProfile(){
+  if(!view.state?.settings) return;
+  writeAppearanceProfile(appearanceProfileId(), snapshotAppearanceSettings(view.state));
+}
+
+function applyLocalAppearanceProfile(profileId){
+  if(!view.state?.settings) return false;
+  const snap = readAppearanceProfile(profileId || appearanceProfileId());
+  if(!snap) return false;
+  applyAppearanceSettingsSnapshot(view.state, snap);
+  return true;
+}
+
+function sharedAppearanceBaseline(){
+  return {
+    colorTheme: DEFAULT_THEME,
+    customColorsEnabled: false,
+    customColors: normalizeCustomColors({}, DEFAULT_THEME)
+  };
+}
+
+function buildSharedSyncState(){
+  const clone = JSON.parse(JSON.stringify(view.state));
+  applyAppearanceSettingsSnapshot(clone, sharedAppearanceBaseline());
+  return clone;
+}
+
 function currentThemeId(){
   const id = view.state?.settings?.colorTheme;
   return COLOR_THEMES[id] ? id : DEFAULT_THEME;
@@ -2961,7 +3050,9 @@ function setAreaView(areaId, persist){
     }
   }
   ensureActiveAopInView();
-  if(persist) saveState();
+  if(persist){
+    saveState();
+  }
   renderAll();
   loadMonthlyTemplate();
   loadDayNoteUI();
@@ -3246,7 +3337,10 @@ function applyColorTheme(themeId, persist){
     }
   }
 
-  if(view.state?.settings && persist) saveState();
+  if(view.state?.settings && persist){
+    saveState();
+    persistLocalAppearanceProfile();
+  }
 }
 function matrixGlyph(){
   const source = Math.random() < 0.72 ? RAIN_GLYPHS : RAIN_CHARS;
@@ -3357,7 +3451,9 @@ function renderRainToggle(){
 function setRainEnabled(enabled, persist){
   if(!view.state?.settings) return;
   view.state.settings.rainEnabled = enabled !== false;
-  if(persist) saveState();
+  if(persist){
+    saveState();
+  }
   renderRainToggle();
 }
 function normalizeTopbarOrder(raw){
@@ -3409,7 +3505,10 @@ function setUiPrefs(next, persist){
     topbarOrder: normalizeTopbarOrder(next?.topbarOrder)
   };
   view.state.settings.uiPrefs = safe;
-  if(persist) saveState();
+  if(persist){
+    saveState();
+    persistLocalAppearanceProfile();
+  }
   const keepCustomizeScroll = customizeOpen && !!ui.customizePopout && ui.customizePopout.hidden !== true;
   const popoutScrollTop = keepCustomizeScroll ? ui.customizePopout.scrollTop : 0;
   const popoutScrollLeft = keepCustomizeScroll ? ui.customizePopout.scrollLeft : 0;
@@ -4548,6 +4647,7 @@ function applyIncomingSharedState(nextState){
   teamSyncSuppressPush = true;
   try{
     view.state = migrated;
+    applyLocalAppearanceProfile();
     saveStateLocal();
   }finally{
     teamSyncSuppressPush = false;
@@ -4610,7 +4710,7 @@ async function ensureTeamWorkspaceExists(){
   }
   const payload = {
     id: workspaceId,
-    state: view.state,
+    state: buildSharedSyncState(),
     updated_by: teamSync.userId || null
   };
   const inserted = await teamSync.supabase
@@ -4663,7 +4763,7 @@ async function pushRemoteState(opts){
     const workspaceId = normalizeWorkspaceId(teamSync.config.workspaceId);
     const payload = {
       id: workspaceId,
-      state: view.state,
+      state: buildSharedSyncState(),
       updated_by: teamSync.userId || null
     };
     const { data, error } = await teamSync.supabase
@@ -4847,6 +4947,14 @@ async function disconnectTeamSync(){
   setSyncPasswordVisibility(false);
   setSyncRole("local");
   setTeamSyncStatus("Disconnected. Local-only mode.");
+  if(applyLocalAppearanceProfile("local")){
+    saveStateLocal();
+    renderAll();
+    loadMonthlyTemplate();
+    loadDayNoteUI();
+    renderEntries();
+    renderDashboard();
+  }
   applyTeamSyncUiState();
 }
 
@@ -4940,7 +5048,9 @@ function setMonthlyDeflectionRate(aopId, monthKey, field, raw, persist){
       }
     }
   }
-  if(persist) saveState();
+  if(persist){
+    saveState();
+  }
   return tmpl;
 }
 function setMonthlyConversationTotal(aopId, monthKey, field, raw, persist){
@@ -4965,7 +5075,9 @@ function setMonthlyConversationTotal(aopId, monthKey, field, raw, persist){
       }
     }
   }
-  if(persist) saveState();
+  if(persist){
+    saveState();
+  }
   return tmpl;
 }
 
@@ -7819,6 +7931,7 @@ function init(){
     allDayNotesList: document.getElementById("allDayNotesList"),
   };
 
+  applyLocalAppearanceProfile("local");
   buildSelectors();
   renderDows();
   applyTeamSyncConfigToInputs();
@@ -7885,6 +7998,12 @@ init();
 </script>
 </body>
 </html>
+
+
+
+
+
+
 
 
 
