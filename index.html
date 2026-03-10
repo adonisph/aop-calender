@@ -1281,6 +1281,43 @@
       background: rgba(0,0,0,.22);
     }
     .dash-table tr:last-child td{ border-bottom: none; }
+    .dash-table th.col-planned,
+    .dash-table th.col-actual{
+      font-weight: 800;
+    }
+    .dash-table th.col-planned{ color: rgba(var(--power-rgb),.92); }
+    .dash-table th.col-actual{ color: rgba(96,165,250,.95); }
+    .pa-cell{ text-align:center; }
+    .pa-chip{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      min-width: 68px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: .2px;
+      font-variant-numeric: tabular-nums;
+      background: rgba(255,255,255,.03);
+      color: var(--muted);
+    }
+    .pa-chip.planned{
+      border-color: rgba(var(--power-rgb),.58);
+      background: rgba(var(--power-rgb),.14);
+      color: rgba(var(--power-rgb),.98);
+    }
+    .pa-chip.actual{
+      border-color: rgba(96,165,250,.58);
+      background: rgba(96,165,250,.16);
+      color: rgba(191,219,254,.98);
+    }
+    .pa-chip.off{
+      opacity: .58;
+      filter: saturate(.35);
+    }
     .dash-table tr.dash-area-row td{
       background: rgba(255,255,255,.04);
       border-bottom-color: rgba(255,255,255,.14);
@@ -2405,8 +2442,8 @@
           <thead>
             <tr>
               <th>AOP</th>
-              <th class="nowrap">Planned</th>
-              <th class="nowrap">Actual</th>
+              <th class="nowrap col-planned">Planned (P)</th>
+              <th class="nowrap col-actual">Actual (A)</th>
               <th class="nowrap">Delta</th>
               <th class="nowrap">Adherence (MTD)</th>
               <th class="nowrap">Amt + % (SoM to EoM)</th>
@@ -6325,9 +6362,10 @@ function renderCalendar(container, type){
       const titleParts = [`${dateKey} (${type.toUpperCase()})`];
       if(visibleAopIds.length){
         const names = visibleAopIds.map(id => resolveAopName(id));
-        const lead = names.slice(0, 3).join(", ");
-        const extra = names.length > 3 ? ` +${names.length - 3} more` : "";
-        titleParts.push(`AOP: ${lead}${extra}`);
+        titleParts.push(`${type === "planned" ? "Planned" : "Actual"} AOPs (${names.length}):`);
+        names.forEach((name, idx) => titleParts.push(`${idx + 1}. ${name}`));
+      }else{
+        titleParts.push(`${type === "planned" ? "Planned" : "Actual"} AOPs: none`);
       }
       if(type === "actual"){
         const noteText = (view.state.dayNotes?.[dateKey]?.text || "").trim();
@@ -6902,8 +6940,8 @@ function renderDashboard(){
             
           </div>
         </td>
-        <td class="nowrap">${plannedText}</td>
-        <td class="nowrap">${actualText}</td>
+        <td class="nowrap pa-cell"><span class="pa-chip planned ${r.planned > 0 ? "on" : "off"}" title="Planned marks">P ${plannedText}</span></td>
+        <td class="nowrap pa-cell"><span class="pa-chip actual ${r.actual > 0 ? "on" : "off"}" title="Actual marks">A ${actualText}</span></td>
         <td class="nowrap delta ${deltaClass}">${deltaText}</td>
         <td class="nowrap adhr">${r.adhPlanned ? `${formatPercentValue(adhPctRow, 1)} (${adhDetail})` : "-"}</td>
         <td class="deflect-cell">
