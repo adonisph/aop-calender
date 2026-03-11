@@ -2652,7 +2652,7 @@
     <div class="card-header">
       <div class="title">
         <strong>Day Notes</strong>
-        <span>Autosaves while typing. Editable only on Actual days in the current month.</span>
+        <span>Autosaves while typing. Editable only on Actual days in the current month and category view (Master is read-only).</span>
       </div>
       <div class="drawer-tools">
         <button id="prevDayNoteBtn" class="btn-ghost" type="button" title="Previous day">Prev day</button>
@@ -2699,7 +2699,7 @@
     <div class="card-header">
       <div class="title">
         <strong>All Day Notes</strong>
-        <span>Read and search notes separately from the day editor.</span>
+        <span>Scoped to the current category view. Master view shows all categories sorted by area.</span>
       </div>
     </div>
     <div class="section-pad">
@@ -2798,7 +2798,7 @@
  *      required_created_at, required_updated_at
  *   } } }
  * - entries: { [YYYY-MM-DD]: { planned:[{id,aopId,ts}], actual:[...]} }
- * - dayNotes: { [YYYY-MM-DD]: { text, created_at, updated_at } }
+ * - dayNotes: { [YYYY-MM-DD]: { by_area:{ [areaId]: { text, created_at, updated_at } } } }
  */
 
 const STORAGE_KEY = "power_aop_planner_v7";
@@ -4335,34 +4335,75 @@ function migrateIfNeeded(st){
     delete st.aops[aopId].notation_updated_at;
   }
 
-  // Normalize dayNotes:
-  // - v6 had dayNotes[dateKey] = { planned:{notes}, actual:{notes} }
-  // - Convert to v7: { text }
+  // Normalize dayNotes (category scoped by area):
+  // - Legacy: dayNotes[dateKey] = { text, created_at, updated_at } or string
+  // - New: dayNotes[dateKey] = { by_area:{ [areaId]: { text, created_at, updated_at } } }
+  const inferDayNoteArea = (dateKey) => {
+    const bucket = st.entries?.[dateKey] || { planned: [], actual: [] };
+    const combined = [...(bucket.planned || []), ...(bucket.actual || [])];
+    const areas = [...new Set(combined
+      .map(e => normalizeAreaId(st.aops?.[e?.aopId]?.area))
+      .filter(Boolean)
+    )];
+    return areas.length === 1 ? areas[0] : DEFAULT_AREA_VIEW;
+  };
+
   for(const dateKey of Object.keys(st.dayNotes)){
     const dn = st.dayNotes[dateKey];
+
+    if(dn && typeof dn === "object" && dn.by_area && typeof dn.by_area === "object"){
+      const byArea = {};
+      for(const [rawAreaId, note] of Object.entries(dn.by_area)){
+        const safeArea = normalizeAreaId(rawAreaId);
+        const text = (typeof note?.text === "string" ? note.text : "").trim();
+        if(!text) continue;
+        const createdAt = typeof note?.created_at === "string" ? note.created_at : "";
+        const updatedAt = typeof note?.updated_at === "string" ? note.updated_at : "";
+        byArea[safeArea] = {
+          text,
+          created_at: createdAt || nowIso(),
+          updated_at: updatedAt || (createdAt || nowIso())
+        };
+      }
+      st.dayNotes[dateKey] = { by_area: byArea };
+      continue;
+    }
+
+    let legacyText = "";
+    let legacyCreated = "";
+    let legacyUpdated = "";
+
     if(dn && typeof dn === "object" && ("planned" in dn || "actual" in dn) && !("text" in dn)){
-      const best =
+      legacyText =
         (dn.planned && typeof dn.planned.notes === "string" && dn.planned.notes.trim()) ? dn.planned.notes :
         (dn.actual && typeof dn.actual.notes === "string" && dn.actual.notes.trim()) ? dn.actual.notes :
         "";
-      st.dayNotes[dateKey] = { text: best, created_at: nowIso(), updated_at: best ? nowIso() : "" };
-      continue;
+    }else if(typeof dn === "string"){
+      legacyText = dn;
+    }else if(dn && typeof dn === "object"){
+      legacyText = typeof dn.text === "string" ? dn.text : "";
+      legacyCreated = typeof dn.created_at === "string" ? dn.created_at : "";
+      legacyUpdated = typeof dn.updated_at === "string" ? dn.updated_at : "";
     }
-    if(typeof dn === "string"){
-      st.dayNotes[dateKey] = { text: dn, created_at: nowIso(), updated_at: dn ? nowIso() : "" };
-      continue;
-    }
-    if(dn && typeof dn === "object"){
-      st.dayNotes[dateKey] = {
-        text: typeof dn.text === "string" ? dn.text : "",
-        created_at: dn.created_at || nowIso(),
-        updated_at: dn.updated_at || (dn.text ? nowIso() : "")
-      };
-      continue;
-    }
-    st.dayNotes[dateKey] = { text: "", created_at: nowIso(), updated_at: "" };
-  }
 
+    const text = legacyText.trim();
+    if(!text){
+      st.dayNotes[dateKey] = { by_area: {} };
+      continue;
+    }
+
+    const areaId = inferDayNoteArea(dateKey);
+    const createdAt = legacyCreated || nowIso();
+    st.dayNotes[dateKey] = {
+      by_area: {
+        [areaId]: {
+          text,
+          created_at: createdAt,
+          updated_at: legacyUpdated || createdAt
+        }
+      }
+    };
+  }
   st.version = 7;
   return st;
 }
@@ -5232,18 +5273,86 @@ function getEntryAopColors(dateKey, type){
   return distinctColors(cols);
 }
 
-/* --- Day Notes (unified) --- */
-function ensureDayNote(dateKey){
-  if(!view.state.dayNotes[dateKey]){
-    view.state.dayNotes[dateKey] = { text:"", created_at: nowIso(), updated_at:"" };
+/* --- Day Notes (category scoped) --- */
+function normalizeDayNoteRoot(raw){
+  if(raw && typeof raw === "object" && raw.by_area && typeof raw.by_area === "object"){
+    const byArea = {};
+    for(const [areaId, note] of Object.entries(raw.by_area)){
+      const safeArea = normalizeAreaId(areaId);
+      const text = typeof note?.text === "string" ? note.text : "";
+      const createdAt = typeof note?.created_at === "string" ? note.created_at : "";
+      const updatedAt = typeof note?.updated_at === "string" ? note.updated_at : "";
+      byArea[safeArea] = { text, created_at: createdAt, updated_at: updatedAt };
+    }
+    return { by_area: byArea };
   }
-  return view.state.dayNotes[dateKey];
+
+  const legacyText =
+    typeof raw === "string" ? raw :
+    (raw && typeof raw === "object" && typeof raw.text === "string" ? raw.text : "");
+  const legacyCreated = raw && typeof raw === "object" && typeof raw.created_at === "string" ? raw.created_at : "";
+  const legacyUpdated = raw && typeof raw === "object" && typeof raw.updated_at === "string" ? raw.updated_at : "";
+  const text = legacyText.trim();
+  if(!text) return { by_area: {} };
+
+  const safeArea = DEFAULT_AREA_VIEW;
+  const createdAt = legacyCreated || nowIso();
+  return {
+    by_area: {
+      [safeArea]: {
+        text,
+        created_at: createdAt,
+        updated_at: legacyUpdated || createdAt
+      }
+    }
+  };
+}
+function ensureDayNoteRoot(dateKey){
+  const normalized = normalizeDayNoteRoot(view.state.dayNotes?.[dateKey]);
+  view.state.dayNotes[dateKey] = normalized;
+  return normalized;
+}
+function getDayNote(dateKey, areaId){
+  const safeArea = normalizeAreaId(areaId || currentAreaViewId());
+  const normalized = normalizeDayNoteRoot(view.state.dayNotes?.[dateKey]);
+  const dn = normalized.by_area?.[safeArea];
+  if(!dn || typeof dn !== "object") return { text:"", created_at:"", updated_at:"" };
+  return {
+    text: typeof dn.text === "string" ? dn.text : "",
+    created_at: typeof dn.created_at === "string" ? dn.created_at : "",
+    updated_at: typeof dn.updated_at === "string" ? dn.updated_at : ""
+  };
+}
+function ensureDayNote(dateKey, areaId){
+  const safeArea = normalizeAreaId(areaId || currentAreaViewId());
+  const root = ensureDayNoteRoot(dateKey);
+  if(!root.by_area[safeArea]){
+    root.by_area[safeArea] = { text:"", created_at: nowIso(), updated_at:"" };
+  }
+  return root.by_area[safeArea];
+}
+function dayNotesForDateInView(dateKey, viewAreaId){
+  const scope = normalizeAreaViewId(viewAreaId || currentAreaViewId());
+  const normalized = normalizeDayNoteRoot(view.state.dayNotes?.[dateKey]);
+  const areaIds = scope === MASTER_VIEW_ID ? AREA_VIEWS.map(v => v.id) : [normalizeAreaId(scope)];
+  const rows = [];
+  for(const areaId of areaIds){
+    const dn = normalized.by_area?.[areaId];
+    const text = (typeof dn?.text === "string" ? dn.text : "").trim();
+    if(!text) continue;
+    rows.push({
+      areaId,
+      areaName: areaLabel(areaId),
+      text,
+      createdAt: typeof dn?.created_at === "string" ? dn.created_at : "",
+      updatedAt: typeof dn?.updated_at === "string" ? dn.updated_at : ""
+    });
+  }
+  return rows;
 }
 function hasDayNote(dateKey){
-  const dn = view.state.dayNotes[dateKey];
-  return !!(dn && typeof dn.text === "string" && dn.text.trim());
+  return dayNotesForDateInView(dateKey).length > 0;
 }
-
 /* --- Capacity (planned-only) --- */
 function plannedCountForDay(dateKey){
   const bucket = view.state.entries[dateKey];
@@ -6090,10 +6199,12 @@ function toggleActiveAop(id){
   setActiveAop(id);
 }
 
-/* --- Day Note UI (unified) --- */
+/* --- Day Note UI (category scoped) --- */
 function dayNoteKeyLabel(){
   const dateKey = view.selectedDate || "-";
-  return `${dateKey}`;
+  const scope = currentAreaViewId();
+  if(scope === MASTER_VIEW_ID) return `${dateKey} | Master`;
+  return `${dateKey} | ${areaLabel(scope)}`;
 }
 function dayNoteEditStatus(){
   const dateKey = view.selectedDate;
@@ -6101,6 +6212,10 @@ function dayNoteEditStatus(){
 
   const inMonth = dateKey.startsWith(`${currentMonthKey()}-`);
   if(!inMonth) return { canEdit:false, reason:"Only current month days are editable" };
+
+  if(currentAreaViewId() === MASTER_VIEW_ID){
+    return { canEdit:false, reason:"Switch to a category view to edit day notes" };
+  }
 
   if((view.selectedCalendar || "planned") !== "actual"){
     return { canEdit:false, reason:"Switch to Actual to edit day notes" };
@@ -6129,10 +6244,23 @@ function loadDayNoteUI(){
     return;
   }
 
-  const dn = view.state.dayNotes?.[dateKey] || { text:"", created_at:"", updated_at:"" };
-  ui.dayNoteText.value = dn.text || "";
-  ui.dayNoteAudit.textContent =
-    `Day note created: ${fmtIsoShort(dn.created_at)} | updated: ${fmtIsoShort(dn.updated_at)}`;
+  if(currentAreaViewId() === MASTER_VIEW_ID){
+    const rows = dayNotesForDateInView(dateKey, MASTER_VIEW_ID);
+    ui.dayNoteText.value = rows.map(r => `[${r.areaName}] ${r.text}`).join("\n\n");
+    const latestUpdated = rows
+      .map(r => r.updatedAt || "")
+      .filter(Boolean)
+      .sort((a,b)=> b.localeCompare(a))[0] || "";
+    ui.dayNoteAudit.textContent = rows.length
+      ? `Master summary: ${rows.length} category note(s) | latest update: ${fmtIsoShort(latestUpdated)}`
+      : "Master summary: no category notes for this day";
+  }else{
+    const dn = getDayNote(dateKey, currentAreaViewId());
+    ui.dayNoteText.value = dn.text || "";
+    ui.dayNoteAudit.textContent =
+      `Day note created: ${fmtIsoShort(dn.created_at)} | updated: ${fmtIsoShort(dn.updated_at)}`;
+  }
+
   setDayNoteSaveState(status.reason);
   setActualLinkState(status.reason);
 
@@ -6145,24 +6273,46 @@ function renderAllDayNotes(){
   const q = (ui.allDayNotesSearch?.value || "").trim().toLowerCase();
   const filters = normalizedDayNoteFilters();
   const monthPrefix = `${currentMonthKey()}-`;
+  const scope = currentAreaViewId();
+  const masterScope = scope === MASTER_VIEW_ID;
+  const areaRank = new Map(AREA_VIEWS.map((v, idx) => [v.id, idx]));
+
   const rows = Object.entries(view.state.dayNotes || {})
-    .map(([dateKey, dn])=>{
-      const text = (dn?.text || "").trim();
-      if(!text) return null;
-      return {
-        dateKey,
-        text,
-        inMonth: dateKey.startsWith(monthPrefix),
-        createdAt: dn?.created_at || "",
-        updatedAt: dn?.updated_at || ""
-      };
+    .flatMap(([dateKey, raw])=>{
+      const normalized = normalizeDayNoteRoot(raw);
+      if(!(raw && typeof raw === "object" && raw.by_area && typeof raw.by_area === "object")){
+        view.state.dayNotes[dateKey] = normalized;
+      }
+      const areaIds = masterScope ? AREA_VIEWS.map(v => v.id) : [normalizeAreaId(scope)];
+      return areaIds.map(areaId => {
+        const dn = normalized.by_area?.[areaId];
+        const text = (typeof dn?.text === "string" ? dn.text : "").trim();
+        if(!text) return null;
+        return {
+          dateKey,
+          areaId,
+          areaName: areaLabel(areaId),
+          text,
+          inMonth: dateKey.startsWith(monthPrefix),
+          createdAt: typeof dn?.created_at === "string" ? dn.created_at : "",
+          updatedAt: typeof dn?.updated_at === "string" ? dn.updated_at : ""
+        };
+      }).filter(Boolean);
     })
-    .filter(Boolean)
-    .sort((a,b)=> b.dateKey.localeCompare(a.dateKey))
     .filter(r=>{
       if(filters.thisMonth && !r.inMonth) return false;
       if(!q) return true;
-      return (`${r.dateKey} ${r.text}`.toLowerCase().includes(q));
+      return (`${r.dateKey} ${r.areaName} ${r.text}`.toLowerCase().includes(q));
+    })
+    .sort((a,b)=>{
+      if(masterScope){
+        const rankA = areaRank.get(a.areaId) ?? 999;
+        const rankB = areaRank.get(b.areaId) ?? 999;
+        if(rankA !== rankB) return rankA - rankB;
+      }
+      const dateCmp = b.dateKey.localeCompare(a.dateKey);
+      if(dateCmp !== 0) return dateCmp;
+      return String(b.updatedAt || "").localeCompare(String(a.updatedAt || ""));
     });
 
   if(rows.length === 0){
@@ -6176,10 +6326,10 @@ function renderAllDayNotes(){
     <div class="item">
       <div class="item-head">
         <div>
-          <strong>${escapeHtml(r.dateKey)}</strong>
+          <strong>${escapeHtml(r.dateKey)}${masterScope ? ` | ${escapeHtml(r.areaName)}` : ""}</strong>
           <div class="meta">Created: ${escapeHtml(fmtIsoShort(r.createdAt))} | Updated: ${escapeHtml(fmtIsoShort(r.updatedAt))}</div>
         </div>
-        <button type="button" class="btn-ghost" data-open-note-day="${escapeHtml(r.dateKey)}" ${r.inMonth ? "" : "disabled"}>${r.inMonth ? "Open" : "Locked"}</button>
+        <button type="button" class="btn-ghost" data-open-note-day="${escapeHtml(r.dateKey)}" data-open-note-area="${escapeHtml(r.areaId)}" ${r.inMonth ? "" : "disabled"}>${r.inMonth ? "Open" : "Locked"}</button>
       </div>
       <div class="kv">
         <div>Note</div><div>${escapeHtml(r.text)}</div>
@@ -6190,12 +6340,18 @@ function renderAllDayNotes(){
   ui.allDayNotesList.querySelectorAll("button[data-open-note-day]").forEach(btn=>{
     btn.addEventListener("click", ()=>{
       const dateKey = btn.getAttribute("data-open-note-day");
+      const areaId = normalizeAreaId(btn.getAttribute("data-open-note-area") || scope);
       if(!dateKey) return;
       if(!dateKey.startsWith(monthPrefix)){
         setDayNoteSaveState("Only current month days are selectable");
         setActualLinkState("Only current month days are selectable");
         return;
       }
+
+      if(currentAreaViewId() === MASTER_VIEW_ID){
+        setAreaView(areaId, true);
+      }
+
       view.selectedDate = dateKey;
       view.selectedCalendar = "actual";
       openDayNotesPanel(false);
@@ -6205,7 +6361,6 @@ function renderAllDayNotes(){
     });
   });
 }
-
 function scheduleDayNoteAutosave(){
   if(!view.selectedDate || !ui.dayNoteText || ui.dayNoteText.disabled) return;
   clearDayNoteAutosaveTimer();
@@ -6226,7 +6381,7 @@ function saveDayNote(options){
   }
   clearDayNoteAutosaveTimer();
 
-  const dn = ensureDayNote(dateKey);
+  const dn = ensureDayNote(dateKey, currentAreaViewId());
   const t = nowIso();
   const newText = (ui.dayNoteText.value || "").trim();
   const prevText = (dn.text || "").trim();
@@ -6292,8 +6447,8 @@ function renderCalendar(container, type){
       const dot = document.createElement("div");
       dot.className = "note-dot";
       cell.appendChild(dot);
-      const dayNoteText = (view.state.dayNotes?.[dateKey]?.text || "").trim();
-      if(inMonth && dayNoteText) cell.classList.add("hasnote");
+      const noteRows = dayNotesForDateInView(dateKey);
+      if(inMonth && noteRows.length) cell.classList.add("hasnote");
     }
 
     if(inMonth && hasVisibleMarks && !lockedByRules && !view.diffMode){
@@ -6368,9 +6523,18 @@ function renderCalendar(container, type){
         titleParts.push(`${type === "planned" ? "Planned" : "Actual"} AOPs: none`);
       }
       if(type === "actual"){
-        const noteText = (view.state.dayNotes?.[dateKey]?.text || "").trim();
-        if(noteText){
-          titleParts.push(`Note: ${noteText.slice(0, 90)}${noteText.length > 90 ? "..." : ""}`);
+        const noteRows = dayNotesForDateInView(dateKey);
+        if(noteRows.length){
+          if(currentAreaViewId() === MASTER_VIEW_ID){
+            titleParts.push(`Notes by category (${noteRows.length}):`);
+            noteRows.forEach(r => {
+              const preview = r.text.slice(0, 70);
+              titleParts.push(`[${r.areaName}] ${preview}${r.text.length > 70 ? "..." : ""}`);
+            });
+          }else{
+            const noteText = noteRows[0].text;
+            titleParts.push(`Note: ${noteText.slice(0, 90)}${noteText.length > 90 ? "..." : ""}`);
+          }
         }
       }
       if(titleParts.length){
@@ -6488,8 +6652,17 @@ function renderEntries(){
   ui.dayCount.textContent = `${total} ${total===1 ? "item" : "items"}`;
 
   const mk = selectedDateKey.slice(0,7);
-  const dn = ensureDayNote(selectedDateKey);
-  const dayNoteText = (dn.text || "").trim();
+  const noteRows = dayNotesForDateInView(selectedDateKey);
+  const masterNotes = currentAreaViewId() === MASTER_VIEW_ID;
+  const dayNoteText = noteRows.length
+    ? (masterNotes ? noteRows.map(r => `[${r.areaName}] ${r.text}`).join(" | ") : noteRows[0].text)
+    : "";
+  const createdLabel = noteRows.length ? fmtIsoShort(noteRows[0].createdAt || "") : "-";
+  const latestUpdated = noteRows
+    .map(r => r.updatedAt || "")
+    .filter(Boolean)
+    .sort((a,b)=> b.localeCompare(a))[0] || "";
+  const updatedLabel = latestUpdated ? fmtIsoShort(latestUpdated) : "-";
 
   // Day note summary card (always first)
   const dnCard = document.createElement("div");
@@ -6498,8 +6671,8 @@ function renderEntries(){
   dnCard.innerHTML = `
     <div class="item-head">
       <div>
-        <strong>Day Note</strong>
-        <div class="meta">Created: ${escapeHtml(fmtIsoShort(dn.created_at))} | Updated: ${escapeHtml(fmtIsoShort(dn.updated_at))}</div>
+        <strong>Day Note${masterNotes ? " (Master summary)" : ""}</strong>
+        <div class="meta">Created: ${escapeHtml(createdLabel)} | Updated: ${escapeHtml(updatedLabel)}</div>
       </div>
       <span class="badge">${dayNoteText ? "Has note" : "No note"}</span>
     </div>
@@ -7111,8 +7284,8 @@ function exportCsvForMonth(){
   ].join(","));
 
   for(const dateKey of keys){
-    const dn = ensureDayNote(dateKey);
-    const dayNote = (dn.text || "").trim();
+    const scopedRows = dayNotesForDateInView(dateKey);
+    const dayNote = scopedRows.map(r => currentAreaViewId() === MASTER_VIEW_ID ? `[${r.areaName}] ${r.text}` : r.text).join(" | ");
 
     const b = view.state.entries[dateKey];
     const plannedArr = b?.planned || [];
