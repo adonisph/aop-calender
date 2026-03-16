@@ -1786,6 +1786,7 @@
       pointer-events:none;
     }
     .day.hasnote .note-dot{ opacity: .9; }
+    .day.hasnote .num{ padding-left: 12px; }
 
     .undo-toast{
       position: fixed;
@@ -2353,7 +2354,7 @@
       <div class="tb-item tb-extra" data-tb-key="sep"><span class="toolbar-sep" aria-hidden="true"></span></div>
       <div class="tb-item tb-extra" data-tb-key="dashboard"><button id="toggleDashboard" class="btn-ghost focus-tab" type="button" aria-pressed="true">Dashboard</button></div>
       <div class="tb-item tb-extra" data-tb-key="calendars"><button id="toggleCalendars" class="btn-ghost focus-tab" type="button" aria-pressed="true">Calendars</button></div>
-      <div class="tb-item tb-extra" data-tb-key="aop"><button id="toggleAopNotes" class="btn-ghost focus-tab" type="button" aria-pressed="true">AOP Catalog</button></div>
+      <div class="tb-item tb-extra" data-tb-key="aop"><button id="toggleAopNotes" class="btn-ghost focus-tab" type="button" aria-pressed="true">AOP Catalog/Goals</button></div>
       <div class="tb-item tb-extra" data-tb-key="tools"><button id="toggleTools" class="btn-ghost focus-tab" type="button" aria-pressed="true">Display/Data</button></div>
       <div class="tb-item tb-extra" data-tb-key="showall"><button id="showAllSections" class="btn-ghost" type="button">Show All</button></div>
     </div>
@@ -7436,7 +7437,7 @@ function buildCommandPaletteCommands(){
     { id:"open-notes", label:"Open Day Notes", hint:"Planned + Actual", run: () => { openDayNotesPanel(true); renderAll(); loadDayNoteUI(); renderEntries(); } },
     { id:"toggle-dashboard", label: vis.dashboard ? "Hide Dashboard" : "Show Dashboard", hint:"Section", run: () => ui.toggleDashboard?.click() },
     { id:"toggle-calendars", label: vis.calendars ? "Hide Calendars" : "Show Calendars", hint:"Section", run: () => ui.toggleCalendars?.click() },
-    { id:"toggle-aop", label: vis.aopNotes ? "Hide AOP Catalog" : "Show AOP Catalog", hint:"Section", run: () => ui.toggleAopNotes?.click() },
+    { id:"toggle-aop", label: vis.aopNotes ? "Hide AOP Catalog/Goals" : "Show AOP Catalog/Goals", hint:"Section", run: () => ui.toggleAopNotes?.click() },
     { id:"toggle-tools", label: vis.tools ? "Hide Display/Data" : "Show Display/Data", hint:"Section", run: () => ui.toggleTools?.click() },
     { id:"show-all-sections", label:"Show All Sections", hint:"Reset layout", run: () => ui.showAllSections?.click() },
     { id:"calendar-focus-both", label: cal.focus === "both" ? "Calendar Focus: Both (active)" : "Calendar Focus: Both", hint:"Planned + actual", run: () => { setCalendarUI({ ...cal, focus:"both" }, true); renderAll(); } },
