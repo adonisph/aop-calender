@@ -1894,14 +1894,18 @@
       gap: 8px;
     }
     .actual-link-row{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-      padding: 8px;
+      display:grid;
+      gap:8px;
+      padding: 10px;
       border: 1px solid var(--line);
       border-radius: 10px;
       background: #101010;
+    }
+    .actual-link-head{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:10px;
     }
     .actual-link-row .left{
       display:flex;
@@ -1914,7 +1918,8 @@
       overflow:hidden;
       text-overflow:ellipsis;
       white-space:nowrap;
-      max-width:240px;
+      max-width:260px;
+      font-weight:700;
     }
     .actual-link-row .actions{
       display:flex;
@@ -1922,6 +1927,48 @@
       gap:8px;
       flex-wrap:wrap;
     }
+    .actual-context{
+      display:grid;
+      gap:6px;
+      padding: 8px;
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 8px;
+      background: rgba(255,255,255,.02);
+    }
+    .actual-context-line{
+      display:grid;
+      grid-template-columns: 78px 1fr;
+      gap:8px;
+      align-items:start;
+    }
+    .actual-context-label{
+      font-size: 10px;
+      color: var(--muted);
+      font-family: var(--mono);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      line-height: 1.35;
+      padding-top: 1px;
+    }
+    .actual-context-value{
+      font-size: 12px;
+      color: var(--text);
+      line-height: 1.35;
+      overflow-wrap:anywhere;
+    }
+    .actual-context-value.empty{
+      color: var(--muted);
+      font-style: italic;
+    }
+    .actual-context-more{
+      color: var(--muted);
+      font-size: 11px;
+      font-family: var(--mono);
+    }
+    @media (max-width: 640px){
+      .actual-context-line{ grid-template-columns: 1fr; gap:4px; }
+    }
+
     #allDayNotesList.compact-list .item{
       margin-top: 0;
       padding: 8px 10px;
@@ -2483,7 +2530,7 @@
         </div>
 
         <div class="pillbar">
-          <span class="kbdHint">Enter = add mark | Delete = remove mark | N = open notes (Actual only)</span>
+          <span class="kbdHint">Enter = add mark | Delete = remove mark | N = open notes (Planned + Actual)</span>
           <button id="openDayNotesBtn" class="btn-ghost" type="button">Open Notes Drawer</button>
         </div>
       </div>
@@ -2652,7 +2699,7 @@
     <div class="card-header">
       <div class="title">
         <strong>Day Notes</strong>
-        <span>Autosaves while typing. Editable only on Actual days in the current month and category view (Master is read-only).</span>
+        <span>Autosaves while typing. Editable on Planned and Actual days in the current month and category view (Master is read-only).</span>
       </div>
       <div class="drawer-tools">
         <button id="prevDayNoteBtn" class="btn-ghost" type="button" title="Previous day">Prev day</button>
@@ -2675,7 +2722,7 @@
         <div class="item-head" style="margin:0;">
           <div>
             <strong>Actual AOP (selected day)</strong>
-            <div class="small">Link Actual marks and notes in one place.</div>
+            <div class="small">Shows Goal context for each Actual AOP from this month.</div>
           </div>
           <span id="dayActualCount" class="status-pill">0 actual</span>
         </div>
@@ -3954,6 +4001,7 @@ function renderDayActualLinks(){
     return;
   }
 
+  const monthKey = dateKey.slice(0,7);
   const bucket = view.state.entries[dateKey] || { actual: [] };
   const actual = filterEntriesByArea(bucket.actual);
   ui.dayActualCount.textContent = `${actual.length} actual`;
@@ -3968,15 +4016,46 @@ function renderDayActualLinks(){
     const aop = view.state.aops[e.aopId] || null;
     const name = aop ? aop.name : "(Missing AOP)";
     const color = aop ? aop.color : "#6b7280";
+
+    const monthData = view.state.aopMonthly?.[e.aopId]?.[monthKey] || {};
+    const goalRaw = String(monthData.goal || "").trim();
+    const notationRaw = String(monthData.notation || "").trim();
+    const parsed = parseAopNotationModel(notationRaw);
+    const goalText = goalRaw || parsed.goals[0] || "";
+    const achievements = parsed.achievements.filter(Boolean);
+    const achievedLead = achievements.slice(0, 2).join(" | ");
+    const achievedMore = Math.max(0, achievements.length - 2);
+
+    const goalValue = goalText
+      ? `<span class="actual-context-value">${escapeHtml(goalText)}</span>`
+      : `<span class="actual-context-value empty">No goal set for this month.</span>`;
+
+    const achievedValue = achievements.length
+      ? `<span class="actual-context-value">${escapeHtml(achievedLead)}${achievedMore ? ` <span class="actual-context-more">+${achievedMore} more</span>` : ""}</span>`
+      : `<span class="actual-context-value empty">No goal notes yet.</span>`;
+
     return `
       <div class="actual-link-row">
-        <div class="left">
-          <span class="sw" style="background:${escapeHtml(color)}"></span>
-          <span class="name" title="${escapeHtml(name)}">${escapeHtml(name)}</span>
+        <div class="actual-link-head">
+          <div class="left">
+            <span class="sw" style="background:${escapeHtml(color)}"></span>
+            <span class="name" title="${escapeHtml(name)}">${escapeHtml(name)}</span>
+          </div>
+          <div class="actions">
+            <button type="button" class="btn-ghost" data-use-actual-aop="${escapeHtml(e.aopId || "")}" ${canEdit ? "" : "disabled"}>Use</button>
+            <button type="button" class="btn-danger" data-remove-actual-id="${escapeHtml(e.id)}" ${canEdit ? "" : "disabled"}>Remove</button>
+          </div>
         </div>
-        <div class="actions">
-          <button type="button" class="btn-ghost" data-use-actual-aop="${escapeHtml(e.aopId || "")}" ${canEdit ? "" : "disabled"}>Use</button>
-          <button type="button" class="btn-danger" data-remove-actual-id="${escapeHtml(e.id)}" ${canEdit ? "" : "disabled"}>Remove</button>
+
+        <div class="actual-context">
+          <div class="actual-context-line">
+            <span class="actual-context-label">Goal</span>
+            ${goalValue}
+          </div>
+          <div class="actual-context-line">
+            <span class="actual-context-label">Goal</span>
+            ${achievedValue}
+          </div>
         </div>
       </div>
     `;
@@ -4144,10 +4223,6 @@ function renderAopPane(){
 
 function openDayNotesPanel(focusEditor){
   ensureNoteSelection();
-  if((view.selectedCalendar || "planned") !== "actual"){
-    setDayNoteSaveState("Switch to Actual to open day notes");
-    return;
-  }
   setDayNotesDrawer(true, focusEditor);
 }
 
@@ -6208,7 +6283,7 @@ function dayNoteKeyLabel(){
 }
 function dayNoteEditStatus(){
   const dateKey = view.selectedDate;
-  if(!dateKey) return { canEdit:false, reason:"Select an Actual day in this month" };
+  if(!dateKey) return { canEdit:false, reason:"Select a day in this month" };
 
   const inMonth = dateKey.startsWith(`${currentMonthKey()}-`);
   if(!inMonth) return { canEdit:false, reason:"Only current month days are editable" };
@@ -6217,9 +6292,7 @@ function dayNoteEditStatus(){
     return { canEdit:false, reason:"Switch to a category view to edit day notes" };
   }
 
-  if((view.selectedCalendar || "planned") !== "actual"){
-    return { canEdit:false, reason:"Switch to Actual to edit day notes" };
-  }
+
   return { canEdit:true, reason:"Ready" };
 }
 function loadDayNoteUI(){
@@ -6442,14 +6515,12 @@ function renderCalendar(container, type){
     if(lockedByRules || !inMonth) cell.classList.add("greyed");
     cell.tabIndex = disabled ? -1 : 0;
 
-    // Show note indicator only on Actual calendar.
-    if(type === "actual"){
-      const dot = document.createElement("div");
-      dot.className = "note-dot";
-      cell.appendChild(dot);
-      const noteRows = dayNotesForDateInView(dateKey);
-      if(inMonth && noteRows.length) cell.classList.add("hasnote");
-    }
+    // Show note indicator on both calendars.
+    const dot = document.createElement("div");
+    dot.className = "note-dot";
+    cell.appendChild(dot);
+    const noteRows = dayNotesForDateInView(dateKey);
+    if(inMonth && noteRows.length) cell.classList.add("hasnote");
 
     if(inMonth && hasVisibleMarks && !lockedByRules && !view.diffMode){
       const dominant = visibleColors[0];
@@ -6522,19 +6593,17 @@ function renderCalendar(container, type){
       }else{
         titleParts.push(`${type === "planned" ? "Planned" : "Actual"} AOPs: none`);
       }
-      if(type === "actual"){
-        const noteRows = dayNotesForDateInView(dateKey);
-        if(noteRows.length){
-          if(currentAreaViewId() === MASTER_VIEW_ID){
-            titleParts.push(`Notes by category (${noteRows.length}):`);
-            noteRows.forEach(r => {
-              const preview = r.text.slice(0, 70);
-              titleParts.push(`[${r.areaName}] ${preview}${r.text.length > 70 ? "..." : ""}`);
-            });
-          }else{
-            const noteText = noteRows[0].text;
-            titleParts.push(`Note: ${noteText.slice(0, 90)}${noteText.length > 90 ? "..." : ""}`);
-          }
+      const noteRows = dayNotesForDateInView(dateKey);
+      if(noteRows.length){
+        if(currentAreaViewId() === MASTER_VIEW_ID){
+          titleParts.push(`Notes by category (${noteRows.length}):`);
+          noteRows.forEach(r => {
+            const preview = r.text.slice(0, 70);
+            titleParts.push(`[${r.areaName}] ${preview}${r.text.length > 70 ? "..." : ""}`);
+          });
+        }else{
+          const noteText = noteRows[0].text;
+          titleParts.push(`Note: ${noteText.slice(0, 90)}${noteText.length > 90 ? "..." : ""}`);
         }
       }
       if(titleParts.length){
@@ -6546,8 +6615,7 @@ function renderCalendar(container, type){
       if(disabled) return;
       view.selectedDate = dateKey;
       view.selectedCalendar = type;
-      if(type === "actual") openDayNotesPanel(false);
-      else setDayNotesDrawer(false, false);
+      if(dayNotesDrawerOpen) openDayNotesPanel(false);
 
       syncSelectedInfo();
       renderAll();
@@ -7345,7 +7413,7 @@ function buildCommandPaletteCommands(){
   const syncOpen = view.state?.settings?.teamSyncOpen === true;
   return [
     { id:"today", label:"Go to Today", hint:"Month + year", run: () => ui.today?.click() },
-    { id:"open-notes", label:"Open Day Notes", hint:"Actual only", run: () => { openDayNotesPanel(true); renderAll(); loadDayNoteUI(); renderEntries(); } },
+    { id:"open-notes", label:"Open Day Notes", hint:"Planned + Actual", run: () => { openDayNotesPanel(true); renderAll(); loadDayNoteUI(); renderEntries(); } },
     { id:"toggle-dashboard", label: vis.dashboard ? "Hide Dashboard" : "Show Dashboard", hint:"Section", run: () => ui.toggleDashboard?.click() },
     { id:"toggle-calendars", label: vis.calendars ? "Hide Calendars" : "Show Calendars", hint:"Section", run: () => ui.toggleCalendars?.click() },
     { id:"toggle-aop", label: vis.aopNotes ? "Hide AOP Catalog" : "Show AOP Catalog", hint:"Section", run: () => ui.toggleAopNotes?.click() },
