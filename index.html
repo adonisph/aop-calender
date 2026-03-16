@@ -2699,7 +2699,7 @@
     <div class="card-header">
       <div class="title">
         <strong>Day Notes</strong>
-        <span>Autosaves while typing. Editable on Planned and Actual days in the current month and category view (Master is read-only).</span>
+        <span>Autosaves while typing. Editable on Planned and Actual days in the current month. In Master view, notes save to the active AOP area.</span>
       </div>
       <div class="drawer-tools">
         <button id="prevDayNoteBtn" class="btn-ghost" type="button" title="Previous day">Prev day</button>
@@ -6275,10 +6275,22 @@ function toggleActiveAop(id){
 }
 
 /* --- Day Note UI (category scoped) --- */
+function dayNoteEditorAreaId(){
+  const scope = currentAreaViewId();
+  if(scope !== MASTER_VIEW_ID) return normalizeAreaId(scope);
+  const activeId = view.state?.activeAopId || "";
+  if(activeId && view.state?.aops?.[activeId]){
+    return aopAreaId(view.state.aops[activeId]);
+  }
+  return DEFAULT_AREA_VIEW;
+}
+function dayNoteEditorAreaLabel(){
+  return areaLabel(dayNoteEditorAreaId());
+}
 function dayNoteKeyLabel(){
   const dateKey = view.selectedDate || "-";
   const scope = currentAreaViewId();
-  if(scope === MASTER_VIEW_ID) return `${dateKey} | Master`;
+  if(scope === MASTER_VIEW_ID) return `${dateKey} | Master -> ${dayNoteEditorAreaLabel()}`;
   return `${dateKey} | ${areaLabel(scope)}`;
 }
 function dayNoteEditStatus(){
@@ -6289,9 +6301,8 @@ function dayNoteEditStatus(){
   if(!inMonth) return { canEdit:false, reason:"Only current month days are editable" };
 
   if(currentAreaViewId() === MASTER_VIEW_ID){
-    return { canEdit:false, reason:"Switch to a category view to edit day notes" };
+    return { canEdit:true, reason:`Ready (Master target: ${dayNoteEditorAreaLabel()})` };
   }
-
 
   return { canEdit:true, reason:"Ready" };
 }
@@ -6317,22 +6328,15 @@ function loadDayNoteUI(){
     return;
   }
 
-  if(currentAreaViewId() === MASTER_VIEW_ID){
-    const rows = dayNotesForDateInView(dateKey, MASTER_VIEW_ID);
-    ui.dayNoteText.value = rows.map(r => `[${r.areaName}] ${r.text}`).join("\n\n");
-    const latestUpdated = rows
-      .map(r => r.updatedAt || "")
-      .filter(Boolean)
-      .sort((a,b)=> b.localeCompare(a))[0] || "";
-    ui.dayNoteAudit.textContent = rows.length
-      ? `Master summary: ${rows.length} category note(s) | latest update: ${fmtIsoShort(latestUpdated)}`
-      : "Master summary: no category notes for this day";
-  }else{
-    const dn = getDayNote(dateKey, currentAreaViewId());
-    ui.dayNoteText.value = dn.text || "";
-    ui.dayNoteAudit.textContent =
-      `Day note created: ${fmtIsoShort(dn.created_at)} | updated: ${fmtIsoShort(dn.updated_at)}`;
-  }
+  const editorAreaId = dayNoteEditorAreaId();
+  const editorAreaName = areaLabel(editorAreaId);
+  const dn = getDayNote(dateKey, editorAreaId);
+  ui.dayNoteText.value = dn.text || "";
+  const scopeText = currentAreaViewId() === MASTER_VIEW_ID
+    ? ` | Scope: Master -> ${editorAreaName}`
+    : ` | Scope: ${editorAreaName}`;
+  ui.dayNoteAudit.textContent =
+    `Day note created: ${fmtIsoShort(dn.created_at)} | updated: ${fmtIsoShort(dn.updated_at)}${scopeText}`;
 
   setDayNoteSaveState(status.reason);
   setActualLinkState(status.reason);
@@ -6454,7 +6458,8 @@ function saveDayNote(options){
   }
   clearDayNoteAutosaveTimer();
 
-  const dn = ensureDayNote(dateKey, currentAreaViewId());
+  const editorAreaId = dayNoteEditorAreaId();
+  const dn = ensureDayNote(dateKey, editorAreaId);
   const t = nowIso();
   const newText = (ui.dayNoteText.value || "").trim();
   const prevText = (dn.text || "").trim();
@@ -6469,8 +6474,11 @@ function saveDayNote(options){
   saveState();
 
   setDayNoteSaveState(`Saved ${timeShort()}`);
+  const scopeText = currentAreaViewId() === MASTER_VIEW_ID
+    ? ` | Scope: Master -> ${areaLabel(editorAreaId)}`
+    : ` | Scope: ${areaLabel(editorAreaId)}`;
   ui.dayNoteAudit.textContent =
-    `Day note created: ${fmtIsoShort(dn.created_at)} | updated: ${fmtIsoShort(dn.updated_at)}`;
+    `Day note created: ${fmtIsoShort(dn.created_at)} | updated: ${fmtIsoShort(dn.updated_at)}${scopeText}`;
   renderCalendar(ui.daysPlanned, "planned");
   renderCalendar(ui.daysActual, "actual");
   renderAllDayNotes();
@@ -6481,7 +6489,7 @@ function saveDayNote(options){
   }
 }
 
-/* --- Calendar rendering --- */
+/* --- Calendar rendering --- *//* --- Calendar rendering --- */
 function renderCalendar(container, type){
   container.innerHTML = "";
   const start = firstGridDate(view.year, view.month);
