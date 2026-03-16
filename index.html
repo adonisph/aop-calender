@@ -2530,7 +2530,7 @@
         </div>
 
         <div class="pillbar">
-          <span class="kbdHint">Enter = add mark | Delete = remove mark | N = open notes (Planned + Actual)</span>
+          <span class="kbdHint">Enter = add mark | Delete = remove mark | N = open notes (Planned + Actual) | Double-click day = open notes</span>
           <button id="openDayNotesBtn" class="btn-ghost" type="button">Open Notes Drawer</button>
         </div>
       </div>
@@ -2579,7 +2579,7 @@
         </div>
         <div class="panel-tabs" role="tablist" aria-label="AOP section tabs">
           <button id="paneCatalogBtn" class="btn-ghost" type="button" role="tab" aria-controls="paneCatalog" aria-selected="false">Catalog</button>
-          <button id="paneNotationBtn" class="btn-ghost on" type="button" role="tab" aria-controls="paneNotation" aria-selected="true">Achieved</button>
+          <button id="paneNotationBtn" class="btn-ghost on" type="button" role="tab" aria-controls="paneNotation" aria-selected="true">Goals</button>
         </div>
       </div>
 
@@ -2641,7 +2641,7 @@
       <div class="aop-box panel-pane active" id="paneNotation" role="tabpanel" aria-labelledby="paneNotationBtn">
         <div class="head">
           <div>
-            <strong>Achieved During Sprint</strong>
+            <strong>Goals</strong>
             <div class="small">Select the AOP below and track outcomes for this month.</div>
           </div>
         </div>
@@ -2650,8 +2650,8 @@
           <select id="aopNotationSelect"></select>
         </div>
         <div class="aop-notation">
-          <label for="aopNotation">Achieved during Sprint</label>
-          <textarea id="aopNotation" placeholder="Track sprint outcomes in this order: Goal, Achieved during Sprint."></textarea>
+          <label for="aopNotation">Goals</label>
+          <textarea id="aopNotation" placeholder="Track goals and outcomes for this month."></textarea>
           <div class="aop-notation-tools">
             <button id="aopNotationTemplateBtn" class="btn-ghost" type="button">Use Sprint Outcome Model</button>
           </div>
@@ -2867,6 +2867,7 @@ const MASTER_VIEW_ID = "master";
 const DEFAULT_AREA_VIEW = "pool";
 const DEFAULT_THEME = "ember";
 const DAY_NOTE_AUTOSAVE_MS = 700;
+const DAY_CELL_DOUBLE_CLICK_MS = 340;
 const BASE_UI_COLORS = {
   surface:"#101010",
   surfaceSoft:"#171717",
@@ -2951,6 +2952,7 @@ const dashboardUi = {
   collapsedAreas: {}
 };
 let dashboardRowCache = new Map();
+let lastDayCellClick = { dateKey:"", type:"", at:0 };
 const RAIN_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@$%&*+-<>[]{}|;:.,~";
 const RAIN_GLYPHS = "?????????????????????????????????????????????";
 
@@ -6621,14 +6623,24 @@ function renderCalendar(container, type){
 
     cell.addEventListener("click", () => {
       if(disabled) return;
+
+      const nowMs = Date.now();
+      const sameCell = (lastDayCellClick.dateKey === dateKey && lastDayCellClick.type === type);
+      const isDoubleClick = sameCell && (nowMs - lastDayCellClick.at <= DAY_CELL_DOUBLE_CLICK_MS);
+      lastDayCellClick = { dateKey, type, at: nowMs };
+
       view.selectedDate = dateKey;
       view.selectedCalendar = type;
-      if(dayNotesDrawerOpen) openDayNotesPanel(false);
+      if(dayNotesDrawerOpen || isDoubleClick) openDayNotesPanel(isDoubleClick);
 
       syncSelectedInfo();
       renderAll();
       renderEntries();
       loadDayNoteUI();
+
+      if(isDoubleClick){
+        lastDayCellClick = { dateKey:"", type:"", at:0 };
+      }
     });
 
     cell.addEventListener("keydown", (event) => {
