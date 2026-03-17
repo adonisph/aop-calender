@@ -1084,41 +1084,8 @@
     .section-aop .card-header{ flex: 0 0 auto; }
     .pane-scroll{
       max-height: clamp(420px, 72vh, 980px);
-      overflow-y:auto;
-      overflow-x:hidden;
+      overflow:auto;
       min-height:0;
-      padding-right: 4px;
-      overscroll-behavior: contain;
-    }
-    .pane-scroll,
-    #allDayNotesList.compact-list,
-    #dayNotesCard .section-pad{
-      scrollbar-width: thin;
-      scrollbar-color: rgba(180,180,180,.75) rgba(255,255,255,.08);
-    }
-    .pane-scroll::-webkit-scrollbar,
-    #allDayNotesList.compact-list::-webkit-scrollbar,
-    #dayNotesCard .section-pad::-webkit-scrollbar{
-      width: 10px;
-      height: 10px;
-    }
-    .pane-scroll::-webkit-scrollbar-track,
-    #allDayNotesList.compact-list::-webkit-scrollbar-track,
-    #dayNotesCard .section-pad::-webkit-scrollbar-track{
-      background: rgba(255,255,255,.06);
-      border-radius: 999px;
-    }
-    .pane-scroll::-webkit-scrollbar-thumb,
-    #allDayNotesList.compact-list::-webkit-scrollbar-thumb,
-    #dayNotesCard .section-pad::-webkit-scrollbar-thumb{
-      background: rgba(180,180,180,.78);
-      border-radius: 999px;
-      border: 2px solid rgba(0,0,0,.16);
-    }
-    .pane-scroll::-webkit-scrollbar-thumb:hover,
-    #allDayNotesList.compact-list::-webkit-scrollbar-thumb:hover,
-    #dayNotesCard .section-pad::-webkit-scrollbar-thumb:hover{
-      background: rgba(200,200,200,.90);
     }
     .helper{
       margin-top: 8px;
@@ -2024,10 +1991,7 @@
       display:grid;
       gap:8px;
       max-height: clamp(220px, 36vh, 420px);
-      overflow-y:auto;
-      overflow-x:hidden;
-      padding-right: 4px;
-      overscroll-behavior: contain;
+      overflow:auto;
     }
     #allDayNotesList.compact-list.expanded{
       max-height: clamp(360px, 58vh, 760px);
@@ -2042,7 +2006,6 @@
       margin-top: 6px;
     }
 
-    #allDayNotesList.compact-list .kv div:nth-child(even){ overflow-wrap:anywhere; word-break:break-word; }
 
     /* AOP panel */
     .aop-box{
@@ -4012,7 +3975,8 @@ function renderDayNoteFilters(){
   if(ui.allDayNotesList){
     ui.allDayNotesList.classList.toggle("expanded", f.expanded);
   }
-}`r`nfunction setDayNotesDrawer(open, focusEditor){
+}
+function setDayNotesDrawer(open, focusEditor){
   const shouldOpen = !!open;
   dayNotesDrawerOpen = shouldOpen;
   if(ui.dayNotesCard){
