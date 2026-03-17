@@ -1089,7 +1089,6 @@
       padding-right: 4px;
       overscroll-behavior: contain;
     }
-    #paneAllDayNotes .pane-scroll{ overflow: hidden; }
     .helper{
       margin-top: 8px;
       padding: 10px;
@@ -1989,7 +1988,7 @@
       .actual-context-line{ grid-template-columns: 1fr; gap:4px; }
     }
 
-        #allDayNotesList.compact-list{
+    #allDayNotesList.compact-list{
       margin-top: 10px;
       display:grid;
       gap:8px;
@@ -2698,7 +2697,7 @@
             </div>
           </div>
 
-          <div class="section-pad goals-highlight" id="paneTemplate">
+          <div class="section-pad goals-highlight" id="paneTemplate" hidden>
             <div class="goals-banner">
               <div>
                 <strong class="template-accent-title">Goals/Comments</strong>
@@ -3979,6 +3978,30 @@ function renderDayNoteFilters(){
   if(ui.allDayNotesList){
     ui.allDayNotesList.classList.toggle("expanded", f.expanded);
   }
+}
+function bindAllDayNotesWheelProxy(){
+  const pane = ui.paneAllDayNotes;
+  const list = ui.allDayNotesList;
+  if(!pane || !list) return;
+
+  pane.addEventListener("wheel", (event) => {
+    if(view.state?.settings?.aopPane !== "allnotes") return;
+    if(!(event.target instanceof Node)) return;
+    if(list.scrollHeight <= list.clientHeight + 1) return;
+
+    const overList = list.contains(event.target);
+    const atTop = list.scrollTop <= 0;
+    const atBottom = (list.scrollTop + list.clientHeight) >= (list.scrollHeight - 1);
+
+    if(overList){
+      // Let native list scrolling handle normal in-list wheel movement.
+      if((event.deltaY < 0 && !atTop) || (event.deltaY > 0 && !atBottom)) return;
+    }
+
+    // If wheel is outside list (or list edge reached), continue scrolling list.
+    list.scrollTop += event.deltaY;
+    event.preventDefault();
+  }, { passive:false });
 }
 function setDayNotesDrawer(open, focusEditor){
   const shouldOpen = !!open;
@@ -8199,6 +8222,7 @@ function hookUI(){
   });
   ui.filterThisMonthBtn.addEventListener("click", () => toggleDayNoteFilter("thisMonth"));
   if(ui.allDayNotesExpandBtn) ui.allDayNotesExpandBtn.addEventListener("click", () => toggleDayNoteFilter("expanded"));
+  bindAllDayNotesWheelProxy();
 
   ui.exportBtn.addEventListener("click", exportJson);
   ui.importBtn.addEventListener("click", () => ui.importFile.click());
