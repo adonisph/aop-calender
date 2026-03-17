@@ -1062,15 +1062,34 @@
 
     .small{ font-size: 12px; color: var(--muted); }
     .kbdHint{ font-size: 12px; color: var(--muted); }
-    .panel-tabs{
+        .panel-tabs{
       display:flex;
       gap:8px;
       flex-wrap:wrap;
       align-items:center;
       justify-content:flex-end;
     }
+    .panel-tabs .btn-toggle{
+      border-radius: 999px;
+      padding: 7px 12px;
+      font-weight: 700;
+    }
     .panel-pane{ display:none; }
     .panel-pane.active{ display:block; }
+    .section-aop{
+      display:flex;
+      flex-direction:column;
+      min-height:0;
+    }
+    .section-aop .card-header{ flex: 0 0 auto; }
+    .pane-scroll{
+      max-height: clamp(420px, 72vh, 980px);
+      overflow:auto;
+      min-height:0;
+      padding-right: 4px;
+      overscroll-behavior: contain;
+    }
+    #paneAllDayNotes .pane-scroll{ overflow: hidden; }
     .helper{
       margin-top: 8px;
       padding: 10px;
@@ -1142,7 +1161,7 @@
       margin-top: 16px;
     }
     .grid.aop-achieved-wide:not(.single){
-      grid-template-columns: .88fr 1.12fr;
+      grid-template-columns: 1.05fr .95fr;
     }
     .grid.single{ grid-template-columns: 1fr; }
     @media (max-width: 980px){ .grid{ grid-template-columns: 1fr; } }
@@ -1617,12 +1636,12 @@
     .cal-wrap.compact .day .marks{ left: 5px; right: 5px; bottom: 4px; gap: 3px; }
     .cal-wrap.compact .mark{ height: 5px; }
     .cal-wrap.compact .mark.more{ font-size: 9px; }
-    /* When Catalog pane is open beside calendars, stack Planned/Actual for legibility */
+        /* Keep calendar format stable while switching right-panel tabs */
     .grid:not(.single):not(.aop-achieved-wide) .cal-wrap{
-      grid-template-columns: 1fr;
+      grid-template-columns: 1fr 1fr;
     }
     .grid:not(.single):not(.aop-achieved-wide) .cal-wrap.compact .day{
-      min-height: 72px;
+      min-height: 64px;
     }
     @media (max-width: 980px){ .cal-wrap{ grid-template-columns: 1fr; } }
 
@@ -1970,6 +1989,18 @@
       .actual-context-line{ grid-template-columns: 1fr; gap:4px; }
     }
 
+        #allDayNotesList.compact-list{
+      margin-top: 10px;
+      display:grid;
+      gap:8px;
+      max-height: clamp(220px, 36vh, 420px);
+      overflow:auto;
+      padding-right: 4px;
+      overscroll-behavior: contain;
+    }
+    #allDayNotesList.compact-list.expanded{
+      max-height: clamp(360px, 58vh, 760px);
+    }
     #allDayNotesList.compact-list .item{
       margin-top: 0;
       padding: 8px 10px;
@@ -2571,127 +2602,159 @@
 
     </section>
 
-    <!-- RIGHT: AOP Catalog -->
+        <!-- RIGHT: AOP Catalog + Goals + All Notes -->
     <aside class="card section-aop" id="aopNotesCard">
       <div class="card-header">
         <div class="title">
-          <strong>AOP Catalog</strong>
-          <span>Create and manage AOP playbooks for daily calendar marking.</span>
+          <strong>AOP Catalog/Goals</strong>
+          <span>Create and manage AOP playbooks, monthly goals, and day-note history.</span>
         </div>
         <div class="panel-tabs" role="tablist" aria-label="AOP section tabs">
-          <button id="paneCatalogBtn" class="btn-ghost" type="button" role="tab" aria-controls="paneCatalog" aria-selected="false">Catalog</button>
-          <button id="paneNotationBtn" class="btn-ghost on" type="button" role="tab" aria-controls="paneNotation" aria-selected="true">Goals</button>
+          <button id="paneCatalogBtn" class="btn-ghost btn-toggle" type="button" role="tab" data-pane="catalog" aria-controls="paneCatalog" aria-selected="false">Catalog</button>
+          <button id="paneNotationBtn" class="btn-ghost btn-toggle on" type="button" role="tab" data-pane="notation" aria-controls="paneNotation" aria-selected="true">Goals</button>
+          <button id="paneAllDayNotesBtn" class="btn-ghost btn-toggle" type="button" role="tab" data-pane="allnotes" aria-controls="paneAllDayNotes" aria-selected="false">All Day Notes</button>
         </div>
       </div>
 
-      <div class="aop-box panel-pane" id="paneCatalog" role="tabpanel" aria-labelledby="paneCatalogBtn" hidden>
-        <div class="head">
-          <div>
-            <strong>AOP Catalog</strong>
-            <div class="small">Catalog stores reusable playbooks. Calendar marks are always for one selected day at a time.</div>
-            <div class="helper">Quick flow: 1) Add or select an AOP. 2) Pick one day in Planned or Actual. 3) Press Enter to mark that day.</div>
+      <div class="panel-pane" id="paneCatalog" role="tabpanel" aria-labelledby="paneCatalogBtn" hidden>
+        <div class="pane-scroll">
+          <div class="aop-box">
+            <div class="head">
+              <div>
+                <strong>AOP Catalog</strong>
+                <div class="small">Catalog stores reusable playbooks. Calendar marks are always for one selected day at a time.</div>
+                <div class="helper">Quick flow: 1) Add or select an AOP. 2) Pick one day in Planned or Actual. 3) Press Enter to mark that day.</div>
+              </div>
+            </div>
+
+            <div class="aop-form">
+              <div>
+                <label>AOP/Custom</label>
+                <input id="aopNewName" placeholder="e.g., Handle Customer Inquiry on Existing Case Status" />
+              </div>
+              <div>
+                <label>Color</label>
+                <input id="aopNewColor" type="color" value="#ff6a00" />
+              </div>
+              <div>
+                <label>View</label>
+                <select id="aopNewArea">
+                  <option value="pool">Pool</option>
+                  <option value="sales">Sales</option>
+                  <option value="delivery">Delivery</option>
+                  <option value="aftersales">Aftersales</option>
+                  <option value="others_some">Others/SoMe</option>
+                  <option value="special_events">Special Events</option>
+                </select>
+              </div>
+              <div>
+                <button id="aopAdd" class="btn-primary" type="button" style="width:100%;">Add</button>
+              </div>
+            </div>
+
+            <div class="section-tools">
+              <div class="inline-controls">
+                <span class="status-pill catalog-day-pill" id="catalogDayPill">Target day: Select a day</span>
+                <span class="status-pill" id="aopCountPill">0 AOPs</span>
+                <span class="status-pill" id="activeAopPill">Active: None</span>
+              </div>
+              <input id="aopSearch" placeholder="Filter AOP catalog..." />
+            </div>
+
+            <div class="small aop-active-line">
+              Active AOP: <span id="activeAopLabel" class="chip active" style="cursor:default;">None</span>
+            </div>
+
+            <div style="margin-top:10px;">
+              <label>AOP/Custom</label>
+              <select id="aopSelect"></select>
+            </div>
+
+            <div class="aop-list" id="aopList"></div>
           </div>
-        </div>
-
-        <div class="aop-form">
-          <div>
-            <label>AOP/Custom</label>
-            <input id="aopNewName" placeholder="e.g., Handle Customer Inquiry on Existing Case Status" />
-          </div>
-          <div>
-            <label>Color</label>
-            <input id="aopNewColor" type="color" value="#ff6a00" />
-          </div>
-          <div>
-            <label>View</label>
-            <select id="aopNewArea">
-              <option value="pool">Pool</option>
-              <option value="sales">Sales</option>
-              <option value="delivery">Delivery</option>
-              <option value="aftersales">Aftersales</option>
-              <option value="others_some">Others/SoMe</option>
-              <option value="special_events">Special Events</option>
-            </select>
-          </div>
-          <div>
-            <button id="aopAdd" class="btn-primary" type="button" style="width:100%;">Add</button>
-          </div>
-        </div>
-
-        <div class="section-tools">
-          <div class="inline-controls">
-            <span class="status-pill catalog-day-pill" id="catalogDayPill">Target day: Select a day</span>
-            <span class="status-pill" id="aopCountPill">0 AOPs</span>
-            <span class="status-pill" id="activeAopPill">Active: None</span>
-          </div>
-          <input id="aopSearch" placeholder="Filter AOP catalog..." />
-        </div>
-
-          <div class="small aop-active-line">
-          Active AOP: <span id="activeAopLabel" class="chip active" style="cursor:default;">None</span>
-        </div>
-
-        <div style="margin-top:10px;">
-          <label>AOP/Custom</label>
-          <select id="aopSelect"></select>
-        </div>
-
-        <div class="aop-list" id="aopList"></div>
-      </div>
-
-      <div class="aop-box panel-pane active" id="paneNotation" role="tabpanel" aria-labelledby="paneNotationBtn">
-        <div class="head">
-          <div>
-            <strong>Goals</strong>
-            <div class="small">Select the AOP below and track outcomes for this month.</div>
-          </div>
-        </div>
-        <div style="margin-top:10px;">
-          <label for="aopNotationSelect">AOP/Custom</label>
-          <select id="aopNotationSelect"></select>
-        </div>
-        <div class="aop-notation">
-          <label for="aopNotation">Goals</label>
-          <textarea id="aopNotation" placeholder="Track goals and outcomes for this month."></textarea>
-          <div class="aop-notation-tools">
-            <button id="aopNotationTemplateBtn" class="btn-ghost" type="button">Use Sprint Outcome Model</button>
-          </div>
-          <div class="hint" id="aopNotationState">Select an AOP to edit notation.</div>
-        </div>
-
-      <div class="section-pad panel-pane goals-highlight" id="paneTemplate" hidden>
-        <div class="goals-banner">
-          <div>
-            <strong class="template-accent-title">Goals/Comments</strong>
-            <div class="small" style="margin-top:4px;">Set goal and comments for the selected AOP in this month.</div>
-          </div>
-          <span id="templateAopHint" class="status-pill template-aop-pill">AOP: None selected</span>
-        </div>
-        <div style="margin-top:10px;">
-          <label>AOP/Custom</label>
-          <select id="aopSelectGoals"></select>
-        </div>
-        <div class="small" id="monthKeyInfo">Goals/Comments key: -</div>
-
-        <div style="margin-top:10px;">
-          <label>Goal (static for this AOP + month)</label>
-          <input id="tmplGoal" placeholder="Goal for this AOP in this month..." />
-          <div class="small" id="goalAudit" style="margin-top:6px;">-</div>
-        </div>
-
-        <div style="margin-top:10px;">
-          <label>Comments (static for this AOP + month)</label>
-          <textarea id="tmplComments" placeholder="Comments for this AOP in this month..."></textarea>
-          <div class="small" id="commentsAudit" style="margin-top:6px;">-</div>
-        </div>
-
-        <div class="small" style="margin-top:8px;">Changing the month/year at the top edits a different goals/comments template.</div>
-        <div class="inline-controls" style="margin-top:10px;">
-          <button id="saveTemplateBtn" class="btn-primary" type="button">Save Goals/Comments</button>
-          <span id="templateSaveState" class="status-pill">Saved</span>
         </div>
       </div>
 
+      <div class="panel-pane active" id="paneNotation" role="tabpanel" aria-labelledby="paneNotationBtn">
+        <div class="pane-scroll">
+          <div class="aop-box">
+            <div class="head">
+              <div>
+                <strong>Goals</strong>
+                <div class="small">Select the AOP below and track outcomes for this month.</div>
+              </div>
+            </div>
+            <div style="margin-top:10px;">
+              <label for="aopNotationSelect">AOP/Custom</label>
+              <select id="aopNotationSelect"></select>
+            </div>
+            <div class="aop-notation">
+              <label for="aopNotation">Goals</label>
+              <textarea id="aopNotation" placeholder="Track goals and outcomes for this month."></textarea>
+              <div class="aop-notation-tools">
+                <button id="aopNotationTemplateBtn" class="btn-ghost" type="button">Use Sprint Outcome Model</button>
+              </div>
+              <div class="hint" id="aopNotationState">Select an AOP to edit notation.</div>
+            </div>
+          </div>
+
+          <div class="section-pad goals-highlight" id="paneTemplate">
+            <div class="goals-banner">
+              <div>
+                <strong class="template-accent-title">Goals/Comments</strong>
+                <div class="small" style="margin-top:4px;">Set goal and comments for the selected AOP in this month.</div>
+              </div>
+              <span id="templateAopHint" class="status-pill template-aop-pill">AOP: None selected</span>
+            </div>
+            <div style="margin-top:10px;">
+              <label>AOP/Custom</label>
+              <select id="aopSelectGoals"></select>
+            </div>
+            <div class="small" id="monthKeyInfo">Goals/Comments key: -</div>
+
+            <div style="margin-top:10px;">
+              <label>Goal (static for this AOP + month)</label>
+              <input id="tmplGoal" placeholder="Goal for this AOP in this month..." />
+              <div class="small" id="goalAudit" style="margin-top:6px;">-</div>
+            </div>
+
+            <div style="margin-top:10px;">
+              <label>Comments (static for this AOP + month)</label>
+              <textarea id="tmplComments" placeholder="Comments for this AOP in this month..."></textarea>
+              <div class="small" id="commentsAudit" style="margin-top:6px;">-</div>
+            </div>
+
+            <div class="small" style="margin-top:8px;">Changing the month/year at the top edits a different goals/comments template.</div>
+            <div class="inline-controls" style="margin-top:10px;">
+              <button id="saveTemplateBtn" class="btn-primary" type="button">Save Goals/Comments</button>
+              <span id="templateSaveState" class="status-pill">Saved</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-pane" id="paneAllDayNotes" role="tabpanel" aria-labelledby="paneAllDayNotesBtn" hidden>
+        <div class="pane-scroll">
+          <div class="aop-box">
+            <div class="head">
+              <div>
+                <strong>All Day Notes</strong>
+                <div class="small">Scoped to the current category view. Master view shows all categories sorted by area.</div>
+              </div>
+            </div>
+            <div class="inline-controls" style="margin-top:10px;">
+              <input id="allDayNotesSearch" placeholder="Search by date or text..." />
+              <button id="clearAllDayNotesSearch" class="btn-ghost" type="button">Clear</button>
+              <button id="allDayNotesExpandBtn" class="btn-ghost btn-toggle" type="button" aria-pressed="false">Expand</button>
+              <span id="allDayNotesCount" class="status-pill">0 notes</span>
+            </div>
+            <div class="filters" style="margin-top:8px;">
+              <button id="filterThisMonthBtn" class="btn-ghost btn-toggle" type="button" aria-pressed="false">This Month</button>
+            </div>
+            <div id="allDayNotesList" class="compact-list"></div>
+          </div>
+        </div>
+      </div>
     </aside>
 
   </div>
@@ -2742,27 +2805,7 @@
 
     </div>
   </section>
-
-  <section class="card" id="allDayNotesCard" style="margin-top:16px;">
-    <div class="card-header">
-      <div class="title">
-        <strong>All Day Notes</strong>
-        <span>Scoped to the current category view. Master view shows all categories sorted by area.</span>
-      </div>
-    </div>
-    <div class="section-pad">
-      <div class="inline-controls">
-        <input id="allDayNotesSearch" placeholder="Search by date or text..." />
-        <button id="clearAllDayNotesSearch" class="btn-ghost" type="button">Clear</button>
-        <span id="allDayNotesCount" class="status-pill">0 notes</span>
-      </div>
-      <div class="filters" style="margin-top:8px;">
-        <button id="filterThisMonthBtn" class="btn-ghost btn-toggle" type="button" aria-pressed="false">This Month</button>
-      </div>
-      <div id="allDayNotesList" class="compact-list" style="margin-top:10px; display:grid; gap:8px; max-height:320px; overflow:auto;"></div>
-    </div>
-  </section>
-  <div id="dayNotesBackdrop" aria-hidden="true"></div>
+<div id="dayNotesBackdrop" aria-hidden="true"></div>
   <div id="undoToast" class="undo-toast" aria-live="polite">
     <span id="undoToastText">Updated.</span>
     <button id="undoToastBtn" class="btn-ghost" type="button">Undo</button>
@@ -2826,13 +2869,13 @@
  * State v7:
  * - settings: {
  *     sectionVisibility:{dashboard:boolean,calendars:boolean,aopNotes:boolean,tools:boolean},
- *     aopPane:"catalog"|"notation",
+ *     aopPane:"catalog"|"notation"|"allnotes",
  *     areaView:"master"|"pool"|"sales"|"delivery"|"aftersales"|"others_some"|"special_events",
  *     colorTheme:string,
  *     uiPrefs:{density:"compact"|"comfortable",textScale:"normal"|"large"|"xlarge",corner:"tight"|"normal"|"round",topbarSide:"right"|"left",customColorsEnabled:boolean,customColors:{power,bg0,bg1,surface,surfaceSoft,line,text,muted,rain},highContrast:boolean,showTips:boolean,layoutPreset:"custom"|"focus"|"review"|"sync"|"dashboard",topbarOrder:string[]},
  *     masterNotationSort:"achievements_desc"|"updated_desc"|"area_asc"|"name_asc",
  *     dashboardSort:"az"|"area"|"attention",
- *     dayNoteFilters:{thisMonth:boolean},
+ *     dayNoteFilters:{thisMonth:boolean,expanded:boolean},
  *     calendarUI:{compact:boolean,markedOnly:boolean,activeOnly:boolean,focus:"both"|"planned"|"actual"}
  *   }
  * - aops: {id:{id,name,color,area}}
@@ -2854,7 +2897,7 @@ const TEAM_SYNC_CONFIG_KEY = "power_aop_team_sync_v1";
 const LOCAL_APPEARANCE_KEY_PREFIX = "power_aop_user_appearance_v1";
 const DOW = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-const AOP_PANES = ["catalog","notation"];
+const AOP_PANES = ["catalog","notation","allnotes"];
 const DEFAULT_TOPBAR_ORDER = ["today","month","year","area","customize","sep","dashboard","calendars","aop","tools","showall"];
 const AREA_VIEWS = [
   { id:"pool", label:"Pool" },
@@ -2998,7 +3041,7 @@ function normalizeCustomizationSettings(rawSettings){
       aopNotes: section.aopNotes !== false,
       tools: section.tools !== false
     },
-    aopPane: ["catalog","notation"].includes(src.aopPane) ? src.aopPane : "notation",
+    aopPane: ["catalog","notation","allnotes"].includes(src.aopPane) ? src.aopPane : "notation",
     areaView: normalizeAreaViewId(src.areaView),
     colorTheme: themeId,
     uiPrefs: {
@@ -3017,9 +3060,7 @@ function normalizeCustomizationSettings(rawSettings){
     teamSyncOpen: src.teamSyncOpen === true,
     masterNotationSort: normalizeMasterNotationSort(src.masterNotationSort),
     dashboardSort: normalizeDashboardSort(src.dashboardSort),
-    dayNoteFilters: {
-      thisMonth: dayNoteFilters.thisMonth === true
-    },
+    dayNoteFilters: { thisMonth: dayNoteFilters.thisMonth === true, expanded: dayNoteFilters.expanded === true },
     calendarUI: {
       compact: calUI.compact === true,
       markedOnly: calUI.markedOnly === true,
@@ -3904,12 +3945,14 @@ function clearDayNoteAutosaveTimer(){
 function normalizedDayNoteFilters(){
   const raw = view.state.settings?.dayNoteFilters || {};
   return {
-    thisMonth: raw.thisMonth === true
+    thisMonth: raw.thisMonth === true,
+    expanded: raw.expanded === true
   };
 }
 function setDayNoteFilters(next, persist){
   view.state.settings.dayNoteFilters = {
-    thisMonth: next.thisMonth === true
+    thisMonth: next.thisMonth === true,
+    expanded: next.expanded === true
   };
   if(persist !== false) saveState();
   renderDayNoteFilters();
@@ -3928,6 +3971,14 @@ function syncDayNoteFilterBtn(btn, on){
 function renderDayNoteFilters(){
   const f = normalizedDayNoteFilters();
   syncDayNoteFilterBtn(ui.filterThisMonthBtn, f.thisMonth);
+  syncDayNoteFilterBtn(ui.allDayNotesExpandBtn, f.expanded);
+  if(ui.allDayNotesExpandBtn){
+    ui.allDayNotesExpandBtn.textContent = f.expanded ? "Collapse" : "Expand";
+    ui.allDayNotesExpandBtn.title = f.expanded ? "Collapse notes list" : "Expand notes list";
+  }
+  if(ui.allDayNotesList){
+    ui.allDayNotesList.classList.toggle("expanded", f.expanded);
+  }
 }
 function setDayNotesDrawer(open, focusEditor){
   const shouldOpen = !!open;
@@ -4170,7 +4221,6 @@ function renderSectionVisibility(){
   ui.aopNotesCard.style.display = effective.aopNotes ? "" : "none";
   if(ui.utilityCard) ui.utilityCard.style.display = effective.tools ? "" : "none";
   ui.dayNotesCard.style.display = "";
-  if(ui.allDayNotesCard) ui.allDayNotesCard.style.display = "";
   ui.mainGrid.classList.toggle("single", effective.calendars !== effective.aopNotes);
   ui.dayNotesCard.classList.toggle("open", dayNotesDrawerOpen);
   if(ui.dayNotesBackdrop){
@@ -4198,29 +4248,32 @@ function setAopPane(pane){
 function renderAopPane(){
   if(!ui.paneCatalog) return;
   const pane = AOP_PANES.includes(view.state.settings?.aopPane) ? view.state.settings.aopPane : "notation";
-  const catalogOn = pane === "catalog";
-  const notationOn = pane === "notation";
+  const panes = [
+    { id:"catalog", panel: ui.paneCatalog, button: ui.paneCatalogBtn },
+    { id:"notation", panel: ui.paneNotation, button: ui.paneNotationBtn },
+    { id:"allnotes", panel: ui.paneAllDayNotes, button: ui.paneAllDayNotesBtn }
+  ];
 
-  ui.paneCatalog.classList.toggle("active", catalogOn);
-  ui.paneCatalog.hidden = !catalogOn;
-  if(ui.paneNotation){
-    ui.paneNotation.classList.toggle("active", notationOn);
-    ui.paneNotation.hidden = !notationOn;
+  for(const entry of panes){
+    const on = pane === entry.id;
+    if(entry.panel){
+      entry.panel.classList.toggle("active", on);
+      entry.panel.hidden = !on;
+    }
+    if(entry.button){
+      entry.button.classList.toggle("on", on);
+      entry.button.setAttribute("aria-pressed", on ? "true" : "false");
+      entry.button.setAttribute("aria-selected", on ? "true" : "false");
+      entry.button.tabIndex = on ? 0 : -1;
+    }
   }
-  if(ui.aopNotesCard) ui.aopNotesCard.classList.toggle("goals-focus", notationOn);
-  if(ui.mainGrid) ui.mainGrid.classList.toggle("aop-achieved-wide", notationOn);
 
-  if(ui.paneCatalogBtn){
-    ui.paneCatalogBtn.classList.toggle("on", catalogOn);
-    ui.paneCatalogBtn.setAttribute("aria-pressed", catalogOn ? "true" : "false");
-    ui.paneCatalogBtn.setAttribute("aria-selected", catalogOn ? "true" : "false");
-    ui.paneCatalogBtn.tabIndex = catalogOn ? 0 : -1;
-  }
-  if(ui.paneNotationBtn){
-    ui.paneNotationBtn.classList.toggle("on", notationOn);
-    ui.paneNotationBtn.setAttribute("aria-pressed", notationOn ? "true" : "false");
-    ui.paneNotationBtn.setAttribute("aria-selected", notationOn ? "true" : "false");
-    ui.paneNotationBtn.tabIndex = notationOn ? 0 : -1;
+  if(ui.aopNotesCard) ui.aopNotesCard.classList.toggle("goals-focus", pane === "notation");
+  if(ui.mainGrid) ui.mainGrid.classList.remove("aop-achieved-wide");
+
+  if(pane === "allnotes"){
+    renderDayNoteFilters();
+    renderAllDayNotes();
   }
 }
 
@@ -4253,7 +4306,7 @@ function defaultState(){
       teamSyncOpen: false,
       masterNotationSort: "achievements_desc",
       dashboardSort: "az",
-      dayNoteFilters: { thisMonth:false },
+      dayNoteFilters: { thisMonth:false, expanded:false },
       calendarUI: { compact:false, markedOnly:false, activeOnly:false, focus:"both" }
     },
     aops: {},
@@ -4284,7 +4337,7 @@ function migrateIfNeeded(st){
     };
   }
   if(st.settings.aopPane === "template") st.settings.aopPane = "notation";
-  if(!["catalog","notation"].includes(st.settings.aopPane)){
+  if(!["catalog","notation","allnotes"].includes(st.settings.aopPane)){
     st.settings.aopPane = "notation";
   }
   st.settings.areaView = normalizeAreaViewId(st.settings.areaView);
@@ -4309,9 +4362,7 @@ function migrateIfNeeded(st){
   st.settings.masterNotationSort = normalizeMasterNotationSort(st.settings.masterNotationSort);
   st.settings.dashboardSort = normalizeDashboardSort(st.settings.dashboardSort);
   const nf = st.settings.dayNoteFilters || {};
-  st.settings.dayNoteFilters = {
-    thisMonth: nf.thisMonth === true
-  };
+  st.settings.dayNoteFilters = { thisMonth: nf.thisMonth === true, expanded: nf.expanded === true };
   const cu = st.settings.calendarUI || {};
   st.settings.calendarUI = {
     compact: cu.compact === true,
@@ -4839,9 +4890,189 @@ function applyTeamRoleUi(){
   }
 }
 
+function cloneStateObject(raw){
+  if(!raw || typeof raw !== "object") return null;
+  try{
+    return JSON.parse(JSON.stringify(raw));
+  }catch{
+    return null;
+  }
+}
+
+function isoMs(iso){
+  const t = Date.parse(String(iso || ""));
+  return Number.isFinite(t) ? t : 0;
+}
+
+function valuePresent(v){
+  if(typeof v === "number") return Number.isFinite(v);
+  if(typeof v === "string") return v.trim() !== "";
+  return !!v;
+}
+
+function monthTemplateHasContent(tmpl){
+  if(!tmpl || typeof tmpl !== "object") return false;
+  return (
+    valuePresent(tmpl.goal) ||
+    valuePresent(tmpl.comments) ||
+    valuePresent(tmpl.notation) ||
+    tmpl.required === true ||
+    valuePresent(tmpl.deflection_start) ||
+    valuePresent(tmpl.deflection_end) ||
+    valuePresent(tmpl.conversation_start) ||
+    valuePresent(tmpl.conversation_end)
+  );
+}
+
+function monthTemplateFreshness(tmpl){
+  if(!tmpl || typeof tmpl !== "object") return 0;
+  return Math.max(
+    isoMs(tmpl.updated_at),
+    isoMs(tmpl.goal_updated_at),
+    isoMs(tmpl.comments_updated_at),
+    isoMs(tmpl.notation_updated_at),
+    isoMs(tmpl.required_updated_at)
+  );
+}
+
+function noteFreshness(note){
+  if(!note || typeof note !== "object") return 0;
+  return Math.max(isoMs(note.updated_at), isoMs(note.created_at));
+}
+
+function mergeAopMonthlyPreservingLatest(localState, incomingState){
+  const merged = cloneStateObject(incomingState?.aopMonthly) || {};
+  const incomingAops = incomingState?.aops || {};
+  const localMonthly = localState?.aopMonthly || {};
+  const incomingMonthly = incomingState?.aopMonthly || {};
+
+  for(const aopId of Object.keys(incomingAops)){
+    const localMonths = localMonthly[aopId] || {};
+    const remoteMonths = incomingMonthly[aopId] || {};
+    if(!merged[aopId]) merged[aopId] = {};
+    const monthKeys = new Set([...Object.keys(localMonths), ...Object.keys(remoteMonths)]);
+    for(const mk of monthKeys){
+      const localTemplate = localMonths[mk];
+      const remoteTemplate = remoteMonths[mk];
+      const localHas = monthTemplateHasContent(localTemplate);
+      const remoteHas = monthTemplateHasContent(remoteTemplate);
+
+      if(localTemplate && !remoteTemplate){
+        if(localHas){
+          merged[aopId][mk] = cloneStateObject(localTemplate) || localTemplate;
+        }
+        continue;
+      }
+      if(!localTemplate || !remoteTemplate) continue;
+      if(localHas && !remoteHas){
+        merged[aopId][mk] = cloneStateObject(localTemplate) || localTemplate;
+        continue;
+      }
+      if(!localHas && remoteHas) continue;
+      if(localHas && remoteHas && monthTemplateFreshness(localTemplate) > monthTemplateFreshness(remoteTemplate)){
+        merged[aopId][mk] = cloneStateObject(localTemplate) || localTemplate;
+      }
+    }
+  }
+  return merged;
+}
+
+function mergeDayNotesPreservingLatest(localState, incomingState){
+  const merged = {};
+  const localDayNotes = localState?.dayNotes || {};
+  const incomingDayNotes = incomingState?.dayNotes || {};
+  const dateKeys = new Set([...Object.keys(localDayNotes), ...Object.keys(incomingDayNotes)]);
+
+  for(const dateKey of dateKeys){
+    const localRoot = normalizeDayNoteRoot(localDayNotes[dateKey]);
+    const remoteRoot = normalizeDayNoteRoot(incomingDayNotes[dateKey]);
+    const areas = new Set([
+      ...Object.keys(localRoot?.by_area || {}),
+      ...Object.keys(remoteRoot?.by_area || {})
+    ]);
+
+    const byArea = {};
+    for(const areaId of areas){
+      const safeArea = normalizeAreaId(areaId);
+      const localNote = localRoot.by_area?.[safeArea];
+      const remoteNote = remoteRoot.by_area?.[safeArea];
+      const localText = typeof localNote?.text === "string" ? localNote.text.trim() : "";
+      const remoteText = typeof remoteNote?.text === "string" ? remoteNote.text.trim() : "";
+
+      if(!localText && !remoteText) continue;
+      if(localText && !remoteText){
+        byArea[safeArea] = {
+          text: localText,
+          created_at: localNote?.created_at || nowIso(),
+          updated_at: localNote?.updated_at || localNote?.created_at || nowIso()
+        };
+        continue;
+      }
+      if(!localText && remoteText){
+        byArea[safeArea] = {
+          text: remoteText,
+          created_at: remoteNote?.created_at || nowIso(),
+          updated_at: remoteNote?.updated_at || remoteNote?.created_at || nowIso()
+        };
+        continue;
+      }
+
+      const pickLocal = noteFreshness(localNote) > noteFreshness(remoteNote);
+      const source = pickLocal ? localNote : remoteNote;
+      const text = pickLocal ? localText : remoteText;
+      byArea[safeArea] = {
+        text,
+        created_at: source?.created_at || nowIso(),
+        updated_at: source?.updated_at || source?.created_at || nowIso()
+      };
+    }
+
+    merged[dateKey] = { by_area: byArea };
+  }
+
+  return merged;
+}
+
+function mergeIncomingSharedState(localState, incomingState){
+  const local = migrateIfNeeded(cloneStateObject(localState) || defaultState());
+  const incoming = migrateIfNeeded(cloneStateObject(incomingState) || defaultState());
+  incoming.aopMonthly = mergeAopMonthlyPreservingLatest(local, incoming);
+  incoming.dayNotes = mergeDayNotesPreservingLatest(local, incoming);
+  return incoming;
+}
+
+function flushPendingEditorsBeforeRemoteApply(){
+  if(!ui) return;
+
+  try{
+    if(dayNoteAutosaveTimer){
+      clearDayNoteAutosaveTimer();
+      saveDayNote({ fromAutosave:true });
+    }else if(ui.dayNoteText && document.activeElement === ui.dayNoteText && !ui.dayNoteText.disabled){
+      saveDayNote({ fromAutosave:true });
+    }
+  }catch{}
+
+  try{
+    if(!ui.tmplGoal || !ui.tmplComments || ui.tmplGoal.disabled || ui.tmplComments.disabled) return;
+    const aopId = selectedAopId();
+    if(!aopId || !view.state?.aops?.[aopId]) return;
+    const mk = currentMonthKey();
+    const tmpl = view.state.aopMonthly?.[aopId]?.[mk];
+    if(!tmpl) return;
+    const nextGoal = (ui.tmplGoal.value || "").trim();
+    const nextComments = (ui.tmplComments.value || "").trim();
+    const curGoal = String(tmpl.goal || "");
+    const curComments = String(tmpl.comments || "");
+    if(nextGoal !== curGoal || nextComments !== curComments){
+      saveMonthlyTemplate();
+    }
+  }catch{}
+}
 function applyIncomingSharedState(nextState){
   if(!nextState || typeof nextState !== "object") return false;
-  const migrated = migrateIfNeeded(nextState);
+  flushPendingEditorsBeforeRemoteApply();
+  const migrated = mergeIncomingSharedState(view.state, nextState);
   teamSyncSuppressPush = true;
   try{
     view.state = migrated;
@@ -7737,9 +7968,15 @@ function hookUI(){
     if(action) action();
   });
 
-  if(ui.paneCatalogBtn) ui.paneCatalogBtn.addEventListener("click", () => setAopPane("catalog"));
-  if(ui.paneNotationBtn) ui.paneNotationBtn.addEventListener("click", () => setAopPane("notation"));
-  const aopTabButtons = [ui.paneCatalogBtn, ui.paneNotationBtn].filter(Boolean);
+    const paneButtonMap = new Map([
+    [ui.paneCatalogBtn, "catalog"],
+    [ui.paneNotationBtn, "notation"],
+    [ui.paneAllDayNotesBtn, "allnotes"]
+  ].filter(([btn]) => !!btn));
+  paneButtonMap.forEach((paneId, btn) => {
+    btn.addEventListener("click", () => setAopPane(paneId));
+  });
+  const aopTabButtons = Array.from(paneButtonMap.keys());
   aopTabButtons.forEach((btn, index) => {
     btn.addEventListener("keydown", (event) => {
       if(event.key !== "ArrowLeft" && event.key !== "ArrowRight" && event.key !== "Home" && event.key !== "End") return;
@@ -7752,8 +7989,8 @@ function hookUI(){
       const nextBtn = aopTabButtons[nextIndex];
       if(!nextBtn) return;
       nextBtn.focus();
-      if(nextBtn === ui.paneCatalogBtn) setAopPane("catalog");
-      if(nextBtn === ui.paneNotationBtn) setAopPane("notation");
+      const nextPane = paneButtonMap.get(nextBtn);
+      if(nextPane) setAopPane(nextPane);
     });
   });
   ui.openDayNotesBtn.addEventListener("click", () => {
@@ -7961,6 +8198,7 @@ function hookUI(){
     ui.allDayNotesSearch.focus();
   });
   ui.filterThisMonthBtn.addEventListener("click", () => toggleDayNoteFilter("thisMonth"));
+  if(ui.allDayNotesExpandBtn) ui.allDayNotesExpandBtn.addEventListener("click", () => toggleDayNoteFilter("expanded"));
 
   ui.exportBtn.addEventListener("click", exportJson);
   ui.importBtn.addEventListener("click", () => ui.importFile.click());
@@ -8190,9 +8428,7 @@ function init(){
     actualCalendarCard: document.getElementById("actualCalendarCard"),
     aopNotesCard: document.getElementById("aopNotesCard"),
     utilityCard: document.getElementById("utilityCard"),
-    dayNotesCard: document.getElementById("dayNotesCard"),
-    allDayNotesCard: document.getElementById("allDayNotesCard"),
-    dayNotesBackdrop: document.getElementById("dayNotesBackdrop"),
+    dayNotesCard: document.getElementById("dayNotesCard"),    dayNotesBackdrop: document.getElementById("dayNotesBackdrop"),
     undoToast: document.getElementById("undoToast"),
     undoToastText: document.getElementById("undoToastText"),
     undoToastBtn: document.getElementById("undoToastBtn"),
@@ -8245,8 +8481,10 @@ function init(){
     aopSelectGoals: document.getElementById("aopSelectGoals"),
     paneCatalogBtn: document.getElementById("paneCatalogBtn"),
     paneNotationBtn: document.getElementById("paneNotationBtn"),
+    paneAllDayNotesBtn: document.getElementById("paneAllDayNotesBtn"),
     paneCatalog: document.getElementById("paneCatalog"),
     paneNotation: document.getElementById("paneNotation"),
+    paneAllDayNotes: document.getElementById("paneAllDayNotes"),
     paneTemplate: document.getElementById("paneTemplate"),
 
     // monthly template
@@ -8275,6 +8513,7 @@ function init(){
     dayNoteSaveState: document.getElementById("dayNoteSaveState"),
     allDayNotesSearch: document.getElementById("allDayNotesSearch"),
     clearAllDayNotesSearch: document.getElementById("clearAllDayNotesSearch"),
+    allDayNotesExpandBtn: document.getElementById("allDayNotesExpandBtn"),
     filterThisMonthBtn: document.getElementById("filterThisMonthBtn"),
     allDayNotesCount: document.getElementById("allDayNotesCount"),
     allDayNotesList: document.getElementById("allDayNotesList"),
