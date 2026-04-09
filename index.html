@@ -5078,7 +5078,9 @@ function mergeDayNotesPreservingLatest(localState, incomingState){
         continue;
       }
 
-      const pickLocal = noteFreshness(localNote) > noteFreshness(remoteNote);
+      // Prefer the in-memory local editor state on timestamp ties so a just-saved
+      // note does not get replaced by an equally fresh remote echo.
+      const pickLocal = noteFreshness(localNote) >= noteFreshness(remoteNote);
       const source = pickLocal ? localNote : remoteNote;
       const text = pickLocal ? localText : remoteText;
       byArea[safeArea] = {
