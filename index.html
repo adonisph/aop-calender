@@ -5001,13 +5001,49 @@ function noteFreshness(note){
   return Math.max(isoMs(note.updated_at), isoMs(note.created_at));
 }
 
+function mergeAopsPreservingAll(localState, incomingState){
+  const merged = cloneStateObject(incomingState?.aops) || {};
+  const localAops = localState?.aops || {};
+
+  for(const [aopId, localAop] of Object.entries(localAops)){
+    const remoteAop = merged[aopId];
+    if(!remoteAop){
+      merged[aopId] = cloneStateObject(localAop) || localAop;
+      continue;
+    }
+    merged[aopId] = {
+      ...(cloneStateObject(localAop) || localAop),
+      ...(cloneStateObject(remoteAop) || remoteAop)
+    };
+  }
+
+  return merged;
+}
+
+function mergeAopOrderPreservingAll(localState, incomingState, mergedAops){
+  const mergedIds = new Set(Object.keys(mergedAops || {}));
+  const out = [];
+  const seen = new Set();
+  const incomingOrder = Array.isArray(incomingState?.aopOrder) ? incomingState.aopOrder : [];
+  const localOrder = Array.isArray(localState?.aopOrder) ? localState.aopOrder : [];
+
+  for(const id of [...incomingOrder, ...localOrder, ...mergedIds]){
+    if(!mergedIds.has(id) || seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+
+  return out;
+}
+
 function mergeAopMonthlyPreservingLatest(localState, incomingState){
   const merged = cloneStateObject(incomingState?.aopMonthly) || {};
+  const localAops = localState?.aops || {};
   const incomingAops = incomingState?.aops || {};
   const localMonthly = localState?.aopMonthly || {};
   const incomingMonthly = incomingState?.aopMonthly || {};
 
-  for(const aopId of Object.keys(incomingAops)){
+  for(const aopId of new Set([...Object.keys(localAops), ...Object.keys(incomingAops)])){
     const localMonths = localMonthly[aopId] || {};
     const remoteMonths = incomingMonthly[aopId] || {};
     if(!merged[aopId]) merged[aopId] = {};
@@ -5035,6 +5071,41 @@ function mergeAopMonthlyPreservingLatest(localState, incomingState){
       }
     }
   }
+  return merged;
+}
+
+function mergeEntriesPreservingAll(localState, incomingState){
+  const merged = {};
+  const localEntries = localState?.entries || {};
+  const incomingEntries = incomingState?.entries || {};
+  const dateKeys = new Set([...Object.keys(localEntries), ...Object.keys(incomingEntries)]);
+
+  for(const dateKey of dateKeys){
+    const localBucket = localEntries[dateKey] || { planned: [], actual: [] };
+    const remoteBucket = incomingEntries[dateKey] || { planned: [], actual: [] };
+    const nextBucket = { planned: [], actual: [] };
+
+    for(const type of ["planned", "actual"]){
+      const byId = new Map();
+      for(const entry of [...(remoteBucket[type] || []), ...(localBucket[type] || [])]){
+        if(!entry || typeof entry !== "object") continue;
+        const entryId = String(entry.id || "").trim();
+        if(!entryId){
+          byId.set(`anon:${type}:${String(entry.aopId || "")}:${String(entry.ts || "")}`, cloneStateObject(entry) || entry);
+          continue;
+        }
+        if(!byId.has(entryId)){
+          byId.set(entryId, cloneStateObject(entry) || entry);
+        }
+      }
+      nextBucket[type] = [...byId.values()].sort((a, b) => isoMs(b?.ts) - isoMs(a?.ts));
+    }
+
+    if(nextBucket.planned.length || nextBucket.actual.length){
+      merged[dateKey] = nextBucket;
+    }
+  }
+
   return merged;
 }
 
@@ -5099,7 +5170,10 @@ function mergeDayNotesPreservingLatest(localState, incomingState){
 function mergeIncomingSharedState(localState, incomingState){
   const local = migrateIfNeeded(cloneStateObject(localState) || defaultState());
   const incoming = migrateIfNeeded(cloneStateObject(incomingState) || defaultState());
+  incoming.aops = mergeAopsPreservingAll(local, incoming);
+  incoming.aopOrder = mergeAopOrderPreservingAll(local, incoming, incoming.aops);
   incoming.aopMonthly = mergeAopMonthlyPreservingLatest(local, incoming);
+  incoming.entries = mergeEntriesPreservingAll(local, incoming);
   incoming.dayNotes = mergeDayNotesPreservingLatest(local, incoming);
   return incoming;
 }
