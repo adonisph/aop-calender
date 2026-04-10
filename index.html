@@ -6313,7 +6313,7 @@ function renderDows(){
 }
 
 function selectedAopId(){
-  const candidates = [view.state.activeAopId, ui.aopSelect?.value, ui.aopNotationSelect?.value, ui.aopSelectGoals?.value];
+  const candidates = [ui.aopSelect?.value, view.state.activeAopId, ui.aopNotationSelect?.value, ui.aopSelectGoals?.value];
   for(const id of candidates){
     if(id && view.state.aops[id] && isAopInArea(id)) return id;
   }
