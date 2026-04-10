@@ -3261,11 +3261,13 @@ function sharedAppearanceBaseline(){
 function buildSharedSyncState(){
   const clone = JSON.parse(JSON.stringify(view.state));
   applyAppearanceSettingsSnapshot(clone, sharedAppearanceBaseline());
+  clone.activeAopId = null;
   return clone;
 }
 function sharedStateWithoutHistory(raw){
   const clone = cloneStateObject(raw) || defaultState();
   clone.syncHistory = { snapshots:[] };
+  clone.activeAopId = null;
   return migrateIfNeeded(clone);
 }
 function currentThemeId(){
