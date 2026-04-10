@@ -5066,7 +5066,7 @@ function mergeAopMonthlyPreservingLatest(localState, incomingState){
         continue;
       }
       if(!localHas && remoteHas) continue;
-      if(localHas && remoteHas && monthTemplateFreshness(localTemplate) > monthTemplateFreshness(remoteTemplate)){
+      if(localHas && remoteHas && monthTemplateFreshness(localTemplate) >= monthTemplateFreshness(remoteTemplate)){
         merged[aopId][mk] = cloneStateObject(localTemplate) || localTemplate;
       }
     }
@@ -5178,6 +5178,17 @@ function mergeIncomingSharedState(localState, incomingState){
   return incoming;
 }
 
+function applyMergedStateSilently(nextState){
+  teamSyncSuppressPush = true;
+  try{
+    view.state = nextState;
+    applyLocalAppearanceProfile();
+    saveStateLocal();
+  }finally{
+    teamSyncSuppressPush = false;
+  }
+}
+
 function flushPendingEditorsBeforeRemoteApply(){
   if(!ui) return;
 
@@ -5201,32 +5212,46 @@ function flushPendingEditorsBeforeRemoteApply(){
   }catch{}
 
   try{
-    if(!ui.tmplGoal || !ui.tmplComments || ui.tmplGoal.disabled || ui.tmplComments.disabled) return;
-    const aopId = selectedGoalsAopId();
-    if(!aopId || !view.state?.aops?.[aopId]) return;
-    const mk = currentMonthKey();
-    const tmpl = view.state.aopMonthly?.[aopId]?.[mk];
-    if(!tmpl) return;
-    const nextGoal = (ui.tmplGoal.value || "").trim();
-    const nextComments = (ui.tmplComments.value || "").trim();
-    const curGoal = String(tmpl.goal || "");
-    const curComments = String(tmpl.comments || "");
-    if(nextGoal !== curGoal || nextComments !== curComments){
-      saveMonthlyTemplate();
+    if(ui.tmplGoal && ui.tmplComments && !ui.tmplGoal.disabled && !ui.tmplComments.disabled){
+      const aopId = selectedGoalsAopId();
+      if(aopId && view.state?.aops?.[aopId]){
+        const mk = currentMonthKey();
+        const tmpl = view.state.aopMonthly?.[aopId]?.[mk];
+        if(tmpl){
+          const nextGoal = (ui.tmplGoal.value || "").trim();
+          const nextComments = (ui.tmplComments.value || "").trim();
+          const curGoal = String(tmpl.goal || "");
+          const curComments = String(tmpl.comments || "");
+          if(nextGoal !== curGoal || nextComments !== curComments){
+            saveMonthlyTemplate();
+          }
+        }
+      }
     }
   }catch{}
-}function applyIncomingSharedState(nextState){
+
+  try{
+    const active = document.activeElement;
+    if(active instanceof HTMLInputElement && active.hasAttribute("data-deflect-field")){
+      const field = active.getAttribute("data-deflect-field");
+      const wrap = active.closest("[data-dash-row-deflect]");
+      const aopId = wrap?.getAttribute("data-dash-row-deflect");
+      if(field && aopId){
+        if(field === "conversation_start" || field === "conversation_end"){
+          setMonthlyConversationTotal(aopId, currentMonthKey(), field, active.value, true);
+        }else{
+          setMonthlyDeflectionRate(aopId, currentMonthKey(), field, active.value, true);
+        }
+      }
+    }
+  }catch{}
+}
+
+function applyIncomingSharedState(nextState){
   if(!nextState || typeof nextState !== "object") return false;
   flushPendingEditorsBeforeRemoteApply();
   const migrated = mergeIncomingSharedState(view.state, nextState);
-  teamSyncSuppressPush = true;
-  try{
-    view.state = migrated;
-    applyLocalAppearanceProfile();
-    saveStateLocal();
-  }finally{
-    teamSyncSuppressPush = false;
-  }
+  applyMergedStateSilently(migrated);
   renderAll();
   loadMonthlyTemplate();
   loadDayNoteUI();
@@ -5335,10 +5360,21 @@ async function pushRemoteState(opts){
   teamSyncBusy = true;
   applyTeamSyncUiState();
   try{
+    flushPendingEditorsBeforeRemoteApply();
     const workspaceId = normalizeWorkspaceId(teamSync.config.workspaceId);
+    const remoteRow = await teamSync.supabase
+      .from(TEAM_SYNC_TABLE)
+      .select("id,state,updated_at")
+      .eq("id", workspaceId)
+      .maybeSingle();
+    if(remoteRow.error && remoteRow.status !== 406) throw remoteRow.error;
+    const mergedState = remoteRow.data?.state
+      ? mergeIncomingSharedState(view.state, remoteRow.data.state)
+      : buildSharedSyncState();
+    applyMergedStateSilently(mergedState);
     const payload = {
       id: workspaceId,
-      state: buildSharedSyncState(),
+      state: mergedState,
       updated_by: teamSync.userId || null
     };
     const { data, error } = await teamSync.supabase
