@@ -4455,6 +4455,7 @@ function defaultState(){
     aopMonthly: {},
     entries: {},
     dayNotes: {},
+    entryTombstones: {},
     syncHistory: { snapshots:[] }
   };
 }
@@ -4517,6 +4518,7 @@ function migrateIfNeeded(st){
   st.entries = st.entries || {};
   st.aopMonthly = st.aopMonthly || {};
   st.dayNotes = st.dayNotes || {};
+  st.entryTombstones = st.entryTombstones && typeof st.entryTombstones === "object" ? st.entryTombstones : {};
   st.syncHistory = normalizeSyncHistory(st.syncHistory);
   const now = new Date();
   const nowMonthKey = ymKey(now.getFullYear(), now.getMonth());
@@ -5147,6 +5149,53 @@ function appendSyncHistorySnapshot(history, snapshot){
   });
 }
 
+function normalizeEntryTombstones(raw){
+  const src = raw && typeof raw === "object" ? raw : {};
+  const out = {};
+  for(const [entryId, tomb] of Object.entries(src)){
+    const id = String(entryId || "").trim();
+    if(!id || !tomb || typeof tomb !== "object") continue;
+    const deletedAt = String(tomb.deleted_at || "").trim();
+    if(!deletedAt) continue;
+    out[id] = {
+      deleted_at: deletedAt,
+      dateKey: String(tomb.dateKey || "").trim(),
+      type: tomb.type === "planned" ? "planned" : "actual"
+    };
+  }
+  return out;
+}
+
+function mergeEntryTombstonesPreservingLatest(localState, incomingState){
+  const local = normalizeEntryTombstones(localState?.entryTombstones);
+  const incoming = normalizeEntryTombstones(incomingState?.entryTombstones);
+  const merged = { ...incoming };
+  for(const [entryId, localTomb] of Object.entries(local)){
+    const remoteTomb = incoming[entryId];
+    if(!remoteTomb || isoMs(localTomb.deleted_at) >= isoMs(remoteTomb.deleted_at)){
+      merged[entryId] = localTomb;
+    }
+  }
+  return merged;
+}
+
+function setEntryTombstone(entry, dateKey, type, deletedAt){
+  if(!entry?.id) return;
+  if(!view.state.entryTombstones || typeof view.state.entryTombstones !== "object"){
+    view.state.entryTombstones = {};
+  }
+  view.state.entryTombstones[entry.id] = {
+    deleted_at: deletedAt || nowIso(),
+    dateKey: String(dateKey || "").trim(),
+    type: type === "planned" ? "planned" : "actual"
+  };
+}
+
+function clearEntryTombstone(entryId){
+  if(!entryId || !view.state.entryTombstones || typeof view.state.entryTombstones !== "object") return;
+  delete view.state.entryTombstones[entryId];
+}
+
 function isoMs(iso){
   const t = Date.parse(String(iso || ""));
   return Number.isFinite(t) ? t : 0;
@@ -5404,6 +5453,7 @@ function mergeEntriesPreservingAll(localState, incomingState){
   const merged = {};
   const localEntries = localState?.entries || {};
   const incomingEntries = incomingState?.entries || {};
+  const mergedTombstones = mergeEntryTombstonesPreservingLatest(localState, incomingState);
   const dateKeys = new Set([...Object.keys(localEntries), ...Object.keys(incomingEntries)]);
 
   for(const dateKey of dateKeys){
@@ -5416,6 +5466,8 @@ function mergeEntriesPreservingAll(localState, incomingState){
       for(const entry of [...(remoteBucket[type] || []), ...(localBucket[type] || [])]){
         if(!entry || typeof entry !== "object") continue;
         const entryId = String(entry.id || "").trim();
+        const tomb = entryId ? mergedTombstones[entryId] : null;
+        if(tomb && isoMs(tomb.deleted_at) >= isoMs(entry.ts || "")) continue;
         if(!entryId){
           byId.set(`anon:${type}:${String(entry.aopId || "")}:${String(entry.ts || "")}`, cloneStateObject(entry) || entry);
           continue;
@@ -5501,6 +5553,7 @@ function mergeIncomingSharedState(localState, incomingState){
   incoming.aopMonthly = mergeAopMonthlyPreservingLatest(local, incoming);
   incoming.entries = mergeEntriesPreservingAll(local, incoming);
   incoming.dayNotes = mergeDayNotesPreservingLatest(local, incoming);
+  incoming.entryTombstones = mergeEntryTombstonesPreservingLatest(local, incoming);
   incoming.syncHistory = mergeSyncHistoryPreservingAll(local, incoming);
   return incoming;
 }
@@ -7727,8 +7780,10 @@ function deleteMark(dateKey, type, id, options){
   const idx = arr.findIndex(e => e.id === id);
   if(idx < 0) return;
   const removed = arr[idx];
+  const deletedAt = nowIso();
   arr.splice(idx, 1);
   bucket[type] = arr;
+  setEntryTombstone(removed, dateKey, type, deletedAt);
   if((bucket.planned?.length||0)===0 && (bucket.actual?.length||0)===0){
     delete view.state.entries[dateKey];
   }
@@ -7743,6 +7798,7 @@ function deleteMark(dateKey, type, id, options){
       ensureDateKey(dateKey);
       const list = view.state.entries[dateKey][type] || [];
       if(list.some(e => e.id === removed.id)) return;
+      clearEntryTombstone(removed.id);
       list.unshift(removed);
       view.state.entries[dateKey][type] = list;
       saveState();
