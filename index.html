@@ -3368,6 +3368,7 @@ function setAopArea(aopId, areaId){
   const safe = normalizeAreaId(areaId);
   if(aopAreaId(a) === safe) return;
   a.area = safe;
+  a.updated_at = nowIso();
   ensureActiveAopInView();
   saveState();
   renderAll();
@@ -3382,6 +3383,7 @@ function setAopColor(aopId, color, persist){
   const safe = normalizeHexColor(color, a.color || theme.power);
   if(normalizeHexColor(a.color || "", theme.power) === safe) return;
   a.color = safe;
+  a.updated_at = nowIso();
   if(persist !== false) saveState();
   renderAll();
   loadMonthlyTemplate();
@@ -4518,9 +4520,13 @@ function migrateIfNeeded(st){
   const nowMonthKey = ymKey(now.getFullYear(), now.getMonth());
   for(const aopId of Object.keys(st.aops)){
     const a = st.aops[aopId] || {};
+    const createdAt = typeof a.created_at === "string" ? a.created_at : nowIso();
+    const updatedAt = typeof a.updated_at === "string" ? a.updated_at : createdAt;
     st.aops[aopId] = {
       ...a,
-      area: normalizeAreaId(a.area)
+      area: normalizeAreaId(a.area),
+      created_at: createdAt,
+      updated_at: updatedAt
     };
   }
 
@@ -5180,6 +5186,11 @@ function noteFreshness(note){
   return Math.max(isoMs(note.updated_at), isoMs(note.created_at));
 }
 
+function aopFreshness(aop){
+  if(!aop || typeof aop !== "object") return 0;
+  return Math.max(isoMs(aop.updated_at), isoMs(aop.created_at));
+}
+
 function describeMonthlyField(field, value){
   if(field === "goal") return `Goal: ${String(value || "").trim()}`;
   if(field === "comments") return `Comments: ${String(value || "").trim()}`;
@@ -5326,10 +5337,8 @@ function mergeAopsPreservingAll(localState, incomingState){
       merged[aopId] = cloneStateObject(localAop) || localAop;
       continue;
     }
-    merged[aopId] = {
-      ...(cloneStateObject(localAop) || localAop),
-      ...(cloneStateObject(remoteAop) || remoteAop)
-    };
+    const pickLocal = aopFreshness(localAop) >= aopFreshness(remoteAop);
+    merged[aopId] = cloneStateObject(pickLocal ? localAop : remoteAop) || (pickLocal ? localAop : remoteAop);
   }
 
   return merged;
@@ -6976,11 +6985,14 @@ function addAop(name, color, areaId){
   }
   const theme = COLOR_THEMES[currentThemeId()] || COLOR_THEMES[DEFAULT_THEME];
   const id = uuid();
+  const t = nowIso();
   view.state.aops[id] = {
     id,
     name: clean,
     color: color || theme.power,
-    area: safeArea
+    area: safeArea,
+    created_at: t,
+    updated_at: t
   };
   view.state.aopOrder = [...(view.state.aopOrder||[]), id];
   view.state.activeAopId = id;
@@ -7017,6 +7029,7 @@ function renameAop(id, nextName){
   }
   if(clean === String(a.name || "").trim()) return false;
   a.name = clean;
+  a.updated_at = nowIso();
   saveState();
   renderAll();
   loadMonthlyTemplate();
@@ -9187,11 +9200,14 @@ function init(){
     ];
     for(const s of seeds){
       const id = uuid();
+      const t = nowIso();
       view.state.aops[id] = {
         id,
         name: s.name,
         color: s.color,
-        area: DEFAULT_AREA_VIEW
+        area: DEFAULT_AREA_VIEW,
+        created_at: t,
+        updated_at: t
       };
       view.state.aopOrder.push(id);
       view.state.aopMonthly[id] = view.state.aopMonthly[id] || {};
