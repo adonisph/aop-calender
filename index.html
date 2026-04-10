@@ -594,6 +594,70 @@
       letter-spacing:.2px;
       text-transform: uppercase;
     }
+    .sync-history{
+      display:grid;
+      gap:8px;
+    }
+    .sync-history[hidden]{
+      display:none !important;
+    }
+    .sync-history-list{
+      display:grid;
+      gap:8px;
+    }
+    .sync-history-item{
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:10px;
+      background: rgba(255,255,255,.02);
+      padding:8px;
+      display:grid;
+      gap:6px;
+    }
+    .sync-history-head{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+    .sync-history-meta{
+      display:grid;
+      gap:3px;
+      min-width:0;
+    }
+    .sync-history-title{
+      font-weight:700;
+      color: var(--text);
+    }
+    .sync-history-counts{
+      color: var(--muted);
+      font-size:11px;
+      font-family: var(--mono);
+    }
+    .sync-history-actions{
+      display:flex;
+      align-items:center;
+      gap:6px;
+      flex-wrap:wrap;
+    }
+    .sync-history-changes{
+      margin:0;
+      padding-left:18px;
+      display:grid;
+      gap:4px;
+      color: var(--muted);
+      font-size:12px;
+    }
+    .sync-history-changes li{
+      line-height:1.35;
+    }
+    .sync-history-empty{
+      border:1px dashed rgba(255,255,255,.12);
+      border-radius:10px;
+      padding:8px;
+      color: var(--muted);
+      font-size:12px;
+    }
     .sync-panel:focus-within{
       border-color: rgba(var(--power-rgb),.70);
       box-shadow: 0 0 0 3px rgba(var(--power-rgb),.14);
@@ -2511,6 +2575,11 @@
           <button id="syncAutoBtn" class="btn-ghost btn-toggle on" type="button" aria-pressed="true" title="Toggle automatic team sync for local edits">Auto Sync: ON</button>
           <span id="syncStatus" class="status-pill" role="status" aria-live="polite" aria-atomic="true">Local-only mode</span>
         </div>
+        <section id="syncHistorySection" class="sync-section sync-history" aria-label="Version history" hidden>
+          <h4>Version History</h4>
+          <div class="small">Teamlead can review ordered changes and restore a previous saved version.</div>
+          <div id="syncHistoryList" class="sync-history-list"></div>
+        </section>
         <div id="syncWarning" class="small sync-warning" role="alert" aria-live="assertive" aria-atomic="true">Offline: local mode.</div>
         </div>
       </div>
@@ -3017,6 +3086,7 @@ let commandPaletteIndex = 0;
 const MAX_MARK_BARS = 4;
 const TEAM_SYNC_TABLE = "planner_workspaces";
 const TEAM_SYNC_SAVE_DEBOUNCE_MS = 450;
+const TEAM_SYNC_HISTORY_LIMIT = 18;
 let teamSyncSaveTimer = null;
 let teamSyncChannel = null;
 let teamSyncBusy = false;
@@ -3192,6 +3262,11 @@ function buildSharedSyncState(){
   const clone = JSON.parse(JSON.stringify(view.state));
   applyAppearanceSettingsSnapshot(clone, sharedAppearanceBaseline());
   return clone;
+}
+function sharedStateWithoutHistory(raw){
+  const clone = cloneStateObject(raw) || defaultState();
+  clone.syncHistory = { snapshots:[] };
+  return migrateIfNeeded(clone);
 }
 function currentThemeId(){
   const id = view.state?.settings?.colorTheme;
@@ -4375,7 +4450,8 @@ function defaultState(){
     activeAopId: null,
     aopMonthly: {},
     entries: {},
-    dayNotes: {}
+    dayNotes: {},
+    syncHistory: { snapshots:[] }
   };
 }
 
@@ -4437,6 +4513,7 @@ function migrateIfNeeded(st){
   st.entries = st.entries || {};
   st.aopMonthly = st.aopMonthly || {};
   st.dayNotes = st.dayNotes || {};
+  st.syncHistory = normalizeSyncHistory(st.syncHistory);
   const now = new Date();
   const nowMonthKey = ymKey(now.getFullYear(), now.getMonth());
   for(const aopId of Object.keys(st.aops)){
@@ -4793,6 +4870,7 @@ function setSyncRole(role){
   teamSync.role = safe;
   if(ui.syncRoleBadge) ui.syncRoleBadge.textContent = `Role: ${safe}`;
   applyTeamRoleUi();
+  renderSyncHistoryPanel();
 }
 
 function setTeamSyncStatus(text, isError){
@@ -4923,6 +5001,7 @@ function applyTeamSyncUiState(){
   renderTeamSyncConnectionState();
   renderTeamSyncMeta();
   applyTeamRoleUi();
+  renderSyncHistoryPanel();
 }
 
 function renderTeamSyncConnectionState(){
@@ -4951,6 +5030,60 @@ function applyTeamRoleUi(){
   }
 }
 
+function syncSnapshotTitle(snapshot){
+  const createdAt = fmtIsoShort(snapshot.created_at);
+  const action = snapshot.action === "restore" ? "Restored version" : "Saved version";
+  return `${action} | ${createdAt}`;
+}
+
+function renderSyncHistoryPanel(){
+  if(!ui.syncHistorySection || !ui.syncHistoryList) return;
+  const allowed = teamSync.connected && syncRoleLabel(teamSync.role) === "teamlead";
+  ui.syncHistorySection.hidden = !allowed;
+  if(!allowed){
+    ui.syncHistoryList.innerHTML = "";
+    return;
+  }
+
+  const snapshots = syncHistorySnapshots(view.state);
+  if(!snapshots.length){
+    ui.syncHistoryList.innerHTML = `<div class="sync-history-empty">No saved history yet.</div>`;
+    return;
+  }
+
+  ui.syncHistoryList.innerHTML = snapshots.map(snapshot => {
+    const counts = buildSyncSnapshotSummary(Array.isArray(snapshot.changes) ? snapshot.changes : []);
+    const visibleChanges = (snapshot.changes || []).slice(0, 10).map(change =>
+      `<li><strong>${escapeHtml(change.action)}</strong> ${escapeHtml(change.label)}</li>`
+    ).join("");
+    const extra = (snapshot.changes || []).length > 10
+      ? `<li>...and ${(snapshot.changes || []).length - 10} more changes</li>`
+      : "";
+    return `
+      <div class="sync-history-item">
+        <div class="sync-history-head">
+          <div class="sync-history-meta">
+            <div class="sync-history-title">${escapeHtml(syncSnapshotTitle(snapshot))}</div>
+            <div class="small">${escapeHtml(snapshot.updated_by || "Unknown user")}${snapshot.summary ? ` | ${escapeHtml(snapshot.summary)}` : ""}</div>
+            <div class="sync-history-counts">+${counts.added} / -${counts.removed} / ~${counts.updated}</div>
+          </div>
+          <div class="sync-history-actions">
+            <button type="button" class="btn-ghost" data-restore-snapshot="${escapeHtml(snapshot.id)}">Restore</button>
+          </div>
+        </div>
+        <ol class="sync-history-changes">${visibleChanges}${extra}</ol>
+      </div>
+    `;
+  }).join("");
+
+  ui.syncHistoryList.querySelectorAll("button[data-restore-snapshot]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const snapshotId = btn.getAttribute("data-restore-snapshot");
+      if(snapshotId) restoreSyncHistorySnapshot(snapshotId);
+    });
+  });
+}
+
 function cloneStateObject(raw){
   if(!raw || typeof raw !== "object") return null;
   try{
@@ -4958,6 +5091,52 @@ function cloneStateObject(raw){
   }catch{
     return null;
   }
+}
+
+function normalizeSyncHistory(raw){
+  const snapshots = Array.isArray(raw?.snapshots) ? raw.snapshots : [];
+  const seen = new Set();
+  const normalized = [];
+  for(const snap of snapshots){
+    if(!snap || typeof snap !== "object") continue;
+    const id = String(snap.id || "").trim();
+    if(!id || seen.has(id)) continue;
+    seen.add(id);
+    normalized.push({
+      id,
+      created_at: String(snap.created_at || ""),
+      updated_by: String(snap.updated_by || ""),
+      action: String(snap.action || "save"),
+      summary: String(snap.summary || ""),
+      changes: Array.isArray(snap.changes) ? snap.changes.slice(0, 60).map(change => ({
+        action: String(change?.action || ""),
+        label: String(change?.label || ""),
+        sort: String(change?.sort || "")
+      })).filter(change => change.action && change.label) : [],
+      state: sharedStateWithoutHistory(snap.state || {})
+    });
+  }
+  normalized.sort((a, b) => isoMs(b.created_at) - isoMs(a.created_at));
+  return { snapshots: normalized.slice(0, TEAM_SYNC_HISTORY_LIMIT) };
+}
+
+function syncHistorySnapshots(state){
+  return normalizeSyncHistory(state?.syncHistory).snapshots;
+}
+
+function mergeSyncHistoryPreservingAll(localState, incomingState){
+  return normalizeSyncHistory({
+    snapshots: [
+      ...syncHistorySnapshots(incomingState),
+      ...syncHistorySnapshots(localState)
+    ]
+  });
+}
+
+function appendSyncHistorySnapshot(history, snapshot){
+  return normalizeSyncHistory({
+    snapshots: [snapshot, ...syncHistorySnapshots({ syncHistory: history })]
+  });
 }
 
 function isoMs(iso){
@@ -4999,6 +5178,142 @@ function monthTemplateFreshness(tmpl){
 function noteFreshness(note){
   if(!note || typeof note !== "object") return 0;
   return Math.max(isoMs(note.updated_at), isoMs(note.created_at));
+}
+
+function describeMonthlyField(field, value){
+  if(field === "goal") return `Goal: ${String(value || "").trim()}`;
+  if(field === "comments") return `Comments: ${String(value || "").trim()}`;
+  if(field === "notation") return `Notation: ${String(value || "").trim()}`;
+  if(field === "required") return `Required: ${value ? "Yes" : "No"}`;
+  if(field === "deflection_start") return `Deflection start: ${value}`;
+  if(field === "deflection_end") return `Deflection end: ${value}`;
+  if(field === "conversation_start") return `Conversation start: ${value}`;
+  if(field === "conversation_end") return `Conversation end: ${value}`;
+  return `${field}: ${value}`;
+}
+
+function collectSyncAuditRows(rawState){
+  const state = sharedStateWithoutHistory(rawState);
+  const rows = [];
+  const orderedAops = Array.from(new Set([
+    ...(Array.isArray(state.aopOrder) ? state.aopOrder : []),
+    ...Object.keys(state.aops || {})
+  ]));
+
+  orderedAops.forEach((aopId, idx) => {
+    const aop = state.aops?.[aopId];
+    if(!aop) return;
+    const areaName = areaLabel(aopAreaId(aop));
+    const name = String(aop.name || "(Unnamed AOP)").trim();
+    rows.push({
+      key: `aop:${aopId}`,
+      sort: `01:${String(idx).padStart(4,"0")}:${name.toLowerCase()}`,
+      label: `AOP | ${areaName} | ${name} | ${String(aop.color || "").trim() || "no color"}`
+    });
+  });
+
+  const entryDates = Object.keys(state.entries || {}).sort();
+  for(const dateKey of entryDates){
+    const bucket = state.entries?.[dateKey] || { planned:[], actual:[] };
+    for(const type of ["planned","actual"]){
+      const list = Array.isArray(bucket[type]) ? bucket[type] : [];
+      list.slice().sort((a, b) => isoMs(a?.ts) - isoMs(b?.ts)).forEach((entry, idx) => {
+        const aop = state.aops?.[entry?.aopId];
+        const aopName = String(aop?.name || "(Missing AOP)").trim();
+        rows.push({
+          key: `entry:${dateKey}:${type}:${String(entry?.id || idx)}`,
+          sort: `02:${dateKey}:${type}:${String(idx).padStart(4,"0")}`,
+          label: `Entry | ${dateKey} | ${type} | ${aopName}`
+        });
+      });
+    }
+  }
+
+  const noteDates = Object.keys(state.dayNotes || {}).sort();
+  for(const dateKey of noteDates){
+    const root = normalizeDayNoteRoot(state.dayNotes[dateKey]);
+    for(const areaId of Object.keys(root.by_area || {}).sort()){
+      const note = root.by_area?.[areaId];
+      const text = String(note?.text || "").trim();
+      if(!text) continue;
+      rows.push({
+        key: `note:${dateKey}:${areaId}`,
+        sort: `03:${dateKey}:${areaId}`,
+        label: `Note | ${dateKey} | ${areaLabel(areaId)} | ${text}`
+      });
+    }
+  }
+
+  const monthlyIds = Object.keys(state.aopMonthly || {}).sort();
+  for(const aopId of monthlyIds){
+    const months = state.aopMonthly?.[aopId] || {};
+    const aop = state.aops?.[aopId];
+    const aopName = String(aop?.name || "(Missing AOP)").trim();
+    const areaName = areaLabel(aopAreaId(aop || {}));
+    for(const monthKey of Object.keys(months).sort()){
+      const tmpl = months[monthKey] || {};
+      ["goal","comments","notation","required","deflection_start","deflection_end","conversation_start","conversation_end"].forEach(field => {
+        const value = tmpl[field];
+        if(!valuePresent(value)) return;
+        rows.push({
+          key: `monthly:${aopId}:${monthKey}:${field}`,
+          sort: `04:${monthKey}:${areaName.toLowerCase()}:${aopName.toLowerCase()}:${field}`,
+          label: `Monthly | ${monthKey} | ${areaName} | ${aopName} | ${describeMonthlyField(field, value)}`
+        });
+      });
+    }
+  }
+
+  return rows.sort((a, b) => a.sort.localeCompare(b.sort) || a.label.localeCompare(b.label));
+}
+
+function diffSyncAuditRows(prevState, nextState){
+  const prevRows = collectSyncAuditRows(prevState);
+  const nextRows = collectSyncAuditRows(nextState);
+  const prevMap = new Map(prevRows.map(row => [row.key, row]));
+  const nextMap = new Map(nextRows.map(row => [row.key, row]));
+  const orderedKeys = Array.from(new Set([...prevMap.keys(), ...nextMap.keys()])).sort((a, b) => {
+    const sortA = prevMap.get(a)?.sort || nextMap.get(a)?.sort || "";
+    const sortB = prevMap.get(b)?.sort || nextMap.get(b)?.sort || "";
+    return sortA.localeCompare(sortB);
+  });
+
+  const changes = [];
+  for(const key of orderedKeys){
+    const before = prevMap.get(key);
+    const after = nextMap.get(key);
+    if(before && !after){
+      changes.push({ action:"removed", label: before.label, sort: before.sort });
+    }else if(!before && after){
+      changes.push({ action:"added", label: after.label, sort: after.sort });
+    }else if(before && after && before.label !== after.label){
+      changes.push({ action:"updated", label: `${before.label} -> ${after.label}`, sort: after.sort });
+    }
+  }
+  return changes;
+}
+
+function buildSyncSnapshotSummary(changes){
+  const added = changes.filter(change => change.action === "added").length;
+  const removed = changes.filter(change => change.action === "removed").length;
+  const updated = changes.filter(change => change.action === "updated").length;
+  return { added, removed, updated, total: changes.length };
+}
+
+function buildSyncHistorySnapshot(prevState, nextState, meta){
+  const previous = sharedStateWithoutHistory(prevState);
+  const next = sharedStateWithoutHistory(nextState);
+  const changes = diffSyncAuditRows(previous, next);
+  if(!changes.length) return null;
+  return {
+    id: uuid(),
+    created_at: nowIso(),
+    updated_by: String(meta?.updatedBy || "").trim(),
+    action: String(meta?.action || "save"),
+    summary: String(meta?.summary || "").trim(),
+    changes,
+    state: next
+  };
 }
 
 function mergeAopsPreservingAll(localState, incomingState){
@@ -5175,6 +5490,7 @@ function mergeIncomingSharedState(localState, incomingState){
   incoming.aopMonthly = mergeAopMonthlyPreservingLatest(local, incoming);
   incoming.entries = mergeEntriesPreservingAll(local, incoming);
   incoming.dayNotes = mergeDayNotesPreservingLatest(local, incoming);
+  incoming.syncHistory = mergeSyncHistoryPreservingAll(local, incoming);
   return incoming;
 }
 
@@ -5257,6 +5573,7 @@ function applyIncomingSharedState(nextState){
   loadDayNoteUI();
   renderEntries();
   renderDashboard();
+  renderSyncHistoryPanel();
   return true;
 }
 
@@ -5362,15 +5679,30 @@ async function pushRemoteState(opts){
   try{
     flushPendingEditorsBeforeRemoteApply();
     const workspaceId = normalizeWorkspaceId(teamSync.config.workspaceId);
+    const localSourceState = options.stateOverride
+      ? migrateIfNeeded(cloneStateObject(options.stateOverride) || defaultState())
+      : buildSharedSyncState();
     const remoteRow = await teamSync.supabase
       .from(TEAM_SYNC_TABLE)
       .select("id,state,updated_at")
       .eq("id", workspaceId)
       .maybeSingle();
     if(remoteRow.error && remoteRow.status !== 406) throw remoteRow.error;
-    const mergedState = remoteRow.data?.state
-      ? mergeIncomingSharedState(view.state, remoteRow.data.state)
-      : buildSharedSyncState();
+    const remoteState = remoteRow.data?.state
+      ? migrateIfNeeded(cloneStateObject(remoteRow.data.state) || defaultState())
+      : defaultState();
+    const mergedState = options.stateOverride
+      ? localSourceState
+      : (remoteRow.data?.state ? mergeIncomingSharedState(localSourceState, remoteRow.data.state) : localSourceState);
+    mergedState.syncHistory = mergeSyncHistoryPreservingAll(localSourceState, remoteState);
+    const snapshot = buildSyncHistorySnapshot(remoteState, mergedState, {
+      updatedBy: teamSync.userEmail || teamSync.userId || "",
+      action: options.snapshotAction || "save",
+      summary: options.snapshotSummary || String(options.reason || "").trim()
+    });
+    if(snapshot){
+      mergedState.syncHistory = appendSyncHistorySnapshot(mergedState.syncHistory, snapshot);
+    }
     applyMergedStateSilently(mergedState);
     const payload = {
       id: workspaceId,
@@ -5392,6 +5724,40 @@ async function pushRemoteState(opts){
   }finally{
     teamSyncBusy = false;
     applyTeamSyncUiState();
+  }
+}
+
+async function restoreSyncHistorySnapshot(snapshotId){
+  if(syncRoleLabel(teamSync.role) !== "teamlead"){
+    setTeamSyncStatus("Only teamlead can restore saved versions", true);
+    return;
+  }
+  const snapshot = syncHistorySnapshots(view.state).find(item => item.id === snapshotId);
+  if(!snapshot){
+    setTeamSyncStatus("Saved version not found", true);
+    return;
+  }
+  const label = fmtIsoShort(snapshot.created_at);
+  if(!confirm(`Restore the saved version from ${label}?\n\nThis will replace the current shared workspace with that saved version and create a new restore entry in history.`)){
+    return;
+  }
+  const restoredState = sharedStateWithoutHistory(snapshot.state);
+  restoredState.syncHistory = mergeSyncHistoryPreservingAll(view.state, restoredState);
+  applyMergedStateSilently(restoredState);
+  renderAll();
+  loadMonthlyTemplate();
+  loadDayNoteUI();
+  renderEntries();
+  renderDashboard();
+  try{
+    await pushRemoteState({
+      manual:true,
+      stateOverride: restoredState,
+      snapshotAction:"restore",
+      snapshotSummary:`Restored ${label}`
+    });
+  }catch(err){
+    setTeamSyncStatus(`Restore failed: ${err.message || err}`, true);
   }
 }
 
@@ -8679,6 +9045,8 @@ function init(){
     syncStatus: document.getElementById("syncStatus"),
     syncWarning: document.getElementById("syncWarning"),
     syncRoleBadge: document.getElementById("syncRoleBadge"),
+    syncHistorySection: document.getElementById("syncHistorySection"),
+    syncHistoryList: document.getElementById("syncHistoryList"),
     toggleDashboard: document.getElementById("toggleDashboard"),
     toggleCalendars: document.getElementById("toggleCalendars"),
     toggleAopNotes: document.getElementById("toggleAopNotes"),
