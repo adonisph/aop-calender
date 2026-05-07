@@ -3106,6 +3106,7 @@ let view = {
   selectedDate: null,
   selectedCalendar: "planned",
   diffMode: false,
+  goalsAopId: null,
   state: loadState()
 };
 let rainCanvas = null;
@@ -6374,7 +6375,7 @@ function selectedAopId(){
 }
 
 function selectedGoalsAopId(){
-  const candidates = [ui.aopSelectGoals?.value, view.state.activeAopId, ui.aopNotationSelect?.value, ui.aopSelect?.value];
+  const candidates = [ui.aopSelectGoals?.value, view.goalsAopId, view.state.activeAopId, ui.aopNotationSelect?.value, ui.aopSelect?.value];
   for(const id of candidates){
     if(id && view.state.aops[id] && isAopInArea(id)) return id;
   }
@@ -6385,6 +6386,11 @@ function syncAopSelectors(id){
   const safe = (id && view.state.aops[id] && isAopInArea(id)) ? id : "";
   if(ui.aopSelect) ui.aopSelect.value = safe;
   if(ui.aopNotationSelect) ui.aopNotationSelect.value = safe;
+}
+
+function setGoalsAopSelection(id){
+  const safe = (id && view.state.aops[id] && isAopInArea(id)) ? id : "";
+  view.goalsAopId = safe || null;
   if(ui.aopSelectGoals) ui.aopSelectGoals.value = safe;
 }
 
@@ -7012,6 +7018,9 @@ function renderAopCatalog(){
     ui.activeAopLabel.style.background = "rgba(255,255,255,.03)";
     ui.activeAopLabel.style.color = "var(--muted)";
   }
+  const goalsSticky = [view.goalsAopId, prevGoalsSelectId, view.state.activeAopId, prevSelectId, prevNotationSelectId]
+    .find(id => !!id && order.includes(id)) || "";
+  setGoalsAopSelection(goalsSticky);
   loadAopNotationUI();
 }
 
@@ -8874,7 +8883,11 @@ function hookUI(){
   if(ui.aopNotationSelect){
     ui.aopNotationSelect.addEventListener("change", () => onAopSelectionChange(ui.aopNotationSelect.value));
   }
-  ui.aopSelectGoals.addEventListener("change", () => onAopSelectionChange(ui.aopSelectGoals.value));
+  ui.aopSelectGoals.addEventListener("change", () => {
+    saveMonthlyTemplate();
+    setGoalsAopSelection(ui.aopSelectGoals.value);
+    loadMonthlyTemplate();
+  });
 
   ui.tmplGoal.addEventListener("blur", saveMonthlyTemplate);
   ui.tmplComments.addEventListener("blur", saveMonthlyTemplate);
