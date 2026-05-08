@@ -3339,6 +3339,12 @@ function ensureActiveAopInView(){
   if(order.includes(view.state.activeAopId)) return;
   view.state.activeAopId = order[0] || null;
 }
+function ensureCalendarAopInView(){
+  const order = visibleAopOrder();
+  if(order.includes(view.calendarAopId)) return;
+  const fallback = order.includes(view.state.activeAopId) ? view.state.activeAopId : (order[0] || null);
+  view.calendarAopId = fallback || null;
+}
 function canAccessMasterView(){
   return syncRoleLabel(teamSync?.role) === "teamlead";
 }
@@ -6458,11 +6464,8 @@ function renderDows(){
 }
 
 function selectedAopId(){
-  const candidates = [ui.aopSelect?.value, view.calendarAopId];
-  for(const id of candidates){
-    if(id && view.state.aops[id] && isAopInArea(id)) return id;
-  }
-  return null;
+  const id = view.calendarAopId;
+  return (id && view.state.aops[id] && isAopInArea(id)) ? id : null;
 }
 
 function selectedGoalsAopId(){
@@ -7026,7 +7029,11 @@ function renderAopCatalog(){
       row.setAttribute("role", "button");
       row.setAttribute("aria-pressed", isActive ? "true" : "false");
       row.setAttribute("title", isActive ? "Click to deselect active AOP" : "Click to set as active AOP");
-      const toggle = () => toggleActiveAop(id);
+      const toggle = () => {
+        setCalendarAopSelection(id);
+        toggleActiveAop(id);
+        syncSelectedInfo();
+      };
       row.addEventListener("click", toggle);
       row.addEventListener("keydown", (event) => {
         if(event.key !== "Enter" && event.key !== " ") return;
@@ -7135,7 +7142,7 @@ function renderAopCatalog(){
     ui.activeAopLabel.style.background = "rgba(255,255,255,.03)";
     ui.activeAopLabel.style.color = "var(--muted)";
   }
-  const calendarSticky = [view.calendarAopId, prevSelectId, view.state.activeAopId].find(id => !!id && order.includes(id)) || "";
+  const calendarSticky = [view.calendarAopId, prevSelectId].find(id => !!id && order.includes(id)) || "";
   setCalendarAopSelection(calendarSticky);
   const goalsSticky = [view.goalsAopId, prevGoalsSelectId, view.state.activeAopId, prevSelectId, prevNotationSelectId]
     .find(id => !!id && order.includes(id)) || "";
@@ -8369,6 +8376,7 @@ function renderAll(){
   applyUiPrefs();
   renderRainToggle();
   ensureActiveAopInView();
+  ensureCalendarAopInView();
   if(ui.areaViewSelect) ui.areaViewSelect.value = currentAreaViewId();
   if(ui.aopNewArea) ui.aopNewArea.value = suggestedAreaForNewAop();
   ui.monthSelect.value = String(view.month);
@@ -9471,10 +9479,11 @@ function init(){
 
   // Sync AOP select to active
   ensureActiveAopInView();
+  ensureCalendarAopInView();
   if(view.state.activeAopId && view.state.aops[view.state.activeAopId] && isAopInArea(view.state.activeAopId)){
     syncAopSelectors(view.state.activeAopId);
-    setCalendarAopSelection(view.state.activeAopId);
   }
+  setCalendarAopSelection(view.calendarAopId);
 
   // Diff toggle initial label
   ui.diffToggle.classList.toggle("on", view.diffMode);
