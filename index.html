@@ -3108,6 +3108,7 @@ let view = {
   diffMode: false,
   goalsAopId: null,
   dayActualAopId: null,
+  calendarFilterAopId: null,
   state: loadState()
 };
 let rainCanvas = null;
@@ -3350,6 +3351,7 @@ function setAreaView(areaId, persist){
     return;
   }
   view.state.settings.areaView = safe;
+  view.calendarFilterAopId = null;
   if(safe === MASTER_VIEW_ID){
     const vis = normalizedSectionVisibility();
     if(!vis.tools){
@@ -4265,7 +4267,7 @@ function renderDayActualLinks(){
       const switchedVisibleAop = keepSelectedAopVisibleInCalendar(aopId);
       setActualLinkState(
         switchedVisibleAop
-          ? `Only Active AOP is on. Switched visibility to ${resolveAopName(aopId)}.`
+          ? `Only Active AOP is on. Showing ${resolveAopName(aopId)} in the calendar.`
           : `Ready to add ${resolveAopName(aopId)} ${timeShort()}`
       );
       if(ui.dayActualAopSelect) ui.dayActualAopSelect.focus();
@@ -6485,9 +6487,11 @@ function keepSelectedAopVisibleInCalendar(aopId){
   if(!aopId || !view.state.aops[aopId] || !isAopInArea(aopId)) return false;
   const cfg = normalizedCalendarUI();
   if(!cfg.activeOnly) return false;
-  if(view.state.activeAopId === aopId) return false;
-  view.state.activeAopId = aopId;
-  syncAopSelectors(aopId);
+  if(view.state.activeAopId === aopId){
+    view.calendarFilterAopId = null;
+    return false;
+  }
+  view.calendarFilterAopId = aopId;
   return true;
 }
 
@@ -7209,6 +7213,7 @@ function promptRenameAop(id){
 function setActiveAop(id){
   if(!view.state.aops[id] || !isAopInArea(id)) return;
   view.state.activeAopId = id;
+  view.calendarFilterAopId = null;
   saveState();
   renderAll();
   syncAopSelectors(id);
@@ -7301,6 +7306,7 @@ function saveMonthlyTemplate(){
 }
 function clearActiveAop(){
   view.state.activeAopId = null;
+  view.calendarFilterAopId = null;
   saveState();
   renderAll();
   loadMonthlyTemplate();
@@ -7539,7 +7545,11 @@ function renderCalendar(container, type){
   container.innerHTML = "";
   const start = firstGridDate(view.year, view.month);
   const cfg = normalizedCalendarUI();
-  const activeFilterId = (cfg.activeOnly && view.state.activeAopId && isAopInArea(view.state.activeAopId)) ? view.state.activeAopId : null;
+  const filterTargetId =
+    (view.calendarFilterAopId && view.state.aops?.[view.calendarFilterAopId] && isAopInArea(view.calendarFilterAopId))
+      ? view.calendarFilterAopId
+      : view.state.activeAopId;
+  const activeFilterId = (cfg.activeOnly && filterTargetId && isAopInArea(filterTargetId)) ? filterTargetId : null;
 
   for(let i=0; i<42; i++){
     const d = new Date(start);
@@ -9007,7 +9017,7 @@ function hookUI(){
   ui.dayActualAopSelect.addEventListener("change", () => {
     setDayActualSelection(ui.dayActualAopSelect.value);
     if(ui.dayActualAopSelect.value && normalizedCalendarUI().activeOnly && ui.dayActualAopSelect.value !== view.state.activeAopId){
-      setActualLinkState(`Only Active AOP is on. Adding will switch visibility to ${resolveAopName(ui.dayActualAopSelect.value)}.`);
+      setActualLinkState(`Only Active AOP is on. Adding will show ${resolveAopName(ui.dayActualAopSelect.value)} in the calendar.`);
     }else{
       setActualLinkState(ui.dayActualAopSelect.value ? "Ready" : "Select an AOP");
     }
