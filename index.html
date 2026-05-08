@@ -2790,7 +2790,7 @@
             </div>
 
             <div class="small aop-active-line">
-              Active AOP: <span id="activeAopLabel" class="chip active" style="cursor:default;">None</span>
+              Calendar AOP: <span id="activeAopLabel" class="chip active" style="cursor:default;">None</span>
             </div>
 
             <div style="margin-top:10px;">
@@ -7011,6 +7011,10 @@ function renderAopCatalog(){
   if(ui.aopCountPill){
     ui.aopCountPill.textContent = `${order.length} AOP${order.length === 1 ? "" : "s"}`;
   }
+  const calendarTargetId = currentCalendarAopId();
+  const calendarTargetName = calendarTargetId && view.state.aops[calendarTargetId] && isAopInArea(calendarTargetId)
+    ? view.state.aops[calendarTargetId].name
+    : "None";
   if(ui.activeAopPill){
     const activeName = view.state.activeAopId && view.state.aops[view.state.activeAopId] && isAopInArea(view.state.activeAopId)
       ? view.state.aops[view.state.activeAopId].name
@@ -7139,17 +7143,19 @@ function renderAopCatalog(){
   if(view.state.activeAopId && view.state.aops[view.state.activeAopId] && isAopInArea(view.state.activeAopId)){
     const activeName = view.state.aops[view.state.activeAopId].name;
     syncAopSelectors(view.state.activeAopId);
-    ui.activeAopLabel.textContent = activeName;
-    ui.activeAopLabel.title = activeName;
-    const c = view.state.aops[view.state.activeAopId].color;
+    ui.activeAopLabel.textContent = calendarTargetName;
+    ui.activeAopLabel.title = calendarTargetName === activeName ? calendarTargetName : `Calendar: ${calendarTargetName} | Active: ${activeName}`;
+    const c = calendarTargetId && view.state.aops[calendarTargetId]
+      ? view.state.aops[calendarTargetId].color
+      : view.state.aops[view.state.activeAopId].color;
     ui.activeAopLabel.style.borderColor = hexToRgba(c, .65);
     ui.activeAopLabel.style.background = hexToRgba(c, .12);
     ui.activeAopLabel.style.color = "var(--text)";
   }else{
     const sticky = [prevSelectId, prevNotationSelectId, prevGoalsSelectId].find(id => !!id && order.includes(id)) || "";
     syncAopSelectors(sticky);
-    ui.activeAopLabel.textContent = "None";
-    ui.activeAopLabel.title = "None";
+    ui.activeAopLabel.textContent = calendarTargetName;
+    ui.activeAopLabel.title = calendarTargetName;
     ui.activeAopLabel.style.borderColor = "var(--line)";
     ui.activeAopLabel.style.background = "rgba(255,255,255,.03)";
     ui.activeAopLabel.style.color = "var(--muted)";
