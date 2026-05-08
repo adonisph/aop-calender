@@ -3107,6 +3107,7 @@ let view = {
   selectedDate: null,
   selectedCalendar: "planned",
   diffMode: false,
+  calendarAopId: null,
   goalsAopId: null,
   dayActualAopId: null,
   calendarFilterAopId: null,
@@ -6457,7 +6458,7 @@ function renderDows(){
 }
 
 function selectedAopId(){
-  const candidates = [ui.aopSelect?.value, view.state.activeAopId];
+  const candidates = [ui.aopSelect?.value, view.calendarAopId];
   for(const id of candidates){
     if(id && view.state.aops[id] && isAopInArea(id)) return id;
   }
@@ -6474,8 +6475,13 @@ function selectedGoalsAopId(){
 
 function syncAopSelectors(id){
   const safe = (id && view.state.aops[id] && isAopInArea(id)) ? id : "";
-  if(ui.aopSelect) ui.aopSelect.value = safe;
   if(ui.aopNotationSelect) ui.aopNotationSelect.value = safe;
+}
+
+function setCalendarAopSelection(id){
+  const safe = (id && view.state.aops[id] && isAopInArea(id)) ? id : "";
+  view.calendarAopId = safe || null;
+  if(ui.aopSelect) ui.aopSelect.value = safe;
 }
 
 function setGoalsAopSelection(id){
@@ -7129,6 +7135,8 @@ function renderAopCatalog(){
     ui.activeAopLabel.style.background = "rgba(255,255,255,.03)";
     ui.activeAopLabel.style.color = "var(--muted)";
   }
+  const calendarSticky = [view.calendarAopId, prevSelectId, view.state.activeAopId].find(id => !!id && order.includes(id)) || "";
+  setCalendarAopSelection(calendarSticky);
   const goalsSticky = [view.goalsAopId, prevGoalsSelectId, view.state.activeAopId, prevSelectId, prevNotationSelectId]
     .find(id => !!id && order.includes(id)) || "";
   setGoalsAopSelection(goalsSticky);
@@ -7147,6 +7155,7 @@ function addAop(name, color, areaId){
   if(existingId){
     view.state.activeAopId = existingId;
     view.state.settings.aopPane = "catalog";
+    setCalendarAopSelection(existingId);
     saveState();
     if(ui.aopSearch) ui.aopSearch.value = "";
     renderAll();
@@ -7172,6 +7181,7 @@ function addAop(name, color, areaId){
   view.state.aopOrder = [...(view.state.aopOrder||[]), id];
   view.state.activeAopId = id;
   view.state.settings.aopPane = "catalog";
+  setCalendarAopSelection(id);
   if(!view.state.aopMonthly[id]) view.state.aopMonthly[id] = {};
   ensureMonthly(id, currentMonthKey());
   saveState();
@@ -9014,7 +9024,13 @@ function hookUI(){
       clearActiveAop();
     }
   };
-  ui.aopSelect.addEventListener("change", () => onAopSelectionChange(ui.aopSelect.value));
+  ui.aopSelect.addEventListener("change", () => {
+    setCalendarAopSelection(ui.aopSelect.value);
+    syncSelectedInfo();
+    if(ui.aopSelect.value && normalizedCalendarUI().activeOnly && ui.aopSelect.value !== view.state.activeAopId){
+      setActualLinkState(`Only Active AOP is on. Calendar add target is ${resolveAopName(ui.aopSelect.value)}.`);
+    }
+  });
   if(ui.aopNotationSelect){
     ui.aopNotationSelect.addEventListener("change", () => onAopSelectionChange(ui.aopNotationSelect.value));
   }
@@ -9457,6 +9473,7 @@ function init(){
   ensureActiveAopInView();
   if(view.state.activeAopId && view.state.aops[view.state.activeAopId] && isAopInArea(view.state.activeAopId)){
     syncAopSelectors(view.state.activeAopId);
+    setCalendarAopSelection(view.state.activeAopId);
   }
 
   // Diff toggle initial label
