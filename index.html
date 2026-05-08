@@ -4262,7 +4262,12 @@ function renderDayActualLinks(){
       const aopId = btn.getAttribute("data-use-actual-aop");
       if(!aopId || !view.state.aops[aopId] || !isAopInArea(aopId)) return;
       setDayActualSelection(aopId);
-      setActualLinkState(`Ready to add ${resolveAopName(aopId)} ${timeShort()}`);
+      const switchedVisibleAop = keepSelectedAopVisibleInCalendar(aopId);
+      setActualLinkState(
+        switchedVisibleAop
+          ? `Only Active AOP is on. Switched visibility to ${resolveAopName(aopId)}.`
+          : `Ready to add ${resolveAopName(aopId)} ${timeShort()}`
+      );
       if(ui.dayActualAopSelect) ui.dayActualAopSelect.focus();
     });
   });
@@ -4313,6 +4318,7 @@ function addActualFromDayNotes(){
   const entry = { id: uuid(), ts: nowIso(), aopId };
   actualArr.unshift(entry);
   setDayActualSelection(aopId);
+  keepSelectedAopVisibleInCalendar(aopId);
   saveState();
   syncSelectedInfo();
   renderAll();
@@ -6473,6 +6479,16 @@ function setDayActualSelection(id){
   if(ui.addActualSelectedBtn){
     ui.addActualSelectedBtn.disabled = !ui.dayActualAopSelect || ui.dayActualAopSelect.disabled || !safe;
   }
+}
+
+function keepSelectedAopVisibleInCalendar(aopId){
+  if(!aopId || !view.state.aops[aopId] || !isAopInArea(aopId)) return false;
+  const cfg = normalizedCalendarUI();
+  if(!cfg.activeOnly) return false;
+  if(view.state.activeAopId === aopId) return false;
+  view.state.activeAopId = aopId;
+  syncAopSelectors(aopId);
+  return true;
 }
 
 function selectedAopForNotation(){
@@ -8990,7 +9006,11 @@ function hookUI(){
 
   ui.dayActualAopSelect.addEventListener("change", () => {
     setDayActualSelection(ui.dayActualAopSelect.value);
-    setActualLinkState(ui.dayActualAopSelect.value ? "Ready" : "Select an AOP");
+    if(ui.dayActualAopSelect.value && normalizedCalendarUI().activeOnly && ui.dayActualAopSelect.value !== view.state.activeAopId){
+      setActualLinkState(`Only Active AOP is on. Adding will switch visibility to ${resolveAopName(ui.dayActualAopSelect.value)}.`);
+    }else{
+      setActualLinkState(ui.dayActualAopSelect.value ? "Ready" : "Select an AOP");
+    }
   });
   ui.addActualSelectedBtn.addEventListener("click", addActualFromDayNotes);
   ui.closeDayNotesBtn.addEventListener("click", () => setDayNotesDrawer(false, false));
