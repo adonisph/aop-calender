@@ -7570,7 +7570,10 @@ function renderCalendar(container, type){
     const bucket = view.state.entries?.[dateKey] || { planned: [], actual: [] };
     const allEntries = filterEntriesByArea(bucket[type]);
     const uniqueAopIds = [...new Set(allEntries.map(e => e.aopId).filter(Boolean))];
-    const visibleAopIds = activeFilterId ? uniqueAopIds.filter(id => id === activeFilterId) : uniqueAopIds;
+    const editingSelectedDay = view.selectedDate === dateKey;
+    const visibleAopIds = (activeFilterId && !editingSelectedDay)
+      ? uniqueAopIds.filter(id => id === activeFilterId)
+      : uniqueAopIds;
     const visibleColors = distinctColors(visibleAopIds.map(id => resolveAopColor(id) || "#6b7280"), 99);
     const hasVisibleMarks = visibleAopIds.length > 0;
     const filteredOut = inMonth && cfg.markedOnly && !hasVisibleMarks;
