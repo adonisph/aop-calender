@@ -3091,6 +3091,7 @@ let teamSyncSaveTimer = null;
 let teamSyncChannel = null;
 let teamSyncBusy = false;
 let teamSyncSuppressPush = false;
+let localStateVersion = 0;
 let teamSync = {
   connected: false,
   supabase: null,
@@ -4711,6 +4712,7 @@ function saveStateLocal(){
   localStorage.setItem(STORAGE_KEY, JSON.stringify(view.state));
 }
 function saveState(){
+  localStateVersion += 1;
   saveStateLocal();
   scheduleTeamSyncSave("local-change");
 }
@@ -5815,6 +5817,7 @@ async function pushRemoteState(opts){
   teamSyncBusy = true;
   applyTeamSyncUiState();
   let mergedState = null;
+  const localStateVersionAtStart = localStateVersion;
   try{
     flushPendingEditorsBeforeRemoteApply();
     const workspaceId = normalizeWorkspaceId(teamSync.config.workspaceId);
@@ -5857,7 +5860,14 @@ async function pushRemoteState(opts){
       .single();
     if(error) throw error;
     teamSync.lastRemoteUpdatedAt = data?.updated_at || "";
-    applyMergedStateSilently(mergedState);
+    const localChangedDuringPush = localStateVersion !== localStateVersionAtStart;
+    if(localChangedDuringPush){
+      const reconciledState = mergeIncomingSharedState(view.state, mergedState);
+      applyMergedStateSilently(reconciledState);
+      scheduleTeamSyncSave("post-push-catchup");
+    }else{
+      applyMergedStateSilently(mergedState);
+    }
     if(options.manual){
       setTeamSyncStatus(`Pushed ${timeShort()}`);
     }
