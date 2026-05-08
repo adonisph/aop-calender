@@ -2891,7 +2891,7 @@
     <div class="card-header">
       <div class="title">
         <strong>Day Notes</strong>
-        <span>Autosaves while typing. Editable on Planned and Actual days in the current month. In Master view, notes save to the active AOP area.</span>
+        <span>Autosaves while typing. Editable on Planned and Actual days in the current month. In Master view, notes follow the current area and selected AOP context.</span>
       </div>
       <div class="drawer-tools">
         <button id="prevDayNoteBtn" class="btn-ghost" type="button" title="Previous day">Prev day</button>
@@ -2914,7 +2914,7 @@
         <div class="item-head" style="margin:0;">
           <div>
             <strong>Actual AOP (selected day)</strong>
-            <div class="small">Shows Goal context for each Actual AOP from this month.</div>
+            <div class="small">Pick an AOP here to add or remove Actual work without changing the rest of your selections.</div>
           </div>
           <span id="dayActualCount" class="status-pill">0 actual</span>
         </div>
@@ -3107,6 +3107,7 @@ let view = {
   selectedCalendar: "planned",
   diffMode: false,
   goalsAopId: null,
+  dayActualAopId: null,
   state: loadState()
 };
 let rainCanvas = null;
@@ -4178,14 +4179,14 @@ function renderDayActualLinks(){
   const canEdit = status.canEdit;
   const allAopIds = visibleAopOrder();
   const prevSelected = ui.dayActualAopSelect.value || "";
-  const fallback = (view.state.activeAopId && view.state.aops[view.state.activeAopId] && isAopInArea(view.state.activeAopId)) ? view.state.activeAopId : "";
-  const selectedId = prevSelected === "" ? "" : (allAopIds.includes(prevSelected) ? prevSelected : fallback);
+  const preferredId = view.dayActualAopId || prevSelected || selectedAopId() || "";
+  const selectedId = allAopIds.includes(preferredId) ? preferredId : "";
   ui.dayActualAopSelect.innerHTML = [
     `<option value="">Select AOP...</option>`,
     ...allAopIds.map(id => `<option value="${escapeHtml(id)}">${escapeHtml(resolveAopName(id))}</option>`)
   ].join("");
-  ui.dayActualAopSelect.value = selectedId;
   ui.dayActualAopSelect.disabled = !canEdit || allAopIds.length === 0;
+  setDayActualSelection(selectedId);
   ui.addActualSelectedBtn.disabled = !canEdit || allAopIds.length === 0 || !ui.dayActualAopSelect.value;
 
   const dateKey = view.selectedDate;
@@ -4237,7 +4238,7 @@ function renderDayActualLinks(){
             <span class="name" title="${escapeHtml(name)}">${escapeHtml(name)}</span>
           </div>
           <div class="actions">
-            <button type="button" class="btn-ghost" data-use-actual-aop="${escapeHtml(e.aopId || "")}" ${canEdit ? "" : "disabled"}>Use</button>
+            <button type="button" class="btn-ghost" data-use-actual-aop="${escapeHtml(e.aopId || "")}" ${canEdit ? "" : "disabled"}>Pick</button>
             <button type="button" class="btn-danger" data-remove-actual-id="${escapeHtml(e.id)}" ${canEdit ? "" : "disabled"}>Remove</button>
           </div>
         </div>
@@ -4248,7 +4249,7 @@ function renderDayActualLinks(){
             ${goalValue}
           </div>
           <div class="actual-context-line">
-            <span class="actual-context-label">Goal</span>
+            <span class="actual-context-label">Achieved</span>
             ${achievedValue}
           </div>
         </div>
@@ -4260,9 +4261,9 @@ function renderDayActualLinks(){
     btn.addEventListener("click", ()=>{
       const aopId = btn.getAttribute("data-use-actual-aop");
       if(!aopId || !view.state.aops[aopId] || !isAopInArea(aopId)) return;
-      setActiveAop(aopId);
-      setActualLinkState(`Active AOP set ${timeShort()}`);
-      openDayNotesPanel(false);
+      setDayActualSelection(aopId);
+      setActualLinkState(`Ready to add ${resolveAopName(aopId)} ${timeShort()}`);
+      if(ui.dayActualAopSelect) ui.dayActualAopSelect.focus();
     });
   });
 
@@ -4311,7 +4312,7 @@ function addActualFromDayNotes(){
 
   const entry = { id: uuid(), ts: nowIso(), aopId };
   actualArr.unshift(entry);
-  view.selectedCalendar = "actual";
+  setDayActualSelection(aopId);
   saveState();
   syncSelectedInfo();
   renderAll();
@@ -6465,6 +6466,15 @@ function setGoalsAopSelection(id){
   if(ui.aopSelectGoals) ui.aopSelectGoals.value = safe;
 }
 
+function setDayActualSelection(id){
+  const safe = (id && view.state.aops[id] && isAopInArea(id)) ? id : "";
+  view.dayActualAopId = safe || null;
+  if(ui.dayActualAopSelect) ui.dayActualAopSelect.value = safe;
+  if(ui.addActualSelectedBtn){
+    ui.addActualSelectedBtn.disabled = !ui.dayActualAopSelect || ui.dayActualAopSelect.disabled || !safe;
+  }
+}
+
 function selectedAopForNotation(){
   const candidates = [ui.aopNotationSelect?.value, view.state.activeAopId];
   for(const id of candidates){
@@ -7324,7 +7334,10 @@ function dayNoteEditStatus(){
 }
 function loadDayNoteUI(){
   const calType = view.selectedCalendar ? view.selectedCalendar.toUpperCase() : "PLANNED";
-  ui.dayNoteInfo.textContent = `Day note key: ${dayNoteKeyLabel()} (${calType})`;
+  const actualPick = view.dayActualAopId && view.state.aops?.[view.dayActualAopId]
+    ? resolveAopName(view.dayActualAopId)
+    : "None";
+  ui.dayNoteInfo.textContent = `Day note key: ${dayNoteKeyLabel()} | Calendar focus: ${calType} | Actual picker: ${actualPick}`;
 
   const dateKey = view.selectedDate;
   const status = dayNoteEditStatus();
@@ -7446,8 +7459,8 @@ function renderAllDayNotes(){
       }
 
       view.selectedDate = dateKey;
-      view.selectedCalendar = "actual";
-      openDayNotesPanel(false);
+      view.selectedCalendar = view.selectedCalendar || "planned";
+      openDayNotesPanel(true);
       renderAll();
       renderEntries();
       loadDayNoteUI();
@@ -7679,7 +7692,8 @@ function syncSelectedInfo(){
   }
   const [y,m,d] = view.selectedDate.split("-");
   const pretty = `${Number(d)} ${monthNames[Number(m)-1]} ${y}`;
-  ui.selectedInfo.textContent = `Selected: ${pretty} (${view.selectedCalendar.toUpperCase()})`;
+  const activeAopName = selectedAopId() ? resolveAopName(selectedAopId()) : "None";
+  ui.selectedInfo.textContent = `Selected: ${pretty} | ${view.selectedCalendar.toUpperCase()} | AOP: ${activeAopName}`;
 }
 
 /* --- Mark Day (calendar stamp) --- */
@@ -8974,7 +8988,10 @@ function hookUI(){
   ui.tmplGoal.addEventListener("blur", saveMonthlyTemplate);
   ui.tmplComments.addEventListener("blur", saveMonthlyTemplate);
 
-  ui.dayActualAopSelect.addEventListener("change", renderDayActualLinks);
+  ui.dayActualAopSelect.addEventListener("change", () => {
+    setDayActualSelection(ui.dayActualAopSelect.value);
+    setActualLinkState(ui.dayActualAopSelect.value ? "Ready" : "Select an AOP");
+  });
   ui.addActualSelectedBtn.addEventListener("click", addActualFromDayNotes);
   ui.closeDayNotesBtn.addEventListener("click", () => setDayNotesDrawer(false, false));
   ui.dayNotesBackdrop.addEventListener("click", () => setDayNotesDrawer(false, false));
