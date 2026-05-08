@@ -4425,7 +4425,7 @@ function openDayNotesPanel(focusEditor){
 
 function defaultState(){
   return {
-    version: 7,
+    version: 8,
     settings: {
       sectionVisibility: { dashboard:true, calendars:true, aopNotes:true, tools:true },
       aopPane: "notation",
@@ -4453,6 +4453,7 @@ function defaultState(){
     aops: {},
     aopOrder: [],
     activeAopId: null,
+    aopTombstones: {},
     aopMonthly: {},
     entries: {},
     dayNotes: {},
@@ -4519,6 +4520,7 @@ function migrateIfNeeded(st){
   st.entries = st.entries || {};
   st.aopMonthly = st.aopMonthly || {};
   st.dayNotes = st.dayNotes || {};
+  st.aopTombstones = normalizeAopTombstones(st.aopTombstones);
   st.entryTombstones = st.entryTombstones && typeof st.entryTombstones === "object" ? st.entryTombstones : {};
   st.syncHistory = normalizeSyncHistory(st.syncHistory);
   const now = new Date();
@@ -4682,7 +4684,7 @@ function migrateIfNeeded(st){
       }
     };
   }
-  st.version = 7;
+  st.version = 8;
   return st;
 }
 
@@ -5150,6 +5152,45 @@ function appendSyncHistorySnapshot(history, snapshot){
   });
 }
 
+function normalizeAopTombstones(raw){
+  const src = raw && typeof raw === "object" ? raw : {};
+  const out = {};
+  for(const [aopId, tomb] of Object.entries(src)){
+    const id = String(aopId || "").trim();
+    if(!id || !tomb || typeof tomb !== "object") continue;
+    const deletedAt = String(tomb.deleted_at || "").trim();
+    if(!deletedAt) continue;
+    out[id] = {
+      deleted_at: deletedAt
+    };
+  }
+  return out;
+}
+
+function mergeAopTombstonesPreservingLatest(localState, incomingState){
+  const local = normalizeAopTombstones(localState?.aopTombstones);
+  const incoming = normalizeAopTombstones(incomingState?.aopTombstones);
+  const merged = { ...incoming };
+  for(const [aopId, localTomb] of Object.entries(local)){
+    const remoteTomb = incoming[aopId];
+    if(!remoteTomb || isoMs(localTomb.deleted_at) >= isoMs(remoteTomb.deleted_at)){
+      merged[aopId] = localTomb;
+    }
+  }
+  return merged;
+}
+
+function setAopTombstone(aopId, deletedAt){
+  const id = String(aopId || "").trim();
+  if(!id) return;
+  if(!view.state.aopTombstones || typeof view.state.aopTombstones !== "object"){
+    view.state.aopTombstones = {};
+  }
+  view.state.aopTombstones[id] = {
+    deleted_at: deletedAt || nowIso()
+  };
+}
+
 function normalizeEntryTombstones(raw){
   const src = raw && typeof raw === "object" ? raw : {};
   const out = {};
@@ -5380,10 +5421,23 @@ function buildSyncHistorySnapshot(prevState, nextState, meta){
 }
 
 function mergeAopsPreservingAll(localState, incomingState){
+  const mergedTombstones = mergeAopTombstonesPreservingLatest(localState, incomingState);
   const merged = cloneStateObject(incomingState?.aops) || {};
   const localAops = localState?.aops || {};
 
+  for(const [aopId, remoteAop] of Object.entries(merged)){
+    const tomb = mergedTombstones[aopId];
+    if(tomb && isoMs(tomb.deleted_at) >= aopFreshness(remoteAop)){
+      delete merged[aopId];
+    }
+  }
+
   for(const [aopId, localAop] of Object.entries(localAops)){
+    const tomb = mergedTombstones[aopId];
+    if(tomb && isoMs(tomb.deleted_at) >= aopFreshness(localAop)){
+      delete merged[aopId];
+      continue;
+    }
     const remoteAop = merged[aopId];
     if(!remoteAop){
       merged[aopId] = cloneStateObject(localAop) || localAop;
@@ -5412,17 +5466,15 @@ function mergeAopOrderPreservingAll(localState, incomingState, mergedAops){
   return out;
 }
 
-function mergeAopMonthlyPreservingLatest(localState, incomingState){
-  const merged = cloneStateObject(incomingState?.aopMonthly) || {};
-  const localAops = localState?.aops || {};
-  const incomingAops = incomingState?.aops || {};
+function mergeAopMonthlyPreservingLatest(localState, incomingState, mergedAops){
+  const merged = {};
   const localMonthly = localState?.aopMonthly || {};
   const incomingMonthly = incomingState?.aopMonthly || {};
 
-  for(const aopId of new Set([...Object.keys(localAops), ...Object.keys(incomingAops)])){
+  for(const aopId of Object.keys(mergedAops || {})){
     const localMonths = localMonthly[aopId] || {};
     const remoteMonths = incomingMonthly[aopId] || {};
-    if(!merged[aopId]) merged[aopId] = {};
+    const nextMonths = {};
     const monthKeys = new Set([...Object.keys(localMonths), ...Object.keys(remoteMonths)]);
     for(const mk of monthKeys){
       const localTemplate = localMonths[mk];
@@ -5430,21 +5482,30 @@ function mergeAopMonthlyPreservingLatest(localState, incomingState){
       const localHas = monthTemplateHasContent(localTemplate);
       const remoteHas = monthTemplateHasContent(remoteTemplate);
 
+      if(!localTemplate && remoteTemplate){
+        if(remoteHas){
+          nextMonths[mk] = cloneStateObject(remoteTemplate) || remoteTemplate;
+        }
+        continue;
+      }
       if(localTemplate && !remoteTemplate){
         if(localHas){
-          merged[aopId][mk] = cloneStateObject(localTemplate) || localTemplate;
+          nextMonths[mk] = cloneStateObject(localTemplate) || localTemplate;
         }
         continue;
       }
       if(!localTemplate || !remoteTemplate) continue;
       if(localHas && !remoteHas){
-        merged[aopId][mk] = cloneStateObject(localTemplate) || localTemplate;
+        nextMonths[mk] = cloneStateObject(localTemplate) || localTemplate;
         continue;
       }
       if(!localHas && remoteHas) continue;
       if(localHas && remoteHas && monthTemplateFreshness(localTemplate) >= monthTemplateFreshness(remoteTemplate)){
-        merged[aopId][mk] = cloneStateObject(localTemplate) || localTemplate;
+        nextMonths[mk] = cloneStateObject(localTemplate) || localTemplate;
       }
+    }
+    if(Object.keys(nextMonths).length){
+      merged[aopId] = nextMonths;
     }
   }
   return merged;
@@ -5549,9 +5610,10 @@ function mergeDayNotesPreservingLatest(localState, incomingState){
 function mergeIncomingSharedState(localState, incomingState){
   const local = migrateIfNeeded(cloneStateObject(localState) || defaultState());
   const incoming = migrateIfNeeded(cloneStateObject(incomingState) || defaultState());
+  incoming.aopTombstones = mergeAopTombstonesPreservingLatest(local, incoming);
   incoming.aops = mergeAopsPreservingAll(local, incoming);
   incoming.aopOrder = mergeAopOrderPreservingAll(local, incoming, incoming.aops);
-  incoming.aopMonthly = mergeAopMonthlyPreservingLatest(local, incoming);
+  incoming.aopMonthly = mergeAopMonthlyPreservingLatest(local, incoming, incoming.aops);
   incoming.entries = mergeEntriesPreservingAll(local, incoming);
   incoming.dayNotes = mergeDayNotesPreservingLatest(local, incoming);
   incoming.entryTombstones = mergeEntryTombstonesPreservingLatest(local, incoming);
@@ -5733,20 +5795,26 @@ async function pushRemoteState(opts){
   const options = opts || {};
   if(!teamSync.supabase || !teamSync.connected){
     if(options.manual) setTeamSyncStatus("Not connected", true);
-    return;
+    if(options.throwOnError) throw new Error("Not connected");
+    return null;
   }
   if(teamSyncBusy){
     if(options.manual) setTeamSyncStatus("Sync in progress");
-    return;
+    if(options.throwOnError) throw new Error("Sync in progress");
+    return null;
   }
   teamSyncBusy = true;
   applyTeamSyncUiState();
+  let mergedState = null;
   try{
     flushPendingEditorsBeforeRemoteApply();
     const workspaceId = normalizeWorkspaceId(teamSync.config.workspaceId);
-    const localSourceState = options.stateOverride
+    const localSourceStateBase = options.stateOverride
       ? migrateIfNeeded(cloneStateObject(options.stateOverride) || defaultState())
       : buildSharedSyncState();
+    const localSourceState = options.stateOverride
+      ? sharedStateWithoutHistory(localSourceStateBase)
+      : localSourceStateBase;
     const remoteRow = await teamSync.supabase
       .from(TEAM_SYNC_TABLE)
       .select("id,state,updated_at")
@@ -5756,7 +5824,7 @@ async function pushRemoteState(opts){
     const remoteState = remoteRow.data?.state
       ? migrateIfNeeded(cloneStateObject(remoteRow.data.state) || defaultState())
       : defaultState();
-    const mergedState = options.stateOverride
+    mergedState = options.overwriteRemote
       ? localSourceState
       : (remoteRow.data?.state ? mergeIncomingSharedState(localSourceState, remoteRow.data.state) : localSourceState);
     mergedState.syncHistory = mergeSyncHistoryPreservingAll(localSourceState, remoteState);
@@ -5768,7 +5836,6 @@ async function pushRemoteState(opts){
     if(snapshot){
       mergedState.syncHistory = appendSyncHistorySnapshot(mergedState.syncHistory, snapshot);
     }
-    applyMergedStateSilently(mergedState);
     const payload = {
       id: workspaceId,
       state: mergedState,
@@ -5781,11 +5848,15 @@ async function pushRemoteState(opts){
       .single();
     if(error) throw error;
     teamSync.lastRemoteUpdatedAt = data?.updated_at || "";
+    applyMergedStateSilently(mergedState);
     if(options.manual){
       setTeamSyncStatus(`Pushed ${timeShort()}`);
     }
+    return mergedState;
   }catch(err){
     setTeamSyncStatus(`Push failed: ${err.message || err}`, true);
+    if(options.throwOnError) throw err;
+    return null;
   }finally{
     teamSyncBusy = false;
     applyTeamSyncUiState();
@@ -5807,20 +5878,20 @@ async function restoreSyncHistorySnapshot(snapshotId){
     return;
   }
   const restoredState = sharedStateWithoutHistory(snapshot.state);
-  restoredState.syncHistory = mergeSyncHistoryPreservingAll(view.state, restoredState);
-  applyMergedStateSilently(restoredState);
-  renderAll();
-  loadMonthlyTemplate();
-  loadDayNoteUI();
-  renderEntries();
-  renderDashboard();
   try{
     await pushRemoteState({
       manual:true,
       stateOverride: restoredState,
+      overwriteRemote:true,
       snapshotAction:"restore",
-      snapshotSummary:`Restored ${label}`
+      snapshotSummary:`Restored ${label}`,
+      throwOnError:true
     });
+    renderAll();
+    loadMonthlyTemplate();
+    loadDayNoteUI();
+    renderEntries();
+    renderDashboard();
   }catch(err){
     setTeamSyncStatus(`Restore failed: ${err.message || err}`, true);
   }
@@ -6367,7 +6438,7 @@ function renderDows(){
 }
 
 function selectedAopId(){
-  const candidates = [ui.aopSelect?.value, view.state.activeAopId, ui.aopNotationSelect?.value, ui.aopSelectGoals?.value];
+  const candidates = [ui.aopSelect?.value, view.state.activeAopId];
   for(const id of candidates){
     if(id && view.state.aops[id] && isAopInArea(id)) return id;
   }
@@ -6375,7 +6446,7 @@ function selectedAopId(){
 }
 
 function selectedGoalsAopId(){
-  const candidates = [ui.aopSelectGoals?.value, view.goalsAopId, view.state.activeAopId, ui.aopNotationSelect?.value, ui.aopSelect?.value];
+  const candidates = [ui.aopSelectGoals?.value, view.goalsAopId, view.state.activeAopId];
   for(const id of candidates){
     if(id && view.state.aops[id] && isAopInArea(id)) return id;
   }
@@ -6395,7 +6466,7 @@ function setGoalsAopSelection(id){
 }
 
 function selectedAopForNotation(){
-  const candidates = [ui.aopNotationSelect?.value, view.state.activeAopId, ui.aopSelectGoals?.value, ui.aopSelect?.value];
+  const candidates = [ui.aopNotationSelect?.value, view.state.activeAopId];
   for(const id of candidates){
     if(id && view.state.aops[id] && isAopInArea(id)) return id;
   }
@@ -7125,6 +7196,7 @@ function removeAop(id){
   if(!a) return;
   if(!confirm(`Remove AOP "${a.name}"?\n\nExisting calendar marks remain, but will display as (Missing AOP).`)) return;
 
+  setAopTombstone(id, nowIso());
   delete view.state.aops[id];
   delete view.state.aopMonthly[id];
   view.state.aopOrder = (view.state.aopOrder||[]).filter(x=>x!==id);
@@ -8271,15 +8343,25 @@ async function importJson(file){
   const parsed = JSON.parse(text);
   const incoming = parsed.state || parsed;
   if(!isValidImportedState(incoming)) throw new Error("Invalid JSON.");
-  view.state = migrateIfNeeded(incoming);
-  applyLocalAppearanceProfile();
-  saveState();
+  const nextState = migrateIfNeeded(incoming);
   if(teamSync.connected && teamSync.supabase){
     if(teamSyncSaveTimer){
       clearTimeout(teamSyncSaveTimer);
       teamSyncSaveTimer = null;
     }
-    await pushRemoteState({ manual:true, reason:"import" });
+    await pushRemoteState({
+      manual:true,
+      reason:"import",
+      stateOverride: nextState,
+      overwriteRemote:true,
+      snapshotAction:"import",
+      snapshotSummary:"Imported JSON",
+      throwOnError:true
+    });
+  }else{
+    view.state = nextState;
+    applyLocalAppearanceProfile();
+    saveState();
   }
 
   // Keep view coherent
@@ -9023,10 +9105,33 @@ function hookUI(){
     });
   });
 
-  ui.wipe.addEventListener("click", () => {
+  ui.wipe.addEventListener("click", async () => {
     if(!confirm("Clear ALL saved AOPs + month templates + items + day notes + settings? This cannot be undone.")) return;
-    view.state = defaultState();
-    saveState();
+    const clearedState = defaultState();
+    if(teamSync.connected && teamSync.supabase){
+      try{
+        if(teamSyncSaveTimer){
+          clearTimeout(teamSyncSaveTimer);
+          teamSyncSaveTimer = null;
+        }
+        await pushRemoteState({
+          manual:true,
+          reason:"wipe",
+          stateOverride: clearedState,
+          overwriteRemote:true,
+          snapshotAction:"clear",
+          snapshotSummary:"Cleared workspace",
+          throwOnError:true
+        });
+      }catch(err){
+        alert("Clear failed: " + (err.message || err));
+        return;
+      }
+    }else{
+      view.state = clearedState;
+      applyLocalAppearanceProfile();
+      saveState();
+    }
     renderAll();
     loadMonthlyTemplate();
     loadDayNoteUI();
