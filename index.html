@@ -3108,7 +3108,7 @@ let view = {
   selectedCalendar: "planned",
   diffMode: false,
   calendarAopByArea: {},
-  goalsAopId: null,
+  goalsAopByArea: {},
   dayActualAopId: null,
   calendarFilterAopId: null,
   state: loadState()
@@ -3351,6 +3351,19 @@ function ensureCalendarAopInView(){
   if(order.includes(currentCalendarAopId(safeArea))) return;
   const fallback = order.includes(view.state.activeAopId) ? view.state.activeAopId : (order[0] || null);
   setCalendarAopSelection(fallback, safeArea);
+}
+function currentGoalsAopId(areaId){
+  const safeArea = normalizeAreaViewId(areaId || currentAreaViewId());
+  const key = safeArea === MASTER_VIEW_ID ? DEFAULT_AREA_VIEW : safeArea;
+  const selected = view.goalsAopByArea?.[key] || null;
+  return (selected && view.state.aops[selected] && isAopInArea(selected, safeArea)) ? selected : null;
+}
+function ensureGoalsAopInView(){
+  const safeArea = currentAreaViewId();
+  const order = visibleAopOrder(safeArea);
+  if(order.includes(currentGoalsAopId(safeArea))) return;
+  const fallback = order.includes(view.state.activeAopId) ? view.state.activeAopId : (order[0] || null);
+  setGoalsAopSelection(fallback, safeArea);
 }
 function canAccessMasterView(){
   return syncRoleLabel(teamSync?.role) === "teamlead";
@@ -6476,11 +6489,8 @@ function selectedAopId(){
 }
 
 function selectedGoalsAopId(){
-  const candidates = [ui.aopSelectGoals?.value, view.goalsAopId, view.state.activeAopId];
-  for(const id of candidates){
-    if(id && view.state.aops[id] && isAopInArea(id)) return id;
-  }
-  return null;
+  const id = currentGoalsAopId();
+  return (id && view.state.aops[id] && isAopInArea(id)) ? id : null;
 }
 
 function syncAopSelectors(id){
@@ -6499,9 +6509,14 @@ function setCalendarAopSelection(id, areaId){
   if(ui.aopSelect) ui.aopSelect.value = safe;
 }
 
-function setGoalsAopSelection(id){
-  const safe = (id && view.state.aops[id] && isAopInArea(id)) ? id : "";
-  view.goalsAopId = safe || null;
+function setGoalsAopSelection(id, areaId){
+  const safeArea = normalizeAreaViewId(areaId || currentAreaViewId());
+  const areaKey = safeArea === MASTER_VIEW_ID ? DEFAULT_AREA_VIEW : safeArea;
+  const safe = (id && view.state.aops[id] && isAopInArea(id, safeArea)) ? id : "";
+  if(!view.goalsAopByArea || typeof view.goalsAopByArea !== "object"){
+    view.goalsAopByArea = {};
+  }
+  view.goalsAopByArea[areaKey] = safe || null;
   if(ui.aopSelectGoals) ui.aopSelectGoals.value = safe;
 }
 
@@ -7162,7 +7177,7 @@ function renderAopCatalog(){
   }
   const calendarSticky = [currentCalendarAopId(), prevSelectId].find(id => !!id && order.includes(id)) || "";
   setCalendarAopSelection(calendarSticky);
-  const goalsSticky = [view.goalsAopId, prevGoalsSelectId, view.state.activeAopId, prevSelectId, prevNotationSelectId]
+  const goalsSticky = [currentGoalsAopId(), prevGoalsSelectId]
     .find(id => !!id && order.includes(id)) || "";
   setGoalsAopSelection(goalsSticky);
   loadAopNotationUI();
@@ -8395,6 +8410,7 @@ function renderAll(){
   renderRainToggle();
   ensureActiveAopInView();
   ensureCalendarAopInView();
+  ensureGoalsAopInView();
   if(ui.areaViewSelect) ui.areaViewSelect.value = currentAreaViewId();
   if(ui.aopNewArea) ui.aopNewArea.value = suggestedAreaForNewAop();
   ui.monthSelect.value = String(view.month);
@@ -9498,10 +9514,12 @@ function init(){
   // Sync AOP select to active
   ensureActiveAopInView();
   ensureCalendarAopInView();
+  ensureGoalsAopInView();
   if(view.state.activeAopId && view.state.aops[view.state.activeAopId] && isAopInArea(view.state.activeAopId)){
     syncAopSelectors(view.state.activeAopId);
   }
   setCalendarAopSelection(currentCalendarAopId());
+  setGoalsAopSelection(currentGoalsAopId());
 
   // Diff toggle initial label
   ui.diffToggle.classList.toggle("on", view.diffMode);
