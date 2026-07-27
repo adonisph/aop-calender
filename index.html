@@ -3092,6 +3092,7 @@ let teamSyncChannel = null;
 let teamSyncBusy = false;
 let teamSyncSuppressPush = false;
 let localStateVersion = 0;
+let localStorageQuotaWarningShown = false;
 let teamSync = {
   connected: false,
   supabase: null,
@@ -4734,9 +4735,73 @@ function loadState(){
     return defaultState();
   }
 }
+function storageQuotaExceeded(err){
+  return !!err && (
+    err.name === "QuotaExceededError" ||
+    err.name === "NS_ERROR_DOM_QUOTA_REACHED" ||
+    err.code === 22 ||
+    err.code === 1014 ||
+    /quota|exceeded/i.test(String(err?.message || ""))
+  );
+}
+function stateForLocalStorage(maxHistorySnapshots){
+  const clone = cloneStateObject(view.state) || defaultState();
+  const limit = Math.max(0, Number(maxHistorySnapshots || 0));
+  clone.syncHistory = {
+    snapshots: syncHistorySnapshots(clone).slice(0, limit)
+  };
+  return clone;
+}
+function writePlannerLocalStorage(state){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
 function saveStateLocal(){
-  persistLocalAppearanceProfile();
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(view.state));
+  try{
+    persistLocalAppearanceProfile();
+  }catch(err){
+    console.warn("Could not save local appearance profile", err);
+  }
+  try{
+    writePlannerLocalStorage(view.state);
+    localStorageQuotaWarningShown = false;
+    return true;
+  }catch(err){
+    if(!storageQuotaExceeded(err)) throw err;
+  }
+
+  const fallbacks = [
+    stateForLocalStorage(3),
+    stateForLocalStorage(0)
+  ];
+  for(const fallbackState of fallbacks){
+    try{
+      writePlannerLocalStorage(fallbackState);
+      if(!localStorageQuotaWarningShown){
+        console.warn("Planner local cache was too large; saved a compact cache without full version history.");
+        if(ui.syncStatus){
+          setTeamSyncStatus("Browser storage was full, so local cache was compacted. Team sync still has full history.", true);
+        }
+        localStorageQuotaWarningShown = true;
+      }
+      return true;
+    }catch(err){
+      if(!storageQuotaExceeded(err)) throw err;
+    }
+  }
+
+  try{
+    localStorage.removeItem(STORAGE_KEY);
+  }catch(err){
+    console.warn("Could not clear oversized planner local cache", err);
+  }
+  if(!localStorageQuotaWarningShown){
+    console.warn("Planner local cache is too large for this browser. Changes remain in memory and team sync can still save remotely.");
+    if(ui.syncStatus){
+      setTeamSyncStatus("Browser storage is full. Changes stay active here and can still save to team sync.", true);
+    }
+    localStorageQuotaWarningShown = true;
+  }
+  return false;
 }
 function saveState(){
   localStateVersion += 1;
@@ -4771,7 +4836,17 @@ function saveTeamSyncConfig(cfg){
     autoSync: cfg?.autoSync !== false
   };
   teamSync.config = next;
-  localStorage.setItem(TEAM_SYNC_CONFIG_KEY, JSON.stringify(next));
+  try{
+    localStorage.setItem(TEAM_SYNC_CONFIG_KEY, JSON.stringify(next));
+  }catch(err){
+    if(!storageQuotaExceeded(err)) throw err;
+    try{
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.setItem(TEAM_SYNC_CONFIG_KEY, JSON.stringify(next));
+    }catch(retryErr){
+      console.warn("Could not save team sync config locally", retryErr);
+    }
+  }
 }
 
 function isTeamAutoSyncEnabled(){
