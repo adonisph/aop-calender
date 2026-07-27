@@ -4801,7 +4801,39 @@ function normalizeWorkspaceId(raw){
 }
 
 function normalizeSupabaseUrl(raw){
-  return String(raw || "").trim().replace(/\/+$/g, "");
+  const value = String(raw || "").trim().replace(/\/+$/g, "");
+  if(!value) return "";
+  if(/^https?:\/\/[a-z0-9-]+$/i.test(value)){
+    return `${value}.supabase.co`;
+  }
+  if(/^https?:\/\//i.test(value)) return value;
+  if(/^[a-z0-9-]+\.supabase\.(co|in)$/i.test(value)) return `https://${value}`;
+  if(/^[a-z0-9-]{20}$/i.test(value)) return `https://${value}.supabase.co`;
+  return value;
+}
+
+function describeTeamSyncError(err){
+  const raw = String(err?.message || err || "").trim();
+  if(!raw) return "Connect failed. Check workspace settings.";
+  if(/auth|credential|password|email|invalid/i.test(raw)){
+    return raw;
+  }
+  if(/failed to fetch|networkerror|load failed|fetch failed|enotfound|getaddrinfo/i.test(raw)){
+    return "Cannot reach Supabase. Use the full project URL like https://PROJECT.supabase.co.";
+  }
+  if(/planner_workspaces|relation .* does not exist|schema cache/i.test(raw)){
+    return "Supabase table missing. Run supabase_setup.sql in the project SQL editor.";
+  }
+  if(/row-level security|permission denied|not allowed|forbidden/i.test(raw)){
+    return "Supabase permissions blocked access. Check RLS policies in supabase_setup.sql.";
+  }
+  if(/jwt|anon key|apikey|api key|publishable key/i.test(raw)){
+    return "Supabase key was rejected. Check the anon or publishable key.";
+  }
+  if(/hostname|invalid url|only absolute urls/i.test(raw)){
+    return "Supabase URL is invalid. Use the full project URL like https://PROJECT.supabase.co.";
+  }
+  return raw;
 }
 
 function setSyncPasswordVisibility(visible){
@@ -5997,10 +6029,18 @@ async function connectTeamSync(opts){
       }
       return;
     }
+    if(!parsed.hostname || !parsed.hostname.includes(".")){
+      markSyncFieldErrors([fields.url]);
+      if(manual){
+        setSyncModalStatus("Use the full Supabase URL like https://PROJECT.supabase.co", true);
+        setTeamSyncStatus("Local-only mode");
+      }
+      return;
+    }
   }catch{
     markSyncFieldErrors([fields.url]);
     if(manual){
-      setSyncModalStatus("Supabase URL is invalid", true);
+      setSyncModalStatus("Supabase URL is invalid. Use https://PROJECT.supabase.co", true);
       setTeamSyncStatus("Local-only mode");
     }
     return;
@@ -6074,12 +6114,18 @@ async function connectTeamSync(opts){
     setTeamSyncStatus(`Connected: ${teamSync.userEmail || "user"} (${isTeamAutoSyncEnabled() ? "auto on" : "auto off"})`);
   }catch(err){
     const msg = String(err?.message || err || "");
+    const friendly = describeTeamSyncError(err);
     if(/auth|credential|password|email|invalid/i.test(msg)){
       markSyncFieldErrors([ui.syncEmail, ui.syncPassword]);
-      setSyncModalStatus(msg || "Invalid credentials", true);
+      setSyncModalStatus(friendly || "Invalid credentials", true);
     }else{
       clearSyncFieldErrors();
-      setSyncModalStatus("Connect failed. Check workspace settings.", true);
+      if(/Supabase URL|Cannot reach Supabase/i.test(friendly)){
+        markSyncFieldErrors([fields.url]);
+      }else if(/key was rejected/i.test(friendly)){
+        markSyncFieldErrors([fields.anonKey]);
+      }
+      setSyncModalStatus(friendly, true);
     }
     teamSync.connected = false;
     teamSync.userId = null;
