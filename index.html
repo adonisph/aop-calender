@@ -1389,12 +1389,12 @@
       border-bottom: 1px solid rgba(42,42,42,.9);
       vertical-align: middle;
     }
-    .dash-table th:nth-child(1), .dash-table td:nth-child(1){ width: 43%; }
-    .dash-table th:nth-child(2), .dash-table td:nth-child(2){ width: 6%; }
-    .dash-table th:nth-child(3), .dash-table td:nth-child(3){ width: 6%; }
-    .dash-table th:nth-child(4), .dash-table td:nth-child(4){ width: 6%; }
-    .dash-table th:nth-child(5), .dash-table td:nth-child(5){ width: 10%; }
-    .dash-table th:nth-child(6), .dash-table td:nth-child(6){ width: 29%; }
+    .dash-table th:nth-child(1), .dash-table td:nth-child(1){ width: 31%; }
+    .dash-table th:nth-child(2), .dash-table td:nth-child(2){ width: 8%; }
+    .dash-table th:nth-child(3), .dash-table td:nth-child(3){ width: 8%; }
+    .dash-table th:nth-child(4), .dash-table td:nth-child(4){ width: 9%; }
+    .dash-table th:nth-child(5), .dash-table td:nth-child(5){ width: 13%; }
+    .dash-table th:nth-child(6), .dash-table td:nth-child(6){ width: 31%; }
     .dash-table th{
       text-align:left;
       color: var(--muted);
@@ -1530,86 +1530,55 @@
     .delta.neg{ color: rgba(239,68,68,.95); font-weight:800; }
     .delta.zero{ color: var(--muted); font-weight:700; }
     .adhr{ font-family: var(--mono); }
-    .deflect-cell{
+    .work-cell{
       min-width: 0;
-      white-space: nowrap;
+      display:grid;
+      gap:6px;
     }
-    .deflect-wrap{
+    .work-line{
       display:flex;
+      flex-wrap:wrap;
       align-items:center;
-      justify-content:flex-end;
-      gap:3px;
-      flex-wrap:nowrap;
-      row-gap:0;
-    }
-    .deflect-wrap input{
-      width: 42px;
-      min-width: 42px;
-      text-align:center;
-      font-size:11px;
-      font-weight:700;
-      padding: 5px 5px;
-      font-variant-numeric: tabular-nums;
-    }
-    .deflect-wrap input.pct-input{
-      width: 50px;
-      min-width: 50px;
-    }
-    .deflect-wrap input.convo-input{
-      width: 64px;
-      min-width: 64px;
-      text-align:right;
-    }
-    .deflect-sep{
+      gap:5px;
       color: var(--muted);
-      font-family: var(--mono);
-      font-size: 10px;
-      user-select:none;
-      opacity:.8;
+      font-size: 11px;
+      line-height: 1.35;
     }
-    .deflect-delta{
-      min-width: 36px;
-      text-align:right;
-      font-size: 9px;
-      font-family: var(--mono);
-      font-weight: 700;
-      border:1px solid var(--line);
-      border-radius: 999px;
-      padding: 2px 5px;
-      background: rgba(255,255,255,.03);
-      color: var(--muted);
-      white-space: nowrap;
-      display: inline-flex;
-      align-items: center;
+    .work-line strong{
+      color: var(--text);
+      font-weight:800;
     }
-    .deflect-delta.pos{ color: rgba(34,197,94,.95); border-color: rgba(34,197,94,.52); background: rgba(34,197,94,.14); }
-    .deflect-delta.neg{ color: rgba(239,68,68,.95); border-color: rgba(239,68,68,.56); background: rgba(239,68,68,.14); }
-    .deflect-delta.zero{ color: var(--muted); }
-    .dash-row-deflect{
-      margin-bottom: 0;
-    }
-    .deflect-group-label{
-      color: var(--muted);
-      font-family: var(--mono);
-      font-size: 10px;
-      letter-spacing:.2px;
-      min-width: 15px;
-      text-align:right;
-    }
-    .deflect-block{
+    .date-chip{
       display:inline-flex;
       align-items:center;
-      gap:3px;
+      min-height:20px;
+      padding: 2px 7px;
+      border-radius:999px;
       border:1px solid var(--line);
-      border-radius: 999px;
-      background: rgba(255,255,255,.02);
-      padding: 2px 3px;
+      background: rgba(255,255,255,.035);
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size:10px;
+      font-weight:800;
+      white-space:nowrap;
     }
-    .deflect-pct-cluster{
-      display:inline-flex;
-      align-items:center;
-      gap:3px;
-      flex-wrap:nowrap;
+    .date-chip.actual{
+      border-color: rgba(96,165,250,.48);
+      background: rgba(96,165,250,.13);
+      color: rgba(191,219,254,.95);
+    }
+    .date-chip.unplanned{
+      border-color: rgba(34,197,94,.52);
+      background: rgba(34,197,94,.14);
+      color: rgba(187,247,208,.95);
+    }
+    .date-chip.missed{
+      border-color: rgba(239,68,68,.52);
+      background: rgba(239,68,68,.13);
+      color: rgba(254,202,202,.95);
+    }
+    .date-chip.neutral{
+      color: var(--muted);
     }
     .master-notation-panel{
       margin-top: 12px;
@@ -2590,7 +2559,7 @@
   <section class="card section-dashboard" id="dashboardCard">
     <div class="card-header">
       <div class="title">
-        <strong>Monthly Dashboard</strong>
+        <strong>Work Overview</strong>
         <span id="dashSub">-</span>
       </div>
 
@@ -2610,19 +2579,19 @@
       <div class="dash-top">
         <div class="kpis">
           <div class="kpi">
-            <div class="lbl">Planned Marks</div>
+            <div class="lbl">Worked On</div>
             <div class="val" id="kpiPlanned">0</div>
             <div class="subv" id="kpiPlannedSub">-</div>
           </div>
           <div class="kpi">
-            <div class="lbl">Actual Marks</div>
+            <div class="lbl">Planned</div>
             <div class="val" id="kpiActual">0</div>
             <div class="subv" id="kpiActualSub">-</div>
           </div>
           <div class="kpi">
-            <div class="lbl">Matched</div>
+            <div class="lbl">Difference</div>
             <div class="val" id="kpiMatched">0</div>
-            <div class="subv">Weighted strict: same AOP + same day</div>
+            <div class="subv" id="kpiMatchedSub">Actual minus planned</div>
           </div>
           <div class="kpi">
             <div class="lbl">Adherence</div>
@@ -2637,8 +2606,8 @@
           </div>
           <div class="filters">
             <button id="dashFilterUpdatedBtn" class="btn-ghost btn-toggle" type="button" aria-pressed="false">Updated 7d</button>
-            <button id="dashFilterNoNotationBtn" class="btn-ghost btn-toggle" type="button" aria-pressed="false">No notation</button>
-            <button id="dashFilterHighDeltaBtn" class="btn-ghost btn-toggle" type="button" aria-pressed="false">High delta</button>
+            <button id="dashFilterNoNotationBtn" class="btn-ghost btn-toggle" type="button" aria-pressed="false">No outcomes</button>
+            <button id="dashFilterHighDeltaBtn" class="btn-ghost btn-toggle" type="button" aria-pressed="false">High difference</button>
           </div>
           <div id="dashboardFilterSummary" class="small">No filters active.</div>
         </div>
@@ -2651,9 +2620,9 @@
               <th>AOP</th>
               <th class="nowrap col-planned">Planned (P)</th>
               <th class="nowrap col-actual">Actual (A)</th>
-              <th class="nowrap">Delta</th>
-              <th class="nowrap">Adherence (MTD)</th>
-              <th class="nowrap">Amt + % (SoM to EoM)</th>
+              <th class="nowrap">Difference</th>
+              <th class="nowrap">MTD Match</th>
+              <th class="nowrap">Worked On / Gaps</th>
             </tr>
           </thead>
           <tbody id="dashTbody"></tbody>
@@ -5817,22 +5786,6 @@ function flushPendingEditorsBeforeRemoteApply(){
       }
     }
   }catch{}
-
-  try{
-    const active = document.activeElement;
-    if(active instanceof HTMLInputElement && active.hasAttribute("data-deflect-field")){
-      const field = active.getAttribute("data-deflect-field");
-      const wrap = active.closest("[data-dash-row-deflect]");
-      const aopId = wrap?.getAttribute("data-dash-row-deflect");
-      if(field && aopId){
-        if(field === "conversation_start" || field === "conversation_end"){
-          setMonthlyConversationTotal(aopId, currentMonthKey(), field, active.value, true);
-        }else{
-          setMonthlyDeflectionRate(aopId, currentMonthKey(), field, active.value, true);
-        }
-      }
-    }
-  }catch{}
 }
 
 function applyIncomingSharedState(nextState){
@@ -6824,7 +6777,7 @@ function dashboardAttentionScore(row){
   const staleWeeks = row.updatedMs ? Math.min(8, Math.floor((now - row.updatedMs) / (7 * 24 * 60 * 60 * 1000))) : 5;
   let score = 0;
   score += Math.abs(row.delta) * 2;
-  if(!row.hasNotation) score += 4;
+  if(!row.hasOutcome) score += 4;
   if(staleWeeks > 0) score += staleWeeks;
   return score;
 }
@@ -6848,7 +6801,7 @@ function dashboardRowMatchesFilters(row){
     if(!row.updatedMs) return false;
     if((Date.now() - row.updatedMs) > DASH_UPDATED_WINDOW_MS) return false;
   }
-  if(dashboardUi.noNotationOnly && row.hasNotation) return false;
+  if(dashboardUi.noNotationOnly && row.hasOutcome) return false;
   if(dashboardUi.highDeltaOnly && Math.abs(row.delta) < DASH_HIGH_DELTA_THRESHOLD) return false;
   return true;
 }
@@ -8156,6 +8109,31 @@ function formatPercentValue(raw, decimals){
   const places = Number.isInteger(decimals) ? Math.max(0, decimals) : 1;
   return `${num.toFixed(places)}%`;
 }
+function formatSignedDayValue(raw){
+  const num = Number(raw);
+  if(!Number.isFinite(num) || Math.abs(num) < 0.000001) return "0";
+  const text = formatDayValue(Math.abs(num));
+  return num > 0 ? `+${text}` : `-${text}`;
+}
+function dateKeyDayLabel(dateKey){
+  const day = Number(String(dateKey || "").slice(8, 10));
+  return Number.isFinite(day) && day > 0 ? String(day) : String(dateKey || "");
+}
+function dateChipHtml(dateKeys, cls, label, limit){
+  const keys = Array.from(new Set(dateKeys || []));
+  if(!keys.length) return "";
+  const max = Math.max(1, Number(limit || 6));
+  const visible = keys.slice(0, max).map(dateKey =>
+    `<span class="date-chip ${cls}" title="${escapeHtml(dateKey)}">${escapeHtml(dateKeyDayLabel(dateKey))}</span>`
+  ).join("");
+  const extra = keys.length > max
+    ? `<span class="date-chip neutral" title="${keys.slice(max).map(escapeHtml).join(", ")}">+${keys.length - max}</span>`
+    : "";
+  return `<div class="work-line"><strong>${escapeHtml(label)}</strong>${visible}${extra}</div>`;
+}
+function overviewFlagHtml(label){
+  return `<span class="date-chip neutral">${escapeHtml(label)}</span>`;
+}
 
 function getFirstWorkweekRange(year, monthIndex){
   const first = new Date(year, monthIndex, 1);
@@ -8184,7 +8162,17 @@ function calcMonthStats(){
 
   const perAop = {};
   for(const id of areaOrder){
-    perAop[id] = { aopId:id, planned:0, actual:0, matched:0 };
+    perAop[id] = {
+      aopId:id,
+      planned:0,
+      actual:0,
+      matched:0,
+      plannedDates:[],
+      actualDates:[],
+      matchedDates:[],
+      missedDates:[],
+      unplannedDates:[]
+    };
   }
 
   let plannedTotal=0, actualTotal=0, matchedTotal=0, unplannedActualTotal=0;
@@ -8204,24 +8192,37 @@ function calcMonthStats(){
 
     // per AOP weighted day-shares
     for(const aopId of plannedInfo.ids){
-      if(perAop[aopId]) perAop[aopId].planned += plannedInfo.share;
+      if(perAop[aopId]){
+        perAop[aopId].planned += plannedInfo.share;
+        perAop[aopId].plannedDates.push(dateKey);
+      }
     }
     for(const aopId of actualInfo.ids){
-      if(perAop[aopId]) perAop[aopId].actual += actualInfo.share;
+      if(perAop[aopId]){
+        perAop[aopId].actual += actualInfo.share;
+        perAop[aopId].actualDates.push(dateKey);
+      }
     }
 
     // strict matches (same AOP + same day), weighted by lower share
     for(const aopId of plannedInfo.ids){
-      if(!actualInfo.map.has(aopId)) continue;
+      if(!actualInfo.map.has(aopId)){
+        if(perAop[aopId]) perAop[aopId].missedDates.push(dateKey);
+        continue;
+      }
       const matchedShare = Math.min(plannedInfo.map.get(aopId) || 0, actualInfo.map.get(aopId) || 0);
       matchedTotal += matchedShare;
-      if(perAop[aopId]) perAop[aopId].matched += matchedShare;
+      if(perAop[aopId]){
+        perAop[aopId].matched += matchedShare;
+        perAop[aopId].matchedDates.push(dateKey);
+      }
     }
 
     // unplanned actuals weighted by actual share
     for(const aopId of actualInfo.ids){
       if(plannedInfo.map.has(aopId)) continue;
       unplannedActualTotal += actualInfo.share;
+      if(perAop[aopId]) perAop[aopId].unplannedDates.push(dateKey);
     }
   }
 
@@ -8293,20 +8294,7 @@ function renderDashboard(){
     ui.dashboardSortSelect.value = dashboardSort;
   }
   const mtdRange = (st.mtdStartDateKey && st.mtdEndDateKey) ? `${st.mtdStartDateKey} to ${st.mtdEndDateKey}` : "No MTD days yet";
-  ui.dashSub.textContent = `${monthNames[view.month]} ${view.year} | View: ${areaLabel(currentAreaViewId())} | Weighted day-share by selected AOPs/day | Adherence: MTD (first workweek excluded) (${mtdRange})`;
-
-  ui.kpiPlanned.textContent = formatDayValue(st.plannedTotal);
-  ui.kpiActual.textContent = formatDayValue(st.actualTotal);
-  ui.kpiMatched.textContent = formatDayValue(st.matchedTotal);
-
-  const adhPct = st.adherence * 100;
-  ui.kpiAdh.textContent = formatPercentValue(adhPct, 1);
-
-  ui.kpiPlannedSub.textContent = `Unplanned actuals: ${formatDayValue(st.unplannedActualTotal)}`;
-  ui.kpiActualSub.textContent = `Month key: ${st.mk}`;
-  ui.kpiAdhSub.textContent = st.mtdPlannedTotal
-    ? `Matched ${formatDayValue(st.mtdMatchedTotal)} of ${formatDayValue(st.mtdPlannedTotal)} (MTD, first workweek excluded)`
-    : "No planned marks in MTD range after first-workweek exclusion";
+  ui.dashSub.textContent = `${monthNames[view.month]} ${view.year} | View: ${areaLabel(currentAreaViewId())} | Planned vs Actual overview | MTD excludes first workweek (${mtdRange})`;
 
   const allRows = (st.areaOrder || []).map(id=>{
     const a = view.state.aops[id];
@@ -8322,8 +8310,15 @@ function renderDashboard(){
     const adh = adhPlanned ? (adhMatched / adhPlanned) : 0;
     const delta = actual - planned;
     const hasNotation = parsedNotation.goals.length > 0 || parsedNotation.achievements.length > 0;
+    const hasGoal = String(tmpl.goal || "").trim().length > 0;
+    const hasComments = String(tmpl.comments || "").trim().length > 0;
     const notationUpdatedAt = monthNotation.notation_updated_at || "";
-    const notationUpdatedMs = Date.parse(notationUpdatedAt) || 0;
+    const updatedMs = Math.max(
+      Date.parse(notationUpdatedAt) || 0,
+      Date.parse(tmpl.updated_at || "") || 0,
+      Date.parse(tmpl.goal_updated_at || "") || 0,
+      Date.parse(tmpl.comments_updated_at || "") || 0
+    );
 
     const row = {
       id,
@@ -8336,13 +8331,17 @@ function renderDashboard(){
       adhMatched,
       adh,
       delta,
-      deflectionStart: deflectionRateInputValue(tmpl.deflection_start),
-      deflectionEnd: deflectionRateInputValue(tmpl.deflection_end),
-      conversationStart: conversationTotalInputValue(tmpl.conversation_start),
-      conversationEnd: conversationTotalInputValue(tmpl.conversation_end),
+      plannedDates: sMonth?.plannedDates || [],
+      actualDates: sMonth?.actualDates || [],
+      matchedDates: sMonth?.matchedDates || [],
+      missedDates: sMonth?.missedDates || [],
+      unplannedDates: sMonth?.unplannedDates || [],
+      hasGoal,
+      hasComments,
       hasNotation,
+      hasOutcome: hasNotation || hasGoal || hasComments,
       notationUpdatedAt,
-      updatedMs: notationUpdatedMs,
+      updatedMs,
       goalCount: parsedNotation.goals.length,
       achievementCount: parsedNotation.achievements.length,
       goals: parsedNotation.goals,
@@ -8352,6 +8351,24 @@ function renderDashboard(){
     row.attentionScore = dashboardAttentionScore(row);
     return row;
   });
+
+  const workedAopCount = allRows.filter(row => row.actual > 0).length;
+  const totalDelta = st.actualTotal - st.plannedTotal;
+  const unmatchedPlannedTotal = Math.max(0, st.plannedTotal - st.matchedTotal);
+  const adhPct = st.adherence * 100;
+  ui.kpiPlanned.textContent = String(workedAopCount);
+  ui.kpiActual.textContent = formatDayValue(st.plannedTotal);
+  ui.kpiMatched.textContent = formatSignedDayValue(totalDelta);
+  ui.kpiAdh.textContent = formatPercentValue(adhPct, 1);
+
+  ui.kpiPlannedSub.textContent = `${formatDayValue(st.actualTotal)} actual day-share across ${allRows.length} AOPs`;
+  ui.kpiActualSub.textContent = `${formatDayValue(st.matchedTotal)} matched planned day-share`;
+  if(ui.kpiMatchedSub){
+    ui.kpiMatchedSub.textContent = `${formatDayValue(st.unplannedActualTotal)} unplanned actual | ${formatDayValue(unmatchedPlannedTotal)} planned not matched`;
+  }
+  ui.kpiAdhSub.textContent = st.mtdPlannedTotal
+    ? `Matched ${formatDayValue(st.mtdMatchedTotal)} of ${formatDayValue(st.mtdPlannedTotal)} planned MTD`
+    : "No planned marks in MTD range after first-workweek exclusion";
 
   dashboardRowCache = new Map(allRows.map(row => [row.id, row]));
 
@@ -8403,7 +8420,8 @@ function renderDashboard(){
     const groupRows = groups.get(areaName) || [];
     const areaPlanned = groupRows.reduce((sum, row) => sum + row.planned, 0);
     const areaActual = groupRows.reduce((sum, row) => sum + row.actual, 0);
-    const areaConversations = groupRows.reduce((sum, row) => sum + (parseConversationTotal(row.conversationEnd) || 0), 0);
+    const areaDelta = areaActual - areaPlanned;
+    const areaWorked = groupRows.filter(row => row.actual > 0).length;
     if(!singleAreaMode){
       const collapsed = isDashboardAreaCollapsed(areaName);
       const groupTr = document.createElement("tr");
@@ -8412,7 +8430,7 @@ function renderDashboard(){
         <td colspan="6">
           <button type="button" class="dash-area-toggle" data-dash-area="${escapeHtml(areaName)}">
             <span><strong>${escapeHtml(areaName)}</strong> <span class="dash-area-meta">${groupRows.length} AOPs</span></span>
-            <span class="dash-area-meta">P ${formatDayValue(areaPlanned)} | A ${formatDayValue(areaActual)} | Convos ${areaConversations}</span>
+            <span class="dash-area-meta">${areaWorked} worked | P ${formatDayValue(areaPlanned)} | A ${formatDayValue(areaActual)} | Diff ${formatSignedDayValue(areaDelta)}</span>
             <span class="dash-area-arrow">${collapsed ? "Expand" : "Collapse"}</span>
           </button>
         </td>
@@ -8425,13 +8443,23 @@ function renderDashboard(){
       const tr = document.createElement("tr");
       const adhPctRow = r.adhPlanned ? (r.adh * 100) : 0;
       const deltaClass = r.delta > 0 ? "pos" : (r.delta < 0 ? "neg" : "zero");
-      const deflectionState = deflectionDeltaState(r.deflectionStart, r.deflectionEnd);
-      const deflectionSummary = `${r.deflectionStart || "-"} to ${r.deflectionEnd || "-"} (${deflectionState.text})`;
       const plannedText = formatDayValue(r.planned);
       const actualText = formatDayValue(r.actual);
-      const deltaAbs = formatDayValue(Math.abs(r.delta));
-      const deltaText = r.delta > 0 ? `+${deltaAbs}` : (r.delta < 0 ? `-${deltaAbs}` : "0");
+      const deltaText = formatSignedDayValue(r.delta);
       const adhDetail = `${formatDayValue(r.adhMatched)}/${formatDayValue(r.adhPlanned)}`;
+      const outcomeFlags = [
+        r.hasGoal ? overviewFlagHtml("Goal") : "",
+        r.achievementCount ? overviewFlagHtml(`${r.achievementCount} wins`) : "",
+        r.hasComments ? overviewFlagHtml("Comments") : ""
+      ].filter(Boolean).join("");
+      const workedLine = dateChipHtml(r.actualDates, "actual", "Worked", 8)
+        || `<div class="work-line"><strong>Worked</strong><span class="date-chip neutral">None logged</span></div>`;
+      const workHtml = [
+        workedLine,
+        dateChipHtml(r.unplannedDates, "unplanned", "Unplanned", 6),
+        dateChipHtml(r.missedDates, "missed", "Planned only", 6),
+        outcomeFlags ? `<div class="work-line"><strong>Outcome</strong>${outcomeFlags}</div>` : ""
+      ].filter(Boolean).join("");
       tr.innerHTML = `
         <td>
           <div class="aopname">
@@ -8446,25 +8474,7 @@ function renderDashboard(){
         <td class="nowrap pa-cell"><span class="pa-chip actual ${r.actual > 0 ? "on" : "off"}" title="Actual marks">A ${actualText}</span></td>
         <td class="nowrap delta ${deltaClass}">${deltaText}</td>
         <td class="nowrap adhr">${r.adhPlanned ? `${formatPercentValue(adhPctRow, 1)} (${adhDetail})` : "-"}</td>
-        <td class="deflect-cell">
-          <div class="deflect-wrap dash-row-deflect" data-dash-row-deflect="${escapeHtml(r.id)}">
-            <span class="deflect-group-label">Amt</span>
-            <span class="deflect-block">
-              <input class="convo-input" type="number" min="0" step="1" placeholder="S" title="Start of month conversations (inherited from previous EoM)" value="${escapeHtml(r.conversationStart)}" data-deflect-field="conversation_start" />
-              <span class="deflect-sep">to</span>
-              <input class="convo-input" type="number" min="0" step="1" placeholder="E" title="End of month conversations (transfers to next month SoM)" value="${escapeHtml(r.conversationEnd)}" data-deflect-field="conversation_end" />
-            </span>
-            <span class="deflect-pct-cluster">
-              <span class="deflect-group-label">%</span>
-              <span class="deflect-block">
-                <input class="pct-input" type="number" min="0" max="100" step="0.1" placeholder="S" title="Start of month deflection rate (%)" value="${escapeHtml(r.deflectionStart)}" data-deflect-field="deflection_start" />
-                <span class="deflect-sep">to</span>
-                <input class="pct-input" type="number" min="0" max="100" step="0.1" placeholder="E" title="End of month deflection rate (%)" value="${escapeHtml(r.deflectionEnd)}" data-deflect-field="deflection_end" />
-              </span>
-              <span class="deflect-delta ${deflectionState.cls}" data-deflect-badge title="${escapeHtml(deflectionSummary)}">${escapeHtml(deflectionState.text)}</span>
-            </span>
-          </div>
-        </td>
+        <td><div class="work-cell">${workHtml}</div></td>
       `;
       ui.dashTbody.appendChild(tr);
     }
@@ -8483,43 +8493,6 @@ function renderDashboard(){
       if(!id) return;
       jumpToMasterNotationForAop(id);
     });
-  });
-  ui.dashTbody.querySelectorAll("[data-dash-row-deflect]").forEach(wrap => {
-    const id = wrap.getAttribute("data-dash-row-deflect");
-    if(!id) return;
-    const inputs = Array.from(wrap.querySelectorAll("input[data-deflect-field]"));
-    const startInput = wrap.querySelector('input[data-deflect-field="deflection_start"]');
-    const endInput = wrap.querySelector('input[data-deflect-field="deflection_end"]');
-    const badge = wrap.querySelector("[data-deflect-badge]");
-    const updateBadge = () => {
-      if(startInput && endInput && badge){
-        const state = deflectionDeltaState(startInput.value, endInput.value);
-        badge.className = `deflect-delta ${state.cls}`;
-        badge.textContent = state.text;
-      }
-    };
-    const commit = (el, persist) => {
-      const field = el.getAttribute("data-deflect-field");
-      if(!field) return;
-      const tmpl = (field === "conversation_start" || field === "conversation_end")
-        ? setMonthlyConversationTotal(id, st.mk, field, el.value, persist)
-        : setMonthlyDeflectionRate(id, st.mk, field, el.value, persist);
-      if(!tmpl) return;
-      if(persist){
-        const normalized = (field === "conversation_start" || field === "conversation_end")
-          ? conversationTotalInputValue(tmpl[field])
-          : deflectionRateInputValue(tmpl[field]);
-        if(el.value !== normalized) el.value = normalized;
-        renderDashboard();
-        return;
-      }
-      updateBadge();
-    };
-    for(const input of inputs){
-      input.addEventListener("input", () => commit(input, false));
-      input.addEventListener("change", () => commit(input, true));
-      input.addEventListener("blur", () => commit(input, true));
-    }
   });
 
 }
@@ -9506,6 +9479,7 @@ function init(){
     kpiAdh: document.getElementById("kpiAdh"),
     kpiPlannedSub: document.getElementById("kpiPlannedSub"),
     kpiActualSub: document.getElementById("kpiActualSub"),
+    kpiMatchedSub: document.getElementById("kpiMatchedSub"),
     kpiAdhSub: document.getElementById("kpiAdhSub"),
     dashTbody: document.getElementById("dashTbody"),
     dashboardSearchInput: document.getElementById("dashboardSearchInput"),
