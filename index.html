@@ -1561,6 +1561,7 @@
       font-size:10px;
       font-weight:800;
       white-space:nowrap;
+      flex:0 0 auto;
     }
     .date-chip.actual{
       border-color: rgba(96,165,250,.48);
@@ -2198,6 +2199,32 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+    .aop-row-meta{
+      margin-top: 4px;
+      display:flex;
+      flex-wrap:wrap;
+      align-items:center;
+      gap:5px;
+    }
+    .category-chip{
+      display:inline-flex;
+      align-items:center;
+      min-height:20px;
+      padding: 2px 7px;
+      border-radius:999px;
+      border:1px solid rgba(var(--power-rgb),.34);
+      background: rgba(var(--power-rgb),.10);
+      color: rgba(var(--power-rgb),.96);
+      font-family: var(--mono);
+      font-size:10px;
+      font-weight:800;
+      white-space:nowrap;
+    }
+    .category-chip.muted{
+      border-color: var(--line);
+      background: rgba(255,255,255,.035);
+      color: var(--muted);
+    }
     .aop-row .name-preview{
       font-size: 11px;
       color: var(--muted);
@@ -2345,7 +2372,7 @@
       </div>
       <div class="context-pills" id="contextPills">
         <span class="context-pill" id="contextMonthPill">Month: -</span>
-        <span class="context-pill" id="contextAreaPill">View: -</span>
+        <span class="context-pill" id="contextAreaPill">Category: -</span>
       </div>
     </div>
 
@@ -2353,7 +2380,7 @@
       <div class="tb-item" data-tb-key="today"><button id="today" class="btn-primary" type="button" title="Jump to current month">Today</button></div>
       <div class="tb-item" data-tb-key="month"><select id="monthSelect" title="Select month"></select></div>
       <div class="tb-item" data-tb-key="year"><select id="yearSelect" title="Select year"></select></div>
-      <div class="tb-item" data-tb-key="area"><select id="areaViewSelect" title="Select area view">
+      <div class="tb-item" data-tb-key="area"><select id="areaViewSelect" title="Select category view">
         <option value="master">Master (All)</option>
         <option value="pool">Pool</option>
         <option value="sales">Sales</option>
@@ -2569,7 +2596,7 @@
         <label for="dashboardSortSelect" class="small" style="margin:0;">Sort</label>
         <select id="dashboardSortSelect" aria-label="Sort dashboard AOP rows">
           <option value="az">A-Z</option>
-          <option value="area">Area</option>
+          <option value="area">Category</option>
           <option value="attention">Needs Attention</option>
         </select>
       </div>
@@ -2601,7 +2628,7 @@
         </div>
         <div class="dash-controls" aria-label="Dashboard filters">
           <div class="row">
-            <input id="dashboardSearchInput" type="search" placeholder="Search AOP or area..." autocomplete="off" />
+            <input id="dashboardSearchInput" type="search" placeholder="Search AOP or category..." autocomplete="off" />
             <button id="dashboardClearFiltersBtn" class="btn-ghost" type="button">Clear</button>
           </div>
           <div class="filters">
@@ -2637,7 +2664,7 @@
             <select id="masterNotationSort" aria-label="Sort master notation">
               <option value="achievements_desc">Most achieved</option>
               <option value="updated_desc">Latest updated</option>
-              <option value="area_asc">Area</option>
+              <option value="area_asc">Category</option>
               <option value="name_asc">AOP name</option>
             </select>
           </div>
@@ -2719,7 +2746,7 @@
             <div class="head">
               <div>
                 <strong>AOP Catalog</strong>
-                <div class="small">Catalog stores reusable playbooks. Calendar marks are always for one selected day at a time.</div>
+                <div class="small">Catalog stores reusable playbooks. Each AOP belongs to one category.</div>
                 <div class="helper">Quick flow: 1) Add or select an AOP. 2) Pick one day in Planned or Actual. 3) Press Enter to mark that day.</div>
               </div>
             </div>
@@ -2734,7 +2761,7 @@
                 <input id="aopNewColor" type="color" value="#ff6a00" />
               </div>
               <div>
-                <label>View</label>
+                <label>Category</label>
                 <select id="aopNewArea">
                   <option value="pool">Pool</option>
                   <option value="sales">Sales</option>
@@ -2975,7 +3002,7 @@
  *     dayNoteFilters:{thisMonth:boolean,expanded:boolean},
  *     calendarUI:{compact:boolean,markedOnly:boolean,activeOnly:boolean,focus:"both"|"planned"|"actual"}
  *   }
- * - aops: {id:{id,name,color,area}}
+ * - aops: {id:{id,name,color,area,category}}
  * - aopMonthly: { [aopId]: { [YYYY-MM]: {
  *      goal, comments, required:boolean,
  *      deflection_start, deflection_end, conversation_start, conversation_end,
@@ -3279,7 +3306,10 @@ function currentAreaViewId(){
   return normalizeAreaViewId(view.state?.settings?.areaView);
 }
 function aopAreaId(aop){
-  return normalizeAreaId(aop?.area);
+  return normalizeAreaId(aop?.area || aop?.category);
+}
+function aopCategoryName(aop){
+  return areaLabel(aopAreaId(aop));
 }
 function isAopInArea(aopId, areaId){
   const a = view.state?.aops?.[aopId];
@@ -3370,8 +3400,10 @@ function setAopArea(aopId, areaId){
   const a = view.state.aops?.[aopId];
   if(!a) return;
   const safe = normalizeAreaId(areaId);
-  if(aopAreaId(a) === safe) return;
+  const categoryChanged = a.category !== safe || a.area !== safe;
+  if(aopAreaId(a) === safe && !categoryChanged) return;
   a.area = safe;
+  a.category = safe;
   a.updated_at = nowIso();
   ensureActiveAopInView();
   saveState();
@@ -3879,7 +3911,7 @@ function renderContextPills(){
   if(!ui.contextMonthPill || !ui.contextAreaPill) return;
   const monthLabel = `${monthNames[view.month]} ${view.year}`;
   ui.contextMonthPill.textContent = `Month: ${monthLabel}`;
-  ui.contextAreaPill.textContent = `View: ${areaLabel(currentAreaViewId())}`;
+  ui.contextAreaPill.textContent = `Category: ${areaLabel(currentAreaViewId())}`;
 }
 function renderOnboarding(){
   if(!ui.onboardingCard) return;
@@ -4536,9 +4568,11 @@ function migrateIfNeeded(st){
     const a = st.aops[aopId] || {};
     const createdAt = typeof a.created_at === "string" ? a.created_at : nowIso();
     const updatedAt = typeof a.updated_at === "string" ? a.updated_at : createdAt;
+    const category = normalizeAreaId(a.area || a.category);
     st.aops[aopId] = {
       ...a,
-      area: normalizeAreaId(a.area),
+      area: category,
+      category,
       created_at: createdAt,
       updated_at: updatedAt
     };
@@ -5421,12 +5455,12 @@ function collectSyncAuditRows(rawState){
   orderedAops.forEach((aopId, idx) => {
     const aop = state.aops?.[aopId];
     if(!aop) return;
-    const areaName = areaLabel(aopAreaId(aop));
+    const areaName = aopCategoryName(aop);
     const name = String(aop.name || "(Unnamed AOP)").trim();
     rows.push({
       key: `aop:${aopId}`,
       sort: `01:${String(idx).padStart(4,"0")}:${name.toLowerCase()}`,
-      label: `AOP | ${areaName} | ${name} | ${String(aop.color || "").trim() || "no color"}`
+      label: `AOP | Category: ${areaName} | ${name} | ${String(aop.color || "").trim() || "no color"}`
     });
   });
 
@@ -5467,7 +5501,7 @@ function collectSyncAuditRows(rawState){
     const months = state.aopMonthly?.[aopId] || {};
     const aop = state.aops?.[aopId];
     const aopName = String(aop?.name || "(Missing AOP)").trim();
-    const areaName = areaLabel(aopAreaId(aop || {}));
+    const areaName = aopCategoryName(aop || {});
     for(const monthKey of Object.keys(months).sort()){
       const tmpl = months[monthKey] || {};
       ["goal","comments","notation","required","deflection_start","deflection_end","conversation_start","conversation_end"].forEach(field => {
@@ -5476,7 +5510,7 @@ function collectSyncAuditRows(rawState){
         rows.push({
           key: `monthly:${aopId}:${monthKey}:${field}`,
           sort: `04:${monthKey}:${areaName.toLowerCase()}:${aopName.toLowerCase()}:${field}`,
-          label: `Monthly | ${monthKey} | ${areaName} | ${aopName} | ${describeMonthlyField(field, value)}`
+          label: `Monthly | ${monthKey} | Category: ${areaName} | ${aopName} | ${describeMonthlyField(field, value)}`
         });
       });
     }
@@ -6872,7 +6906,7 @@ function renderMasterNotationPanel(){
       id,
       name: aop.name || "(Missing AOP)",
       color: aop.color || "#6b7280",
-      area: areaLabel(aopAreaId(aop)),
+      area: aopCategoryName(aop),
       updatedAt: monthData.notation_updated_at || "",
       updatedMs: Date.parse(monthData.notation_updated_at || "") || 0,
       goals: parsed.goals,
@@ -6909,6 +6943,7 @@ function renderMasterNotationPanel(){
       areaName: row.area,
       delta: dash?.delta || 0,
       hasNotation: true,
+      hasOutcome: true,
       updatedMs: row.updatedMs
     });
   });
@@ -6926,7 +6961,7 @@ function renderMasterNotationPanel(){
         <div class="mn-top">
           <span class="sw" style="background:${escapeHtml(row.color)}"></span>
           <span class="name" title="${escapeHtml(row.name)}">${escapeHtml(row.name)}</span>
-          <span class="status-pill">${escapeHtml(row.area)}</span>
+          <span class="status-pill">Category: ${escapeHtml(row.area)}</span>
         </div>
         <div class="mn-kpis">
           <span class="status-pill">Updated: ${escapeHtml(fmtIsoShort(row.updatedAt))}</span>
@@ -6947,7 +6982,7 @@ function renderMasterNotationPanel(){
     `;
   });
 
-  ui.masterNotationMeta.textContent = `${mk} | ${scopeLabel} | ${cards.length}/${rows.length} AOP${rows.length === 1 ? "" : "s"} shown`;
+  ui.masterNotationMeta.textContent = `${mk} | Category: ${scopeLabel} | ${cards.length}/${rows.length} AOP${rows.length === 1 ? "" : "s"} shown`;
   ui.masterNotationList.innerHTML = cards.length
     ? cards.join("")
     : `<div class="small">${rows.length ? "No notation cards match current filters." : "No AOP notation added for this month."}</div>`;
@@ -7113,7 +7148,7 @@ function renderAopCatalog(){
   }
 
   if(order.length === 0){
-    ui.aopList.innerHTML = `<div class="small">No AOPs in ${escapeHtml(areaLabel(currentAreaViewId()))} view yet. Add one above.</div>`;
+    ui.aopList.innerHTML = `<div class="small">No AOPs in ${escapeHtml(areaLabel(currentAreaViewId()))} category yet. Add one above.</div>`;
   }else{
     const visibleOrder = order.filter(id=>{
       if(!q) return true;
@@ -7151,11 +7186,13 @@ function renderAopCatalog(){
 
       const name = document.createElement("div");
       name.className = "name";
+      const categoryName = aopCategoryName(a);
       const monthNotation = readAopMonthlyNotation(id, monthKey);
       const notePreview = aopNotationPreviewText(monthNotation.notation || "");
+      const categoryHtml = `<div class="aop-row-meta"><span class="category-chip" title="AOP category">Category: ${escapeHtml(categoryName)}</span></div>`;
       name.innerHTML = notePreview
-        ? `<div class="name-main">${escapeHtml(a.name)}</div><div class="name-preview">${escapeHtml(notePreview)}</div>`
-        : `<div class="name-main">${escapeHtml(a.name)}</div>`;
+        ? `<div class="name-main">${escapeHtml(a.name)}</div>${categoryHtml}<div class="name-preview">${escapeHtml(notePreview)}</div>`
+        : `<div class="name-main">${escapeHtml(a.name)}</div>${categoryHtml}`;
 
       left.appendChild(name);
 
@@ -7191,7 +7228,8 @@ function renderAopCatalog(){
 
       const areaSel = document.createElement("select");
       areaSel.innerHTML = areaOptionsHtml(aopAreaId(a));
-      areaSel.title = "Move AOP to another view";
+      areaSel.title = "Move AOP to another category";
+      areaSel.setAttribute("aria-label", `Category for ${a.name || "AOP"}`);
       areaSel.addEventListener("click", (event) => event.stopPropagation());
       areaSel.addEventListener("keydown", (event) => event.stopPropagation());
       areaSel.addEventListener("change", (event) => {
@@ -7223,7 +7261,10 @@ function renderAopCatalog(){
     order.map(id=>{
       const a = view.state.aops[id];
       if(!a) return "";
-      return `<option value="${id}">${escapeHtml(a.name)}</option>`;
+      const label = currentAreaViewId() === MASTER_VIEW_ID
+        ? `${a.name} (${aopCategoryName(a)})`
+        : a.name;
+      return `<option value="${id}">${escapeHtml(label)}</option>`;
     }).join("");
   ui.aopSelect.innerHTML = optionsHtml;
   if(ui.aopNotationSelect) ui.aopNotationSelect.innerHTML = optionsHtml;
@@ -7278,7 +7319,7 @@ function addAop(name, color, areaId){
     renderEntries();
     renderDashboard();
     if(ui.aopNewName) ui.aopNewName.focus();
-    alert("That AOP/Custom already exists in this view. The existing item was selected instead.");
+    alert("That AOP/Custom already exists in this category. The existing item was selected instead.");
     return;
   }
   const theme = COLOR_THEMES[currentThemeId()] || COLOR_THEMES[DEFAULT_THEME];
@@ -7289,6 +7330,7 @@ function addAop(name, color, areaId){
     name: clean,
     color: color || theme.power,
     area: safeArea,
+    category: safeArea,
     created_at: t,
     updated_at: t
   };
@@ -7323,7 +7365,7 @@ function renameAop(id, nextName){
     return !!other && aopAreaId(other) === safeArea && String(other.name || "").trim().toLowerCase() === normalizedName;
   });
   if(duplicateId){
-    alert("An AOP/Custom with that name already exists in this view.");
+    alert("An AOP/Custom with that name already exists in this category.");
     return false;
   }
   if(clean === String(a.name || "").trim()) return false;
@@ -8294,7 +8336,7 @@ function renderDashboard(){
     ui.dashboardSortSelect.value = dashboardSort;
   }
   const mtdRange = (st.mtdStartDateKey && st.mtdEndDateKey) ? `${st.mtdStartDateKey} to ${st.mtdEndDateKey}` : "No MTD days yet";
-  ui.dashSub.textContent = `${monthNames[view.month]} ${view.year} | View: ${areaLabel(currentAreaViewId())} | Planned vs Actual overview | MTD excludes first workweek (${mtdRange})`;
+  ui.dashSub.textContent = `${monthNames[view.month]} ${view.year} | Category: ${areaLabel(currentAreaViewId())} | Planned vs Actual overview | MTD excludes first workweek (${mtdRange})`;
 
   const allRows = (st.areaOrder || []).map(id=>{
     const a = view.state.aops[id];
@@ -8324,7 +8366,7 @@ function renderDashboard(){
       id,
       name: a?.name || "(Missing AOP)",
       color: a?.color || "#6b7280",
-      areaName: a ? areaLabel(aopAreaId(a)) : "Unknown",
+      areaName: a ? aopCategoryName(a) : "Unknown",
       planned,
       actual,
       adhPlanned,
@@ -8394,7 +8436,7 @@ function renderDashboard(){
 
   if(allRows.length === 0){
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td colspan="6" class="small">No AOPs in ${escapeHtml(areaLabel(currentAreaViewId()))} view.</td>`;
+    tr.innerHTML = `<td colspan="6" class="small">No AOPs in ${escapeHtml(areaLabel(currentAreaViewId()))} category.</td>`;
     ui.dashTbody.appendChild(tr);
     return;
   }
@@ -8467,7 +8509,7 @@ function renderDashboard(){
             ${r.canJumpNotation
               ? `<button type="button" class="dash-aop-link" data-jump-master-aop="${escapeHtml(r.id)}" title="Open Master Notation">${escapeHtml(r.name)}</button>`
               : `<span title="${escapeHtml(r.name)}" style="font-weight:700; color:var(--text);">${escapeHtml(r.name)}</span>`}
-            
+            <span class="category-chip muted" title="AOP category">${escapeHtml(r.areaName)}</span>
           </div>
         </td>
         <td class="nowrap pa-cell"><span class="pa-chip planned ${r.planned > 0 ? "on" : "off"}" title="Planned marks">P ${plannedText}</span></td>
@@ -9595,6 +9637,7 @@ function init(){
         name: s.name,
         color: s.color,
         area: DEFAULT_AREA_VIEW,
+        category: DEFAULT_AREA_VIEW,
         created_at: t,
         updated_at: t
       };
