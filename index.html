@@ -2597,6 +2597,7 @@
         <select id="dashboardSortSelect" aria-label="Sort dashboard AOP rows">
           <option value="az">A-Z</option>
           <option value="area">Category</option>
+          <option value="worked_planned">Worked / Planned</option>
           <option value="attention">Needs Attention</option>
         </select>
       </div>
@@ -3294,6 +3295,7 @@ function normalizeDashboardSort(raw){
   const safe = String(raw || "").trim().toLowerCase();
   if(safe === "area") return "area";
   if(safe === "attention") return "attention";
+  if(safe === "worked_planned" || safe === "worked") return "worked_planned";
   return "az";
 }
 function areaLabel(areaId){
@@ -6815,6 +6817,13 @@ function dashboardAttentionScore(row){
   if(staleWeeks > 0) score += staleWeeks;
   return score;
 }
+function dashboardWorkedPlannedScore(row){
+  const actual = Number(row?.actual || 0);
+  const planned = Number(row?.planned || 0);
+  if(actual <= 0) return -1;
+  if(planned <= 0) return Number.POSITIVE_INFINITY;
+  return actual / planned;
+}
 function openAopNotationFromDashboard(aopId){
   if(!aopId || !view.state?.aops?.[aopId]) return;
   if(view.state.activeAopId !== aopId){
@@ -8416,6 +8425,17 @@ function renderDashboard(){
 
   const rows = allRows.filter(dashboardRowMatchesFilters);
   rows.sort((a, b) => {
+    if(dashboardSort === "worked_planned"){
+      const byWorked = (b.actual > 0 ? 1 : 0) - (a.actual > 0 ? 1 : 0);
+      if(byWorked !== 0) return byWorked;
+      const byRatio = dashboardWorkedPlannedScore(b) - dashboardWorkedPlannedScore(a);
+      if(Number.isFinite(byRatio) && Math.abs(byRatio) > 0.000001) return byRatio;
+      if(!Number.isFinite(dashboardWorkedPlannedScore(b)) && Number.isFinite(dashboardWorkedPlannedScore(a))) return -1;
+      if(Number.isFinite(dashboardWorkedPlannedScore(b)) && !Number.isFinite(dashboardWorkedPlannedScore(a))) return 1;
+      if(b.actual !== a.actual) return b.actual - a.actual;
+      if(b.planned !== a.planned) return b.planned - a.planned;
+      return a.name.localeCompare(b.name, undefined, { sensitivity:"base", numeric:true });
+    }
     if(dashboardSort === "attention"){
       if(b.attentionScore !== a.attentionScore) return b.attentionScore - a.attentionScore;
       if(Math.abs(b.delta) !== Math.abs(a.delta)) return Math.abs(b.delta) - Math.abs(a.delta);
