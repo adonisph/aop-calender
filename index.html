@@ -1007,74 +1007,6 @@
       gap:8px;
       flex-wrap:wrap;
     }
-    .cmd-backdrop{
-      position: fixed;
-      inset:0;
-      background: rgba(0,0,0,.64);
-      backdrop-filter: blur(6px);
-      z-index: 118;
-      display:none;
-    }
-    .cmd-backdrop.open{ display:block; }
-    .cmd-modal{
-      position: fixed;
-      top: 14%;
-      left: 50%;
-      transform: translateX(-50%);
-      width: min(740px, calc(100vw - 24px));
-      border:1px solid var(--line);
-      border-radius: 14px;
-      background: linear-gradient(180deg, #161616, #101010);
-      box-shadow: var(--shadow);
-      z-index: 120;
-      display:none;
-      overflow:hidden;
-    }
-    .cmd-modal.open{ display:block; }
-    .cmd-head{
-      padding:10px;
-      border-bottom:1px solid var(--line);
-    }
-    .cmd-head input{
-      width:100%;
-      font-size:14px;
-    }
-    .cmd-list{
-      max-height: 380px;
-      overflow:auto;
-      display:grid;
-      gap:4px;
-      padding:8px;
-    }
-    .cmd-item{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-      border:1px solid transparent;
-      border-radius: 10px;
-      padding:9px 10px;
-      background: rgba(255,255,255,.02);
-      color: var(--text);
-      cursor:pointer;
-      text-align:left;
-    }
-    .cmd-item:hover,
-    .cmd-item.active{
-      border-color: rgba(var(--power-rgb),.65);
-      box-shadow: 0 0 0 2px rgba(var(--power-rgb),.12);
-      background: rgba(var(--power-rgb),.10);
-    }
-    .cmd-key{
-      font-family: var(--mono);
-      font-size:11px;
-      color: var(--muted);
-      border:1px solid var(--line);
-      border-radius: 999px;
-      padding:2px 8px;
-      white-space:nowrap;
-    }
-
     .card-header{
       padding: 14px 14px 12px;
       display:flex;
@@ -1156,7 +1088,7 @@
     #calCard,
     .pane-scroll,
     #allDayNotesList.compact-list,
-    .cmd-list{
+    .cmdk-list{
       scrollbar-width: thin;
       scrollbar-color: rgba(170,170,170,.72) rgba(255,255,255,.08);
     }
@@ -1164,7 +1096,7 @@
     #calCard::-webkit-scrollbar,
     .pane-scroll::-webkit-scrollbar,
     #allDayNotesList.compact-list::-webkit-scrollbar,
-    .cmd-list::-webkit-scrollbar{
+    .cmdk-list::-webkit-scrollbar{
       width: 10px;
       height: 10px;
     }
@@ -1172,7 +1104,7 @@
     #calCard::-webkit-scrollbar-track,
     .pane-scroll::-webkit-scrollbar-track,
     #allDayNotesList.compact-list::-webkit-scrollbar-track,
-    .cmd-list::-webkit-scrollbar-track{
+    .cmdk-list::-webkit-scrollbar-track{
       background: rgba(255,255,255,.06);
       border-radius: 999px;
     }
@@ -1180,7 +1112,7 @@
     #calCard::-webkit-scrollbar-thumb,
     .pane-scroll::-webkit-scrollbar-thumb,
     #allDayNotesList.compact-list::-webkit-scrollbar-thumb,
-    .cmd-list::-webkit-scrollbar-thumb{
+    .cmdk-list::-webkit-scrollbar-thumb{
       background: rgba(170,170,170,.78);
       border-radius: 999px;
       border: 2px solid rgba(0,0,0,.14);
@@ -1189,7 +1121,7 @@
     #calCard::-webkit-scrollbar-thumb:hover,
     .pane-scroll::-webkit-scrollbar-thumb:hover,
     #allDayNotesList.compact-list::-webkit-scrollbar-thumb:hover,
-    .cmd-list::-webkit-scrollbar-thumb:hover{
+    .cmdk-list::-webkit-scrollbar-thumb:hover{
       background: rgba(200,200,200,.9);
     }
     .helper{
@@ -2593,7 +2525,7 @@
       <div class="tb-item tb-extra" data-tb-key="dashboard"><button id="toggleDashboard" class="btn-ghost focus-tab" type="button" aria-pressed="true">Dashboard</button></div>
       <div class="tb-item tb-extra" data-tb-key="calendars"><button id="toggleCalendars" class="btn-ghost focus-tab" type="button" aria-pressed="true">Calendars</button></div>
       <div class="tb-item tb-extra" data-tb-key="aop"><button id="toggleAopNotes" class="btn-ghost focus-tab" type="button" aria-pressed="true">AOP Catalog/Goals</button></div>
-      <div class="tb-item tb-extra" data-tb-key="tools"><button id="toggleTools" class="btn-ghost focus-tab" type="button" aria-pressed="true">Display/Data</button></div>
+      <div class="tb-item tb-extra" data-tb-key="tools"><button id="toggleTools" class="btn-ghost focus-tab" type="button" aria-pressed="false">Settings</button></div>
       <div class="tb-item tb-extra" data-tb-key="showall"><button id="showAllSections" class="btn-ghost" type="button">Show All</button></div>
     </div>
   </div>
@@ -2615,7 +2547,7 @@
   <section class="card tools-card section-tools" id="utilityCard">
     <div class="section-pad">
       <div class="tools-row toolbar compact">
-        <span class="small">Data</span>
+        <span class="small">Settings / Data</span>
         <button id="export" type="button" title="Export JSON">Export JSON</button>
         <button id="importBtn" type="button" title="Import JSON">Import JSON</button>
         <input id="importFile" type="file" accept=".json,application/json" style="display:none" />
@@ -2696,13 +2628,13 @@
         <div class="kpis">
           <div class="kpi">
             <div class="lbl">Worked On</div>
-            <div class="val" id="kpiPlanned">0</div>
-            <div class="subv" id="kpiPlannedSub">-</div>
+            <div class="val" id="kpiWorked">0</div>
+            <div class="subv" id="kpiWorkedSub">-</div>
           </div>
           <div class="kpi">
             <div class="lbl">Planned</div>
-            <div class="val" id="kpiActual">0</div>
-            <div class="subv" id="kpiActualSub">-</div>
+            <div class="val" id="kpiPlanned">0</div>
+            <div class="subv" id="kpiPlannedSub">-</div>
           </div>
           <div class="kpi">
             <div class="lbl">Difference</div>
@@ -2783,7 +2715,7 @@
       <div class="cal-toolbar">
         <button id="calendarDensityBtn" class="btn-ghost btn-toggle" type="button" aria-pressed="false">Compact View</button>
         <button id="filterMarkedOnlyBtn" class="btn-ghost btn-toggle" type="button" aria-pressed="false">Only Marked</button>
-        <button id="filterActiveAopBtn" class="btn-ghost btn-toggle" type="button" aria-pressed="false">Only Active AOP</button>
+        <button id="filterActiveAopBtn" class="btn-ghost btn-toggle" type="button" aria-pressed="false">Only Add Target</button>
         <div id="calendarMasterLegend" class="calendar-master-legend" aria-label="Master category colors"></div>
         <span class="spacer"></span>
         <label for="calendarFocusSelect" style="margin:0;">Focus</label>
@@ -2870,17 +2802,17 @@
               <div class="inline-controls">
                 <span class="status-pill catalog-day-pill" id="catalogDayPill">Target day: Select a day</span>
                 <span class="status-pill" id="aopCountPill">0 AOPs</span>
-                <span class="status-pill" id="activeAopPill">Active: None</span>
+                <span class="status-pill" id="activeAopPill">Catalog active: None</span>
               </div>
               <input id="aopSearch" placeholder="Filter AOP catalog..." />
             </div>
 
             <div class="small aop-active-line">
-              Calendar AOP: <span id="activeAopLabel" class="chip active" style="cursor:default;">None</span>
+              Calendar add target: <span id="activeAopLabel" class="chip active" style="cursor:default;">None</span>
             </div>
 
             <div style="margin-top:10px;">
-              <label>AOP/Custom</label>
+              <label>Calendar add target</label>
               <select id="aopSelect"></select>
             </div>
 
@@ -2899,7 +2831,7 @@
               </div>
             </div>
             <div style="margin-top:10px;">
-              <label for="aopNotationSelect">AOP/Custom</label>
+              <label for="aopNotationSelect">Outcome notes AOP</label>
               <select id="aopNotationSelect"></select>
             </div>
             <div class="aop-notation">
@@ -2918,10 +2850,10 @@
                 <strong class="template-accent-title">Goals/Comments</strong>
                 <div class="small" style="margin-top:4px;">Set goal and comments for the selected AOP in this month.</div>
               </div>
-              <span id="templateAopHint" class="status-pill template-aop-pill">AOP: None selected</span>
+              <span id="templateAopHint" class="status-pill template-aop-pill">Goal/comments AOP: None selected</span>
             </div>
             <div style="margin-top:10px;">
-              <label>AOP/Custom</label>
+              <label>Goal/comments AOP</label>
               <select id="aopSelectGoals"></select>
             </div>
             <div class="small" id="monthKeyInfo">Goals/Comments key: -</div>
@@ -3203,6 +3135,7 @@ let view = {
   selectedCalendar: "planned",
   diffMode: false,
   calendarAopByArea: {},
+  notationAopByArea: {},
   goalsAopByArea: {},
   dayActualAopId: null,
   calendarFilterAopId: null,
@@ -3268,8 +3201,9 @@ function normalizeCustomizationSettings(rawSettings){
       dashboard: section.dashboard !== false,
       calendars: section.calendars !== false,
       aopNotes: section.aopNotes !== false,
-      tools: section.tools !== false
+      tools: section.tools === true
     },
+    viewCleanupVersion: Number(src.viewCleanupVersion || 0),
     aopPane: ["catalog","notation","allnotes"].includes(src.aopPane) ? src.aopPane : "notation",
     areaView: normalizeAreaViewId(src.areaView),
     colorTheme: themeId,
@@ -3350,7 +3284,16 @@ function applyLocalAppearanceProfile(profileId){
   if(!view.state?.settings) return false;
   const snap = readAppearanceProfile(profileId || appearanceProfileId());
   if(!snap) return false;
+  const currentCleanupVersion = Number(view.state.settings.viewCleanupVersion || 0);
+  const profileCleanupVersion = Number(snap.viewCleanupVersion || 0);
   applyAppearanceSettingsSnapshot(view.state, snap);
+  if(Math.min(currentCleanupVersion, profileCleanupVersion) < 1){
+    view.state.settings.sectionVisibility = {
+      ...normalizedSectionVisibility(),
+      tools: false
+    };
+    view.state.settings.viewCleanupVersion = 1;
+  }
   return true;
 }
 
@@ -3492,6 +3435,19 @@ function ensureCalendarAopInView(){
   const fallback = order.includes(view.state.activeAopId) ? view.state.activeAopId : (order[0] || null);
   setCalendarAopSelection(fallback, safeArea);
 }
+function currentNotationAopId(areaId){
+  const safeArea = normalizeAreaViewId(areaId || currentAreaViewId());
+  const key = safeArea === MASTER_VIEW_ID ? DEFAULT_AREA_VIEW : safeArea;
+  const selected = view.notationAopByArea?.[key] || null;
+  return (selected && view.state.aops[selected] && isAopInArea(selected, safeArea)) ? selected : null;
+}
+function ensureNotationAopInView(){
+  const safeArea = currentAreaViewId();
+  const order = visibleAopOrder(safeArea);
+  if(order.includes(currentNotationAopId(safeArea))) return;
+  const fallback = order.includes(view.state.activeAopId) ? view.state.activeAopId : (order[0] || null);
+  setNotationAopSelection(fallback, safeArea);
+}
 function currentGoalsAopId(areaId){
   const safeArea = normalizeAreaViewId(areaId || currentAreaViewId());
   const key = safeArea === MASTER_VIEW_ID ? DEFAULT_AREA_VIEW : safeArea;
@@ -3520,21 +3476,11 @@ function setAreaView(areaId, persist){
   }
   view.state.settings.areaView = safe;
   view.calendarFilterAopId = null;
-  if(safe === MASTER_VIEW_ID){
-    const vis = normalizedSectionVisibility();
-    if(!vis.tools){
-      view.state.settings.sectionVisibility = { ...vis, tools:true };
-    }
-  }
   ensureActiveAopInView();
   if(persist){
     saveState();
   }
-  renderAll();
-  loadMonthlyTemplate();
-  loadDayNoteUI();
-  renderEntries();
-  renderDashboard();
+  refreshWorkspaceView();
 }
 function setAopArea(aopId, areaId){
   const a = view.state.aops?.[aopId];
@@ -3547,10 +3493,7 @@ function setAopArea(aopId, areaId){
   a.updated_at = nowIso();
   ensureActiveAopInView();
   saveState();
-  renderAll();
-  loadMonthlyTemplate();
-  renderEntries();
-  renderDashboard();
+  refreshAopWorkView();
 }
 function setAopColor(aopId, color, persist){
   const a = view.state.aops?.[aopId];
@@ -3561,10 +3504,7 @@ function setAopColor(aopId, color, persist){
   a.color = safe;
   a.updated_at = nowIso();
   if(persist !== false) saveState();
-  renderAll();
-  loadMonthlyTemplate();
-  renderEntries();
-  renderDashboard();
+  refreshAopWorkView();
 }
 
 function normalizeHexColor(raw, fallback){
@@ -4183,11 +4123,7 @@ function applyLayoutPreset(presetId, persist){
   }
   setUiPrefs({ ...prefs, layoutPreset: preset }, false);
   if(persist !== false) saveState();
-  renderAll();
-  loadMonthlyTemplate();
-  loadDayNoteUI();
-  renderEntries();
-  renderDashboard();
+  refreshWorkspaceView();
 }
 
 function setTemplateSaveState(msg){
@@ -4216,6 +4152,7 @@ function setCalendarUI(next, persist){
     activeOnly: next.activeOnly === true,
     focus: next.focus === "planned" || next.focus === "actual" ? next.focus : "both"
   };
+  syncCalendarFilterToAddTarget();
   const prefs = normalizedUiPrefs();
   if(prefs.layoutPreset !== "custom"){
     view.state.settings.uiPrefs = { ...prefs, layoutPreset:"custom" };
@@ -4230,6 +4167,9 @@ function renderCalendarControls(){
   }
   syncToggleBtn(ui.filterMarkedOnlyBtn, cfg.markedOnly);
   syncToggleBtn(ui.filterActiveAopBtn, cfg.activeOnly);
+  if(ui.filterActiveAopBtn){
+    ui.filterActiveAopBtn.textContent = cfg.activeOnly ? "Only Add Target: ON" : "Only Add Target";
+  }
   if(ui.calendarFocusSelect) ui.calendarFocusSelect.value = cfg.focus;
   if(ui.calendarMasterLegend){
     const showMasterLegend = currentAreaViewId() === MASTER_VIEW_ID;
@@ -4448,7 +4388,7 @@ function renderDayActualLinks(){
       const switchedVisibleAop = keepSelectedAopVisibleInCalendar(aopId);
       setActualLinkState(
         switchedVisibleAop
-          ? `Only Active AOP is on. Showing ${resolveAopName(aopId)} in the calendar.`
+          ? `Only Add Target is on. Showing ${resolveAopName(aopId)} in the calendar.`
           : `Ready to add ${resolveAopName(aopId)} ${timeShort()}`
       );
       if(ui.dayActualAopSelect) ui.dayActualAopSelect.focus();
@@ -4504,10 +4444,7 @@ function addActualFromDayNotes(){
   keepSelectedAopVisibleInCalendar(aopId);
   saveState();
   syncSelectedInfo();
-  renderAll();
-  renderEntries();
-  renderDashboard();
-  renderDayActualLinks();
+  refreshCalendarWorkView();
   showUndoToast("Actual mark added.", () => deleteMark(dateKey, "actual", entry.id, { skipToast:true }));
   setActualLinkState(`Actual linked ${timeShort()}`);
   openDayNotesPanel(false);
@@ -4519,7 +4456,7 @@ function normalizedSectionVisibility(){
     dashboard: raw.dashboard !== false,
     calendars: raw.calendars !== false,
     aopNotes: raw.aopNotes !== false,
-    tools: raw.tools !== false
+    tools: raw.tools === true
   };
 }
 
@@ -4615,9 +4552,10 @@ function openDayNotesPanel(focusEditor){
 
 function defaultState(){
   return {
-    version: 8,
+    version: 9,
     settings: {
-      sectionVisibility: { dashboard:true, calendars:true, aopNotes:true, tools:true },
+      sectionVisibility: { dashboard:true, calendars:true, aopNotes:true, tools:false },
+      viewCleanupVersion: 1,
       aopPane: "notation",
       areaView: DEFAULT_AREA_VIEW,
       colorTheme: DEFAULT_THEME,
@@ -4654,6 +4592,7 @@ function defaultState(){
 
 function migrateIfNeeded(st){
   if(!st || typeof st !== "object") return defaultState();
+  const incomingVersion = Number(st.version || 0);
 
   // Merge with defaults to ensure keys exist
   st = { ...defaultState(), ...st };
@@ -4661,15 +4600,20 @@ function migrateIfNeeded(st){
   // Older keys safety
   st.settings = st.settings || {};
   if(!st.settings.sectionVisibility || typeof st.settings.sectionVisibility !== "object"){
-    st.settings.sectionVisibility = { dashboard:true, calendars:true, aopNotes:true, tools:true };
+    st.settings.sectionVisibility = { dashboard:true, calendars:true, aopNotes:true, tools:false };
   }else{
     st.settings.sectionVisibility = {
       dashboard: st.settings.sectionVisibility.dashboard !== false,
       calendars: st.settings.sectionVisibility.calendars !== false,
       aopNotes: st.settings.sectionVisibility.aopNotes !== false,
-      tools: st.settings.sectionVisibility.tools !== false
+      tools: st.settings.sectionVisibility.tools === true
     };
   }
+  const viewCleanupVersion = Number(st.settings.viewCleanupVersion || 0);
+  if(incomingVersion < 9 || viewCleanupVersion < 1){
+    st.settings.sectionVisibility.tools = false;
+  }
+  st.settings.viewCleanupVersion = 1;
   if(st.settings.aopPane === "template") st.settings.aopPane = "notation";
   if(!["catalog","notation","allnotes"].includes(st.settings.aopPane)){
     st.settings.aopPane = "notation";
@@ -4876,7 +4820,7 @@ function migrateIfNeeded(st){
       }
     };
   }
-  st.version = 8;
+  st.version = 9;
   return st;
 }
 
@@ -5978,11 +5922,7 @@ function applyIncomingSharedState(nextState){
   flushPendingEditorsBeforeRemoteApply();
   const migrated = mergeIncomingSharedState(view.state, nextState);
   applyMergedStateSilently(migrated);
-  renderAll();
-  loadMonthlyTemplate();
-  loadDayNoteUI();
-  renderEntries();
-  renderDashboard();
+  refreshWorkspaceView();
   renderSyncHistoryPanel();
   return true;
 }
@@ -6752,11 +6692,6 @@ function selectedGoalsAopId(){
   return (id && view.state.aops[id] && isAopInArea(id)) ? id : null;
 }
 
-function syncAopSelectors(id){
-  const safe = (id && view.state.aops[id] && isAopInArea(id)) ? id : "";
-  if(ui.aopNotationSelect) ui.aopNotationSelect.value = safe;
-}
-
 function setCalendarAopSelection(id, areaId){
   const safeArea = normalizeAreaViewId(areaId || currentAreaViewId());
   const areaKey = safeArea === MASTER_VIEW_ID ? DEFAULT_AREA_VIEW : safeArea;
@@ -6766,6 +6701,18 @@ function setCalendarAopSelection(id, areaId){
   }
   view.calendarAopByArea[areaKey] = safe || null;
   if(ui.aopSelect) ui.aopSelect.value = safe;
+  syncCalendarFilterToAddTarget();
+}
+
+function setNotationAopSelection(id, areaId){
+  const safeArea = normalizeAreaViewId(areaId || currentAreaViewId());
+  const areaKey = safeArea === MASTER_VIEW_ID ? DEFAULT_AREA_VIEW : safeArea;
+  const safe = (id && view.state.aops[id] && isAopInArea(id, safeArea)) ? id : "";
+  if(!view.notationAopByArea || typeof view.notationAopByArea !== "object"){
+    view.notationAopByArea = {};
+  }
+  view.notationAopByArea[areaKey] = safe || null;
+  if(ui.aopNotationSelect) ui.aopNotationSelect.value = safe;
 }
 
 function setGoalsAopSelection(id, areaId){
@@ -6799,9 +6746,22 @@ function keepSelectedAopVisibleInCalendar(aopId){
   view.calendarFilterAopId = aopId;
   return true;
 }
+function syncCalendarFilterToAddTarget(){
+  const cfg = normalizedCalendarUI();
+  if(!cfg.activeOnly){
+    view.calendarFilterAopId = null;
+    return;
+  }
+  const target = currentCalendarAopId();
+  if(target){
+    keepSelectedAopVisibleInCalendar(target);
+  }else{
+    view.calendarFilterAopId = null;
+  }
+}
 
 function selectedAopForNotation(){
-  const candidates = [ui.aopNotationSelect?.value, view.state.activeAopId];
+  const candidates = [currentNotationAopId(), ui.aopNotationSelect?.value, view.state.activeAopId];
   for(const id of candidates){
     if(id && view.state.aops[id] && isAopInArea(id)) return id;
   }
@@ -7301,8 +7261,8 @@ function renderAopCatalog(){
     const activeName = view.state.activeAopId && view.state.aops[view.state.activeAopId] && isAopInArea(view.state.activeAopId)
       ? view.state.aops[view.state.activeAopId].name
       : "None";
-    ui.activeAopPill.textContent = `Active: ${activeName}`;
-    ui.activeAopPill.title = activeName === "None" ? "Active: None" : activeName;
+    ui.activeAopPill.textContent = `Catalog active: ${activeName}`;
+    ui.activeAopPill.title = activeName === "None" ? "Catalog active: None" : activeName;
   }
 
   if(order.length === 0){
@@ -7326,10 +7286,15 @@ function renderAopCatalog(){
       row.tabIndex = 0;
       row.setAttribute("role", "button");
       row.setAttribute("aria-pressed", isActive ? "true" : "false");
-      row.setAttribute("title", isActive ? "Click to deselect active AOP" : "Click to set as active AOP");
+      row.setAttribute("title", isActive ? "Catalog active AOP" : "Click to set calendar add target and catalog active AOP");
       const toggle = () => {
         setCalendarAopSelection(id);
-        toggleActiveAop(id);
+        if(view.state.activeAopId !== id){
+          setActiveAop(id);
+        }else{
+          if(normalizedCalendarUI().activeOnly) renderAll();
+          else renderAopCatalog();
+        }
         syncSelectedInfo();
       };
       row.addEventListener("click", toggle);
@@ -7430,7 +7395,6 @@ function renderAopCatalog(){
 
   if(view.state.activeAopId && view.state.aops[view.state.activeAopId] && isAopInArea(view.state.activeAopId)){
     const activeName = view.state.aops[view.state.activeAopId].name;
-    syncAopSelectors(view.state.activeAopId);
     ui.activeAopLabel.textContent = calendarTargetName;
     ui.activeAopLabel.title = calendarTargetName === activeName ? calendarTargetName : `Calendar: ${calendarTargetName} | Active: ${activeName}`;
     const c = calendarTargetId && view.state.aops[calendarTargetId]
@@ -7440,8 +7404,6 @@ function renderAopCatalog(){
     ui.activeAopLabel.style.background = hexToRgba(c, .12);
     ui.activeAopLabel.style.color = "var(--text)";
   }else{
-    const sticky = [prevSelectId, prevNotationSelectId, prevGoalsSelectId].find(id => !!id && order.includes(id)) || "";
-    syncAopSelectors(sticky);
     ui.activeAopLabel.textContent = calendarTargetName;
     ui.activeAopLabel.title = calendarTargetName;
     ui.activeAopLabel.style.borderColor = "var(--line)";
@@ -7450,6 +7412,9 @@ function renderAopCatalog(){
   }
   const calendarSticky = [currentCalendarAopId(), prevSelectId].find(id => !!id && order.includes(id)) || "";
   setCalendarAopSelection(calendarSticky);
+  const notationSticky = [currentNotationAopId(), prevNotationSelectId, view.state.activeAopId]
+    .find(id => !!id && order.includes(id)) || "";
+  setNotationAopSelection(notationSticky);
   const goalsSticky = [currentGoalsAopId(), prevGoalsSelectId]
     .find(id => !!id && order.includes(id)) || "";
   setGoalsAopSelection(goalsSticky);
@@ -7471,11 +7436,7 @@ function addAop(name, color, areaId){
     setCalendarAopSelection(existingId, safeArea);
     saveState();
     if(ui.aopSearch) ui.aopSearch.value = "";
-    renderAll();
-    syncAopSelectors(existingId);
-    loadMonthlyTemplate();
-    renderEntries();
-    renderDashboard();
+    refreshAopWorkView();
     if(ui.aopNewName) ui.aopNewName.focus();
     alert("That AOP/Custom already exists in this category. The existing item was selected instead.");
     return;
@@ -7500,11 +7461,7 @@ function addAop(name, color, areaId){
   ensureMonthly(id, currentMonthKey());
   saveState();
   if(ui.aopSearch) ui.aopSearch.value = "";
-  renderAll();
-  syncAopSelectors(id);
-  loadMonthlyTemplate();
-  renderEntries();
-  renderDashboard();
+  refreshAopWorkView();
   if(ui.aopNewName) ui.aopNewName.focus();
 }
 function renameAop(id, nextName){
@@ -7530,10 +7487,7 @@ function renameAop(id, nextName){
   a.name = clean;
   a.updated_at = nowIso();
   saveState();
-  renderAll();
-  loadMonthlyTemplate();
-  renderEntries();
-  renderDashboard();
+  refreshAopWorkView();
   return true;
 }
 
@@ -7549,11 +7503,7 @@ function setActiveAop(id){
   view.state.activeAopId = id;
   view.calendarFilterAopId = null;
   saveState();
-  renderAll();
-  syncAopSelectors(id);
-  loadMonthlyTemplate();
-  renderEntries();
-  renderDashboard();
+  refreshAopWorkView();
 }
 
 function removeAop(id){
@@ -7569,10 +7519,7 @@ function removeAop(id){
   ensureActiveAopInView();
 
   saveState();
-  renderAll();
-  loadMonthlyTemplate();
-  renderEntries();
-  renderDashboard();
+  refreshAopWorkView();
 }
 
 /* --- Monthly template UI (Goal + Comments + Audit) --- */
@@ -7588,7 +7535,7 @@ function loadMonthlyTemplate(){
     ui.tmplComments.disabled = true;
     ui.goalAudit.textContent = "-";
     ui.commentsAudit.textContent = "-";
-    if(ui.templateAopHint) ui.templateAopHint.textContent = "AOP: None selected";
+    if(ui.templateAopHint) ui.templateAopHint.textContent = "Goal/comments AOP: None selected";
     setTemplateSaveState("Select an AOP");
     return;
   }
@@ -7599,7 +7546,7 @@ function loadMonthlyTemplate(){
   const tmpl = ensureMonthly(aopId, mk);
   ui.tmplGoal.value = tmpl.goal || "";
   ui.tmplComments.value = tmpl.comments || "";
-  if(ui.templateAopHint) ui.templateAopHint.textContent = `AOP: ${view.state.aops[aopId].name}`;
+  if(ui.templateAopHint) ui.templateAopHint.textContent = `Goal/comments AOP: ${view.state.aops[aopId].name}`;
 
   ui.goalAudit.textContent =
     `Goal created: ${fmtIsoShort(tmpl.goal_created_at)} | updated: ${fmtIsoShort(tmpl.goal_updated_at)}`;
@@ -7638,24 +7585,6 @@ function saveMonthlyTemplate(){
   renderEntries();
   renderDashboard();
 }
-function clearActiveAop(){
-  view.state.activeAopId = null;
-  view.calendarFilterAopId = null;
-  saveState();
-  renderAll();
-  loadMonthlyTemplate();
-  renderEntries();
-  renderDashboard();
-}
-function toggleActiveAop(id){
-  if(!view.state.aops[id]) return;
-  if(view.state.activeAopId === id){
-    clearActiveAop();
-    return;
-  }
-  setActiveAop(id);
-}
-
 /* --- Day Note UI (category scoped) --- */
 function dayNoteEditorAreaId(){
   const scope = currentAreaViewId();
@@ -7882,7 +7811,7 @@ function renderCalendar(container, type){
   const filterTargetId =
     (view.calendarFilterAopId && view.state.aops?.[view.calendarFilterAopId] && isAopInArea(view.calendarFilterAopId))
       ? view.calendarFilterAopId
-      : view.state.activeAopId;
+      : currentCalendarAopId();
   const activeFilterId = (cfg.activeOnly && filterTargetId && isAopInArea(filterTargetId)) ? filterTargetId : null;
   const masterSummaryMode = currentAreaViewId() === MASTER_VIEW_ID;
 
@@ -8116,10 +8045,7 @@ function markSelectedDay(){
   arr.unshift(entry);
   saveState();
 
-  renderAll();
-  renderDayActualLinks();
-  renderEntries();
-  renderDashboard();
+  refreshCalendarWorkView();
   showUndoToast(`${type === "planned" ? "Planned" : "Actual"} mark added.`, () => deleteMark(targetDateKey, type, entry.id, { skipToast:true }));
 }
 function removeSelectedDayMark(){
@@ -8270,10 +8196,7 @@ function deleteMark(dateKey, type, id, options){
     delete view.state.entries[dateKey];
   }
   saveState();
-  renderAll();
-  renderDayActualLinks();
-  renderEntries();
-  renderDashboard();
+  refreshCalendarWorkView();
   if(!opts.skipToast && removed){
     const removedType = type === "planned" ? "Planned" : "Actual";
     showUndoToast(`${removedType} mark removed.`, () => {
@@ -8284,10 +8207,7 @@ function deleteMark(dateKey, type, id, options){
       list.unshift(removed);
       view.state.entries[dateKey][type] = list;
       saveState();
-      renderAll();
-      renderDayActualLinks();
-      renderEntries();
-      renderDashboard();
+      refreshCalendarWorkView();
     });
   }
 }
@@ -8618,13 +8538,13 @@ function renderDashboard(){
   const totalDelta = st.actualTotal - st.plannedTotal;
   const unmatchedPlannedTotal = Math.max(0, st.plannedTotal - st.matchedTotal);
   const adhPct = st.adherence * 100;
-  ui.kpiPlanned.textContent = String(workedAopCount);
-  ui.kpiActual.textContent = formatDayValue(st.plannedTotal);
+  ui.kpiWorked.textContent = String(workedAopCount);
+  ui.kpiPlanned.textContent = formatDayValue(st.plannedTotal);
   ui.kpiMatched.textContent = formatSignedDayValue(totalDelta);
   ui.kpiAdh.textContent = formatPercentValue(adhPct, 1);
 
-  ui.kpiPlannedSub.textContent = `${formatDayValue(st.actualTotal)} actual day-share | ${st.splitActualDayCount} split-focus actual day${st.splitActualDayCount === 1 ? "" : "s"}`;
-  ui.kpiActualSub.textContent = `${formatDayValue(st.matchedTotal)} matched planned day-share | ${st.splitPlannedDayCount} split planned day${st.splitPlannedDayCount === 1 ? "" : "s"}`;
+  ui.kpiWorkedSub.textContent = `${formatDayValue(st.actualTotal)} actual day-share | ${st.splitActualDayCount} split-focus actual day${st.splitActualDayCount === 1 ? "" : "s"}`;
+  ui.kpiPlannedSub.textContent = `${formatDayValue(st.matchedTotal)} matched planned day-share | ${st.splitPlannedDayCount} split planned day${st.splitPlannedDayCount === 1 ? "" : "s"}`;
   if(ui.kpiMatchedSub){
     ui.kpiMatchedSub.textContent = `${formatDayValue(st.unplannedActualTotal)} unplanned actual | ${formatDayValue(unmatchedPlannedTotal)} planned not matched`;
   }
@@ -8785,6 +8705,7 @@ function renderAll(){
   renderRainToggle();
   ensureActiveAopInView();
   ensureCalendarAopInView();
+  ensureNotationAopInView();
   ensureGoalsAopInView();
   if(ui.areaViewSelect) ui.areaViewSelect.value = currentAreaViewId();
   if(ui.aopNewArea) ui.aopNewArea.value = suggestedAreaForNewAop();
@@ -8802,6 +8723,30 @@ function renderAll(){
   renderDayNoteFilters();
   renderDayActualLinks();
   renderAllDayNotes();
+}
+
+function refreshView(options){
+  const opts = options || {};
+  if(opts.all !== false) renderAll();
+  if(opts.monthly) loadMonthlyTemplate();
+  if(opts.dayNote) loadDayNoteUI();
+  if(opts.entries) renderEntries();
+  if(opts.dashboard) renderDashboard();
+}
+
+function refreshWorkspaceView(){
+  refreshView({ monthly:true, dayNote:true, entries:true, dashboard:true });
+}
+
+function refreshAopWorkView(){
+  refreshView({ monthly:true, entries:true, dashboard:true });
+}
+
+function refreshCalendarWorkView(){
+  renderAll();
+  renderDayActualLinks();
+  renderEntries();
+  renderDashboard();
 }
 
 /* --- Export / Import / CSV / Print --- */
@@ -8845,11 +8790,7 @@ async function importJson(file){
   }
 
   // Keep view coherent
-  renderAll();
-  loadMonthlyTemplate();
-  loadDayNoteUI();
-  renderEntries();
-  renderDashboard();
+  refreshWorkspaceView();
 }
 
 function isValidImportedState(incoming){
@@ -8944,7 +8885,7 @@ function buildCommandPaletteCommands(){
     { id:"toggle-dashboard", label: vis.dashboard ? "Hide Dashboard" : "Show Dashboard", hint:"Section", run: () => ui.toggleDashboard?.click() },
     { id:"toggle-calendars", label: vis.calendars ? "Hide Calendars" : "Show Calendars", hint:"Section", run: () => ui.toggleCalendars?.click() },
     { id:"toggle-aop", label: vis.aopNotes ? "Hide AOP Catalog/Goals" : "Show AOP Catalog/Goals", hint:"Section", run: () => ui.toggleAopNotes?.click() },
-    { id:"toggle-tools", label: vis.tools ? "Hide Display/Data" : "Show Display/Data", hint:"Section", run: () => ui.toggleTools?.click() },
+    { id:"toggle-tools", label: vis.tools ? "Hide Settings" : "Show Settings", hint:"Section", run: () => ui.toggleTools?.click() },
     { id:"show-all-sections", label:"Show All Sections", hint:"Reset layout", run: () => ui.showAllSections?.click() },
     { id:"calendar-focus-both", label: cal.focus === "both" ? "Calendar Focus: Both (active)" : "Calendar Focus: Both", hint:"Planned + actual", run: () => { setCalendarUI({ ...cal, focus:"both" }, true); renderAll(); } },
     { id:"calendar-focus-planned", label: cal.focus === "planned" ? "Calendar Focus: Planned (active)" : "Calendar Focus: Planned", hint:"Planned only", run: () => { setCalendarUI({ ...cal, focus:"planned" }, true); renderAll(); } },
@@ -9376,7 +9317,7 @@ function hookUI(){
     view.month = now.getMonth();
     view.selectedDate = ymd(now);
     view.selectedCalendar = view.selectedCalendar || "planned";
-    renderAll(); loadMonthlyTemplate(); loadDayNoteUI(); renderEntries(); renderDashboard();
+    refreshWorkspaceView();
   });
 
   ui.diffToggle.addEventListener("click", () => {
@@ -9432,24 +9373,23 @@ function hookUI(){
     ui.dashFilterHighDeltaBtn.addEventListener("click", () => setDashboardFilterToggle("highDeltaOnly"));
   }
 
-  const onAopSelectionChange = (nextId) => {
+  const onNotationSelectionChange = (nextId) => {
     saveAopNotation();
     saveMonthlyTemplate();
-    const id = nextId || "";
-    if(id) setActiveAop(id);
-    else {
-      clearActiveAop();
-    }
+    setNotationAopSelection(nextId || "");
+    loadAopNotationUI();
+    renderAopCatalog();
   };
   ui.aopSelect.addEventListener("change", () => {
     setCalendarAopSelection(ui.aopSelect.value);
     syncSelectedInfo();
     if(ui.aopSelect.value && normalizedCalendarUI().activeOnly && ui.aopSelect.value !== view.state.activeAopId){
-      setActualLinkState(`Only Active AOP is on. Calendar add target is ${resolveAopName(ui.aopSelect.value)}.`);
+      setActualLinkState(`Only Add Target is on. Calendar add target is ${resolveAopName(ui.aopSelect.value)}.`);
     }
+    if(normalizedCalendarUI().activeOnly) renderAll();
   });
   if(ui.aopNotationSelect){
-    ui.aopNotationSelect.addEventListener("change", () => onAopSelectionChange(ui.aopNotationSelect.value));
+    ui.aopNotationSelect.addEventListener("change", () => onNotationSelectionChange(ui.aopNotationSelect.value));
   }
   ui.aopSelectGoals.addEventListener("change", () => {
     saveMonthlyTemplate();
@@ -9463,7 +9403,7 @@ function hookUI(){
   ui.dayActualAopSelect.addEventListener("change", () => {
     setDayActualSelection(ui.dayActualAopSelect.value);
     if(ui.dayActualAopSelect.value && normalizedCalendarUI().activeOnly && ui.dayActualAopSelect.value !== view.state.activeAopId){
-      setActualLinkState(`Only Active AOP is on. Adding will show ${resolveAopName(ui.dayActualAopSelect.value)} in the calendar.`);
+      setActualLinkState(`Only Add Target is on. Adding will show ${resolveAopName(ui.dayActualAopSelect.value)} in the calendar.`);
     }else{
       setActualLinkState(ui.dayActualAopSelect.value ? "Ready" : "Select an AOP");
     }
@@ -9755,12 +9695,12 @@ function init(){
 
     // dashboard
     dashSub: document.getElementById("dashSub"),
+    kpiWorked: document.getElementById("kpiWorked"),
     kpiPlanned: document.getElementById("kpiPlanned"),
-    kpiActual: document.getElementById("kpiActual"),
     kpiMatched: document.getElementById("kpiMatched"),
     kpiAdh: document.getElementById("kpiAdh"),
+    kpiWorkedSub: document.getElementById("kpiWorkedSub"),
     kpiPlannedSub: document.getElementById("kpiPlannedSub"),
-    kpiActualSub: document.getElementById("kpiActualSub"),
     kpiMatchedSub: document.getElementById("kpiMatchedSub"),
     kpiAdhSub: document.getElementById("kpiAdhSub"),
     dashTbody: document.getElementById("dashTbody"),
@@ -9889,14 +9829,13 @@ function init(){
     saveState();
   }
 
-  // Sync AOP select to active
+  // Initialize each role-specific AOP selector.
   ensureActiveAopInView();
   ensureCalendarAopInView();
+  ensureNotationAopInView();
   ensureGoalsAopInView();
-  if(view.state.activeAopId && view.state.aops[view.state.activeAopId] && isAopInArea(view.state.activeAopId)){
-    syncAopSelectors(view.state.activeAopId);
-  }
   setCalendarAopSelection(currentCalendarAopId());
+  setNotationAopSelection(currentNotationAopId());
   setGoalsAopSelection(currentGoalsAopId());
 
   // Diff toggle initial label
