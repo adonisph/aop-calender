@@ -1568,6 +1568,11 @@
       background: rgba(96,165,250,.13);
       color: rgba(191,219,254,.95);
     }
+    .date-chip.split{
+      border-color: rgba(168,85,247,.52);
+      background: rgba(168,85,247,.14);
+      color: rgba(233,213,255,.95);
+    }
     .date-chip.unplanned{
       border-color: rgba(34,197,94,.52);
       background: rgba(34,197,94,.14);
@@ -8185,6 +8190,9 @@ function dateChipHtml(dateKeys, cls, label, limit){
 function overviewFlagHtml(label){
   return `<span class="date-chip neutral">${escapeHtml(label)}</span>`;
 }
+function splitSummaryChipHtml(label, value){
+  return `<span class="date-chip split" title="${escapeHtml(label)} split focus: weighted day-share / split days">${escapeHtml(label)}: ${escapeHtml(value)}</span>`;
+}
 
 function getFirstWorkweekRange(year, monthIndex){
   const first = new Date(year, monthIndex, 1);
@@ -8222,12 +8230,21 @@ function calcMonthStats(){
       actualDates:[],
       matchedDates:[],
       missedDates:[],
-      unplannedDates:[]
+      unplannedDates:[],
+      plannedSplitDates:[],
+      actualSplitDates:[],
+      plannedSoloDates:[],
+      actualSoloDates:[],
+      plannedSplitShare:0,
+      actualSplitShare:0,
+      plannedSoloShare:0,
+      actualSoloShare:0
     };
   }
 
   let plannedTotal=0, actualTotal=0, matchedTotal=0, unplannedActualTotal=0;
   const plannedByDay = {};
+  let splitPlannedDayCount = 0, splitActualDayCount = 0;
 
   for(const dateKey of keys){
     const b = view.state.entries[dateKey];
@@ -8237,6 +8254,8 @@ function calcMonthStats(){
     const actualInfo = dayShareMap(actualArr);
 
     plannedByDay[dateKey] = plannedInfo.total;
+    if(plannedInfo.count > 1) splitPlannedDayCount += 1;
+    if(actualInfo.count > 1) splitActualDayCount += 1;
 
     plannedTotal += plannedInfo.total;
     actualTotal += actualInfo.total;
@@ -8246,12 +8265,26 @@ function calcMonthStats(){
       if(perAop[aopId]){
         perAop[aopId].planned += plannedInfo.share;
         perAop[aopId].plannedDates.push(dateKey);
+        if(plannedInfo.count > 1){
+          perAop[aopId].plannedSplitDates.push(dateKey);
+          perAop[aopId].plannedSplitShare += plannedInfo.share;
+        }else{
+          perAop[aopId].plannedSoloDates.push(dateKey);
+          perAop[aopId].plannedSoloShare += plannedInfo.share;
+        }
       }
     }
     for(const aopId of actualInfo.ids){
       if(perAop[aopId]){
         perAop[aopId].actual += actualInfo.share;
         perAop[aopId].actualDates.push(dateKey);
+        if(actualInfo.count > 1){
+          perAop[aopId].actualSplitDates.push(dateKey);
+          perAop[aopId].actualSplitShare += actualInfo.share;
+        }else{
+          perAop[aopId].actualSoloDates.push(dateKey);
+          perAop[aopId].actualSoloShare += actualInfo.share;
+        }
       }
     }
 
@@ -8334,6 +8367,8 @@ function calcMonthStats(){
     mtdPerAop,
     mtdExcludedFirstWorkweekDays,
     unplannedActualTotal,
+    splitPlannedDayCount,
+    splitActualDayCount,
     plannedByDay
   };
 }
@@ -8387,6 +8422,14 @@ function renderDashboard(){
       matchedDates: sMonth?.matchedDates || [],
       missedDates: sMonth?.missedDates || [],
       unplannedDates: sMonth?.unplannedDates || [],
+      plannedSplitDates: sMonth?.plannedSplitDates || [],
+      actualSplitDates: sMonth?.actualSplitDates || [],
+      plannedSoloDates: sMonth?.plannedSoloDates || [],
+      actualSoloDates: sMonth?.actualSoloDates || [],
+      plannedSplitShare: sMonth?.plannedSplitShare || 0,
+      actualSplitShare: sMonth?.actualSplitShare || 0,
+      plannedSoloShare: sMonth?.plannedSoloShare || 0,
+      actualSoloShare: sMonth?.actualSoloShare || 0,
       hasGoal,
       hasComments,
       hasNotation,
@@ -8412,8 +8455,8 @@ function renderDashboard(){
   ui.kpiMatched.textContent = formatSignedDayValue(totalDelta);
   ui.kpiAdh.textContent = formatPercentValue(adhPct, 1);
 
-  ui.kpiPlannedSub.textContent = `${formatDayValue(st.actualTotal)} actual day-share across ${allRows.length} AOPs`;
-  ui.kpiActualSub.textContent = `${formatDayValue(st.matchedTotal)} matched planned day-share`;
+  ui.kpiPlannedSub.textContent = `${formatDayValue(st.actualTotal)} actual day-share | ${st.splitActualDayCount} split-focus actual day${st.splitActualDayCount === 1 ? "" : "s"}`;
+  ui.kpiActualSub.textContent = `${formatDayValue(st.matchedTotal)} matched planned day-share | ${st.splitPlannedDayCount} split planned day${st.splitPlannedDayCount === 1 ? "" : "s"}`;
   if(ui.kpiMatchedSub){
     ui.kpiMatchedSub.textContent = `${formatDayValue(st.unplannedActualTotal)} unplanned actual | ${formatDayValue(unmatchedPlannedTotal)} planned not matched`;
   }
@@ -8516,8 +8559,16 @@ function renderDashboard(){
       ].filter(Boolean).join("");
       const workedLine = dateChipHtml(r.actualDates, "actual", "Worked", 8)
         || `<div class="work-line"><strong>Worked</strong><span class="date-chip neutral">None logged</span></div>`;
+      const splitChips = [
+        r.actualSplitDates.length ? splitSummaryChipHtml("Actual", `${formatDayValue(r.actualSplitShare)} / ${r.actualSplitDates.length}d`) : "",
+        r.plannedSplitDates.length ? splitSummaryChipHtml("Planned", `${formatDayValue(r.plannedSplitShare)} / ${r.plannedSplitDates.length}d`) : ""
+      ].filter(Boolean).join("");
+      const splitLine = (r.actualSplitDates.length || r.plannedSplitDates.length)
+        ? `<div class="work-line"><strong>Split</strong>${splitChips}</div>`
+        : "";
       const workHtml = [
         workedLine,
+        splitLine,
         dateChipHtml(r.unplannedDates, "unplanned", "Unplanned", 6),
         dateChipHtml(r.missedDates, "missed", "Planned only", 6),
         outcomeFlags ? `<div class="work-line"><strong>Outcome</strong>${outcomeFlags}</div>` : ""
