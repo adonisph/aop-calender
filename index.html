@@ -1638,6 +1638,99 @@
       border-top: 1px solid var(--line);
     }
     .cal-toolbar .spacer{ flex: 1 1 auto; }
+    .calendar-advanced-options{
+      display:flex;
+      gap:8px;
+      align-items:center;
+      flex-wrap:wrap;
+      padding: 8px;
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: 12px;
+      background: rgba(255,255,255,.025);
+    }
+    .calendar-advanced-options[hidden]{ display:none !important; }
+    .day-workspace{
+      margin: 10px 12px 0;
+      padding: 12px;
+      display:grid;
+      grid-template-columns: minmax(220px, 1.1fr) minmax(180px, .9fr) auto;
+      gap: 10px;
+      align-items:center;
+      border: 1px solid rgba(var(--power-rgb),.36);
+      border-radius: 16px;
+      background:
+        radial-gradient(600px 160px at 0% 0%, rgba(var(--power-rgb),.16), rgba(255,255,255,0) 62%),
+        linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,.015));
+    }
+    .day-workspace-block{
+      min-width:0;
+      display:grid;
+      gap:4px;
+    }
+    .day-workspace-label{
+      font-size: 10px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .7px;
+      font-family: var(--mono);
+      font-weight: 800;
+    }
+    .day-workspace-title{
+      font-size: 17px;
+      font-weight: 900;
+      font-style: italic;
+      color: var(--text);
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    .day-workspace-meta{
+      font-size: 12px;
+      color: var(--muted);
+      line-height:1.35;
+    }
+    .day-target-chip{
+      display:inline-flex;
+      align-items:center;
+      gap:7px;
+      width: fit-content;
+      max-width:100%;
+      padding: 7px 10px;
+      border-radius: 999px;
+      border:1px solid rgba(var(--power-rgb),.45);
+      background: rgba(var(--power-rgb),.10);
+      font-weight: 900;
+      font-size: 12px;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    .day-target-chip::before{
+      content:"";
+      flex:0 0 auto;
+      width:10px;
+      height:10px;
+      border-radius:999px;
+      background: var(--day-target-color, var(--power));
+      box-shadow: 0 0 0 2px rgba(0,0,0,.30);
+    }
+    .day-workspace-actions{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+    .day-workspace-actions button{
+      padding: 9px 11px;
+      font-weight: 800;
+    }
+    @media (max-width: 980px){
+      .day-workspace{
+        grid-template-columns: 1fr;
+        align-items:stretch;
+      }
+      .day-workspace-actions{ justify-content:flex-start; }
+    }
     .calendar-master-legend{
       display:none;
       align-items:center;
@@ -2119,6 +2212,26 @@
       color: var(--power);
       text-shadow: 0 0 16px rgba(var(--power-rgb),.16);
     }
+    .library-toolbar{
+      margin-top: 10px;
+      display:flex;
+      gap:8px;
+      align-items:center;
+      justify-content:space-between;
+      flex-wrap:wrap;
+      padding: 8px;
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 12px;
+      background: rgba(255,255,255,.025);
+    }
+    .aop-form-wrap{
+      margin-top: 10px;
+      padding: 10px;
+      border: 1px solid rgba(var(--power-rgb),.28);
+      border-radius: 12px;
+      background: rgba(var(--power-rgb),.06);
+    }
+    .aop-form-wrap[hidden]{ display:none !important; }
     .aop-form{
       display:grid;
       grid-template-columns: 64px minmax(0, 1fr) 110px;
@@ -2252,6 +2365,21 @@
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+    .aop-usage{
+      display:inline-flex;
+      align-items:center;
+      gap:4px;
+      min-height:20px;
+      padding: 2px 7px;
+      border-radius:999px;
+      border:1px solid rgba(96,165,250,.38);
+      background: rgba(96,165,250,.10);
+      color: rgba(191,219,254,.96);
+      font-family: var(--mono);
+      font-size:10px;
+      font-weight:800;
+      white-space:nowrap;
+    }
     .aop-row .actions{
       display:flex;
       align-items:center;
@@ -2309,6 +2437,30 @@
       background: #171717;
       box-shadow: 0 0 0 3px rgba(var(--power-rgb),.10);
     }
+    #paneTemplate[hidden]{ display:none !important; }
+    #paneNotation .aop-box,
+    #paneNotation .goals-highlight{
+      position:relative;
+    }
+    #paneNotation .aop-box::before,
+    #paneNotation .goals-highlight::before{
+      position:absolute;
+      right:12px;
+      top:10px;
+      padding: 3px 7px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(0,0,0,.22);
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing:.4px;
+      text-transform: uppercase;
+      pointer-events:none;
+    }
+    #paneNotation .aop-box::before{ content:"Outcomes"; }
+    #paneNotation .goals-highlight::before{ content:"Monthly Plan"; }
     .goals-banner{
       display:flex;
       align-items:flex-start;
@@ -2524,7 +2676,7 @@
       <div class="tb-item tb-extra" data-tb-key="sep"><span class="toolbar-sep" aria-hidden="true"></span></div>
       <div class="tb-item tb-extra" data-tb-key="dashboard"><button id="toggleDashboard" class="btn-ghost focus-tab" type="button" aria-pressed="true">Dashboard</button></div>
       <div class="tb-item tb-extra" data-tb-key="calendars"><button id="toggleCalendars" class="btn-ghost focus-tab" type="button" aria-pressed="true">Calendars</button></div>
-      <div class="tb-item tb-extra" data-tb-key="aop"><button id="toggleAopNotes" class="btn-ghost focus-tab" type="button" aria-pressed="true">AOP Catalog/Goals</button></div>
+      <div class="tb-item tb-extra" data-tb-key="aop"><button id="toggleAopNotes" class="btn-ghost focus-tab" type="button" aria-pressed="true">AOP Library/Goals</button></div>
       <div class="tb-item tb-extra" data-tb-key="tools"><button id="toggleTools" class="btn-ghost focus-tab" type="button" aria-pressed="false">Settings</button></div>
       <div class="tb-item tb-extra" data-tb-key="showall"><button id="showAllSections" class="btn-ghost" type="button">Show All</button></div>
     </div>
@@ -2707,23 +2859,44 @@
         </div>
 
         <div class="pillbar">
-          <span class="kbdHint">Enter = add mark | Delete = remove mark | N = open notes (Planned + Actual) | Double-click day = open notes</span>
-          <button id="openDayNotesBtn" class="btn-ghost" type="button">Open Notes Drawer</button>
+          <span class="kbdHint">Buttons add the selected AOP | Enter = quick add | Delete = remove mark | N = notes</span>
+          <button id="openDayNotesBtn" class="btn-ghost" type="button">Open Selected Day Notes</button>
+        </div>
+      </div>
+
+      <div class="day-workspace" id="dayWorkspace">
+        <div class="day-workspace-block">
+          <span class="day-workspace-label">Selected day</span>
+          <strong class="day-workspace-title" id="dayWorkspaceDate">No day selected</strong>
+          <span class="day-workspace-meta" id="dayWorkspaceMeta">Pick a day in Planned or Actual to start.</span>
+        </div>
+        <div class="day-workspace-block">
+          <span class="day-workspace-label">AOP to add</span>
+          <span class="day-target-chip" id="dayWorkspaceTarget">None selected</span>
+          <span class="day-workspace-meta" id="dayWorkspaceCounts">Planned 0 | Actual 0</span>
+        </div>
+        <div class="day-workspace-actions">
+          <button id="addSelectedPlannedBtn" class="btn-ghost" type="button">Add to Planned</button>
+          <button id="addSelectedActualBtn" class="btn-primary" type="button">Add to Actual</button>
+          <button id="openSelectedNotesBtn" class="btn-ghost" type="button">Open Notes</button>
         </div>
       </div>
 
       <div class="cal-toolbar">
-        <button id="calendarDensityBtn" class="btn-ghost btn-toggle" type="button" aria-pressed="false">Compact View</button>
-        <button id="filterMarkedOnlyBtn" class="btn-ghost btn-toggle" type="button" aria-pressed="false">Only Marked</button>
-        <button id="filterActiveAopBtn" class="btn-ghost btn-toggle" type="button" aria-pressed="false">Only Add Target</button>
+        <button id="calendarOptionsToggle" class="btn-ghost btn-toggle" type="button" aria-pressed="false" aria-expanded="false" aria-controls="calendarAdvancedOptions">View Options</button>
+        <div id="calendarAdvancedOptions" class="calendar-advanced-options" hidden>
+          <button id="calendarDensityBtn" class="btn-ghost btn-toggle" type="button" aria-pressed="false">Compact View</button>
+          <button id="filterMarkedOnlyBtn" class="btn-ghost btn-toggle" type="button" aria-pressed="false">Only Marked</button>
+          <button id="filterActiveAopBtn" class="btn-ghost btn-toggle" type="button" aria-pressed="false">Only Add Target</button>
+          <label for="calendarFocusSelect" style="margin:0;">Focus</label>
+          <select id="calendarFocusSelect">
+            <option value="both">Both</option>
+            <option value="planned">Planned</option>
+            <option value="actual">Actual</option>
+          </select>
+        </div>
         <div id="calendarMasterLegend" class="calendar-master-legend" aria-label="Master category colors"></div>
         <span class="spacer"></span>
-        <label for="calendarFocusSelect" style="margin:0;">Focus</label>
-        <select id="calendarFocusSelect">
-          <option value="both">Both</option>
-          <option value="planned">Planned</option>
-          <option value="actual">Actual</option>
-        </select>
       </div>
 
       <div class="cal-wrap" id="calWrap">
@@ -2748,16 +2921,16 @@
 
     </section>
 
-        <!-- RIGHT: AOP Catalog + Goals + All Notes -->
+        <!-- RIGHT: AOP Library + Goals + All Notes -->
     <aside class="card section-aop" id="aopNotesCard">
       <div class="card-header">
         <div class="title">
-          <strong>AOP Catalog/Goals</strong>
-          <span>Create and manage AOP playbooks, monthly goals, and day-note history.</span>
+        <strong>AOP Library / Goals</strong>
+        <span>Choose what to add to the calendar, set monthly goals, and review day-note history.</span>
         </div>
         <div class="panel-tabs" role="tablist" aria-label="AOP section tabs">
-          <button id="paneCatalogBtn" class="btn-ghost btn-toggle" type="button" role="tab" data-pane="catalog" aria-controls="paneCatalog" aria-selected="false">Catalog</button>
-          <button id="paneNotationBtn" class="btn-ghost btn-toggle on" type="button" role="tab" data-pane="notation" aria-controls="paneNotation" aria-selected="true">Goals</button>
+          <button id="paneCatalogBtn" class="btn-ghost btn-toggle" type="button" role="tab" data-pane="catalog" aria-controls="paneCatalog" aria-selected="false">AOP Library</button>
+          <button id="paneNotationBtn" class="btn-ghost btn-toggle on" type="button" role="tab" data-pane="notation" aria-controls="paneNotation" aria-selected="true">Goals & Outcomes</button>
           <button id="paneAllDayNotesBtn" class="btn-ghost btn-toggle" type="button" role="tab" data-pane="allnotes" aria-controls="paneAllDayNotes" aria-selected="false">All Day Notes</button>
         </div>
       </div>
@@ -2767,34 +2940,40 @@
           <div class="aop-box">
             <div class="head">
               <div>
-                <strong>AOP Catalog</strong>
-                <div class="small">Catalog stores reusable playbooks. Each AOP belongs to one category.</div>
-                <div class="helper">Quick flow: 1) Add or select an AOP. 2) Pick one day in Planned or Actual. 3) Press Enter to mark that day.</div>
+                <strong>AOP Library</strong>
+                <div class="small">Reusable AOPs grouped by category. Select one as the calendar add target, then use the Selected Day panel.</div>
+                <div class="helper">Quick flow: 1) Select an AOP. 2) Pick a day. 3) Use Add to Planned / Add to Actual.</div>
               </div>
             </div>
 
-            <div class="aop-form">
-              <div>
-                <label>AOP/Custom</label>
-                <input id="aopNewName" placeholder="e.g., Handle Customer Inquiry on Existing Case Status" />
-              </div>
-              <div>
-                <label>Color</label>
-                <input id="aopNewColor" type="color" value="#ff6a00" />
-              </div>
-              <div>
-                <label>Category</label>
-                <select id="aopNewArea">
-                  <option value="pool">Pool</option>
-                  <option value="sales">Sales</option>
-                  <option value="delivery">Delivery</option>
-                  <option value="aftersales">Aftersales</option>
-                  <option value="others_some">Others/SoMe</option>
-                  <option value="special_events">Special Events</option>
-                </select>
-              </div>
-              <div>
-                <button id="aopAdd" class="btn-primary" type="button" style="width:100%;">Add</button>
+            <div class="library-toolbar">
+              <button id="toggleAopAddFormBtn" class="btn-primary btn-toggle" type="button" aria-pressed="false" aria-expanded="false" aria-controls="aopAddFormWrap">Add New AOP</button>
+              <span class="small">Existing AOPs and saved marks are never removed by hiding this form.</span>
+            </div>
+            <div id="aopAddFormWrap" class="aop-form-wrap" hidden>
+              <div class="aop-form">
+                <div>
+                  <label>AOP/Custom</label>
+                  <input id="aopNewName" placeholder="e.g., Handle Customer Inquiry on Existing Case Status" />
+                </div>
+                <div>
+                  <label>Color</label>
+                  <input id="aopNewColor" type="color" value="#ff6a00" />
+                </div>
+                <div>
+                  <label>Category</label>
+                  <select id="aopNewArea">
+                    <option value="pool">Pool</option>
+                    <option value="sales">Sales</option>
+                    <option value="delivery">Delivery</option>
+                    <option value="aftersales">Aftersales</option>
+                    <option value="others_some">Others/SoMe</option>
+                    <option value="special_events">Special Events</option>
+                  </select>
+                </div>
+                <div>
+                  <button id="aopAdd" class="btn-primary" type="button" style="width:100%;">Create AOP</button>
+                </div>
               </div>
             </div>
 
@@ -2826,8 +3005,8 @@
           <div class="aop-box">
             <div class="head">
               <div>
-                <strong>Goals</strong>
-                <div class="small">Select the AOP below and track outcomes for this month.</div>
+                <strong>Goals & Outcomes</strong>
+                <div class="small">Outcome notes are the work story. Monthly Goal/Comments are the planning target.</div>
               </div>
             </div>
             <div style="margin-top:10px;">
@@ -2835,7 +3014,7 @@
               <select id="aopNotationSelect"></select>
             </div>
             <div class="aop-notation">
-              <label for="aopNotation">Goals</label>
+              <label for="aopNotation">Outcome Notes (worked on / achieved)</label>
               <textarea id="aopNotation" placeholder="Track goals and outcomes for this month."></textarea>
               <div class="aop-notation-tools">
                 <button id="aopNotationTemplateBtn" class="btn-ghost" type="button">Use Sprint Outcome Model</button>
@@ -2844,7 +3023,7 @@
             </div>
           </div>
 
-          <div class="section-pad goals-highlight" id="paneTemplate" hidden>
+          <div class="section-pad goals-highlight" id="paneTemplate">
             <div class="goals-banner">
               <div>
                 <strong class="template-accent-title">Goals/Comments</strong>
@@ -3103,6 +3282,8 @@ let paletteLabSyncing = false;
 let customColorPickerActive = false;
 let customColorPickerTimer = null;
 let lastAppliedTopbarOrderKey = "";
+let calendarViewOptionsOpen = false;
+let aopAddFormOpen = false;
 let syncLoginModalOpen = false;
 let syncLoginLastFocus = null;
 let onboardingAutoDismissBound = false;
@@ -4161,6 +4342,14 @@ function setCalendarUI(next, persist){
 }
 function renderCalendarControls(){
   const cfg = normalizedCalendarUI();
+  if(ui.calendarOptionsToggle){
+    syncToggleBtn(ui.calendarOptionsToggle, calendarViewOptionsOpen);
+    ui.calendarOptionsToggle.textContent = calendarViewOptionsOpen ? "View Options: ON" : "View Options";
+    ui.calendarOptionsToggle.setAttribute("aria-expanded", calendarViewOptionsOpen ? "true" : "false");
+  }
+  if(ui.calendarAdvancedOptions){
+    ui.calendarAdvancedOptions.hidden = !calendarViewOptionsOpen;
+  }
   syncToggleBtn(ui.calendarDensityBtn, cfg.compact);
   if(ui.calendarDensityBtn){
     ui.calendarDensityBtn.textContent = cfg.compact ? "Compact: ON" : "Compact View";
@@ -4548,6 +4737,15 @@ function renderAopPane(){
 function openDayNotesPanel(focusEditor){
   ensureNoteSelection();
   setDayNotesDrawer(true, focusEditor);
+}
+
+function renderAopAddFormControls(){
+  if(ui.aopAddFormWrap) ui.aopAddFormWrap.hidden = !aopAddFormOpen;
+  if(ui.toggleAopAddFormBtn){
+    syncToggleBtn(ui.toggleAopAddFormBtn, aopAddFormOpen);
+    ui.toggleAopAddFormBtn.textContent = aopAddFormOpen ? "Add New AOP: ON" : "Add New AOP";
+    ui.toggleAopAddFormBtn.setAttribute("aria-expanded", aopAddFormOpen ? "true" : "false");
+  }
 }
 
 function defaultState(){
@@ -7226,6 +7424,7 @@ function scheduleAopNotationSave(){
 
 /* --- AOP catalog UI --- */
 function renderAopCatalog(){
+  renderAopAddFormControls();
   const order = visibleAopOrder().slice().sort((a, b) => {
     const aName = (view.state.aops?.[a]?.name || "").trim();
     const bName = (view.state.aops?.[b]?.name || "").trim();
@@ -7312,7 +7511,9 @@ function renderAopCatalog(){
       const categoryName = aopCategoryName(a);
       const monthNotation = readAopMonthlyNotation(id, monthKey);
       const notePreview = aopNotationPreviewText(monthNotation.notation || "");
-      const categoryHtml = `<div class="aop-row-meta"><span class="category-chip" title="AOP category">Category: ${escapeHtml(categoryName)}</span></div>`;
+      const usage = aopMonthUsage(id);
+      const usageHtml = `<span class="aop-usage" title="Used this month">Used: P ${usage.planned} | A ${usage.actual}</span>`;
+      const categoryHtml = `<div class="aop-row-meta"><span class="category-chip" title="AOP category">Category: ${escapeHtml(categoryName)}</span>${usageHtml}</div>`;
       name.innerHTML = notePreview
         ? `<div class="name-main">${escapeHtml(a.name)}</div>${categoryHtml}<div class="name-preview">${escapeHtml(notePreview)}</div>`
         : `<div class="name-main">${escapeHtml(a.name)}</div>${categoryHtml}`;
@@ -8004,12 +8205,87 @@ function renderCalendar(container, type){
 function syncSelectedInfo(){
   if(!view.selectedDate){
     ui.selectedInfo.textContent = "No day selected.";
+    renderSelectedDayWorkspace();
     return;
   }
   const [y,m,d] = view.selectedDate.split("-");
   const pretty = `${Number(d)} ${monthNames[Number(m)-1]} ${y}`;
   const activeAopName = selectedAopId() ? resolveAopName(selectedAopId()) : "None";
   ui.selectedInfo.textContent = `Selected: ${pretty} | ${view.selectedCalendar.toUpperCase()} | AOP: ${activeAopName}`;
+  renderSelectedDayWorkspace();
+}
+
+function prettyDateLabel(dateKey){
+  const parts = String(dateKey || "").split("-");
+  if(parts.length !== 3) return "No day selected";
+  const y = Number(parts[0]);
+  const m = Number(parts[1]);
+  const d = Number(parts[2]);
+  if(!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return dateKey || "No day selected";
+  return `${d} ${monthNames[m - 1] || ""} ${y}`;
+}
+
+function selectedDateLockedReason(){
+  if(!view.selectedDate) return "Select a day first";
+  const d = new Date(view.selectedDate + "T00:00:00");
+  const inShownMonth = d.getFullYear() === view.year && d.getMonth() === view.month;
+  if(inShownMonth && isWeekend(d)) return "Weekend locked";
+  return "";
+}
+
+function selectedDayCounts(){
+  if(!view.selectedDate) return { planned:0, actual:0, notes:0 };
+  const bucket = view.state.entries?.[view.selectedDate] || { planned: [], actual: [] };
+  return {
+    planned: filterEntriesByArea(bucket.planned).length,
+    actual: filterEntriesByArea(bucket.actual).length,
+    notes: dayNotesForDateInView(view.selectedDate).length
+  };
+}
+
+function renderSelectedDayWorkspace(){
+  if(!ui.dayWorkspaceDate || !ui.dayWorkspaceTarget) return;
+  const targetId = selectedAopId();
+  const target = targetId ? view.state.aops?.[targetId] : null;
+  const counts = selectedDayCounts();
+  const lockReason = selectedDateLockedReason();
+  const hasDate = !!view.selectedDate;
+  const canAdd = hasDate && !!targetId && !lockReason;
+
+  ui.dayWorkspaceDate.textContent = hasDate ? prettyDateLabel(view.selectedDate) : "No day selected";
+  ui.dayWorkspaceMeta.textContent = hasDate
+    ? `${(view.selectedCalendar || "planned").toUpperCase()} selected | Category: ${areaLabel(currentAreaViewId())}${lockReason ? ` | ${lockReason}` : ""}`
+    : "Pick a day in Planned or Actual to start.";
+  ui.dayWorkspaceTarget.textContent = target ? `${target.name} (${aopCategoryName(target)})` : "Select an AOP from the library";
+  ui.dayWorkspaceTarget.style.setProperty("--day-target-color", target?.color || "var(--power)");
+  ui.dayWorkspaceCounts.textContent = `Planned ${counts.planned} | Actual ${counts.actual} | Notes ${counts.notes}`;
+
+  [ui.addSelectedPlannedBtn, ui.addSelectedActualBtn].filter(Boolean).forEach(btn => {
+    btn.disabled = !canAdd;
+    btn.title = !hasDate ? "Select a day first" : (!targetId ? "Select a calendar add target first" : (lockReason || ""));
+  });
+  if(ui.openSelectedNotesBtn){
+    ui.openSelectedNotesBtn.disabled = !hasDate;
+    ui.openSelectedNotesBtn.title = hasDate ? "Open notes for selected day" : "Select a day first";
+  }
+}
+
+function markSelectedDayAs(type){
+  if(type !== "planned" && type !== "actual") return;
+  view.selectedCalendar = type;
+  syncSelectedInfo();
+  markSelectedDay();
+}
+
+function openSelectedDayNotes(){
+  if(!view.selectedDate){
+    alert("Select a day first.");
+    return;
+  }
+  openDayNotesPanel(true);
+  renderAll();
+  loadDayNoteUI();
+  renderEntries();
 }
 
 /* --- Mark Day (calendar stamp) --- */
@@ -8231,6 +8507,18 @@ function uniqueAopIds(entries){
     out.push(id);
   }
   return out;
+}
+function aopMonthUsage(aopId){
+  let planned = 0;
+  let actual = 0;
+  for(const dateKey of monthDateKeys(view.year, view.month)){
+    const bucket = view.state.entries?.[dateKey] || { planned: [], actual: [] };
+    const plannedIds = uniqueAopIds(filterEntriesByArea(bucket.planned));
+    const actualIds = uniqueAopIds(filterEntriesByArea(bucket.actual));
+    if(plannedIds.includes(aopId)) planned += 1;
+    if(actualIds.includes(aopId)) actual += 1;
+  }
+  return { planned, actual, total: planned + actual };
 }
 function dayShareMap(entries){
   const ids = uniqueAopIds(entries);
@@ -8884,7 +9172,7 @@ function buildCommandPaletteCommands(){
     { id:"open-notes", label:"Open Day Notes", hint:"Planned + Actual", run: () => { openDayNotesPanel(true); renderAll(); loadDayNoteUI(); renderEntries(); } },
     { id:"toggle-dashboard", label: vis.dashboard ? "Hide Dashboard" : "Show Dashboard", hint:"Section", run: () => ui.toggleDashboard?.click() },
     { id:"toggle-calendars", label: vis.calendars ? "Hide Calendars" : "Show Calendars", hint:"Section", run: () => ui.toggleCalendars?.click() },
-    { id:"toggle-aop", label: vis.aopNotes ? "Hide AOP Catalog/Goals" : "Show AOP Catalog/Goals", hint:"Section", run: () => ui.toggleAopNotes?.click() },
+    { id:"toggle-aop", label: vis.aopNotes ? "Hide AOP Library/Goals" : "Show AOP Library/Goals", hint:"Section", run: () => ui.toggleAopNotes?.click() },
     { id:"toggle-tools", label: vis.tools ? "Hide Settings" : "Show Settings", hint:"Section", run: () => ui.toggleTools?.click() },
     { id:"show-all-sections", label:"Show All Sections", hint:"Reset layout", run: () => ui.showAllSections?.click() },
     { id:"calendar-focus-both", label: cal.focus === "both" ? "Calendar Focus: Both (active)" : "Calendar Focus: Both", hint:"Planned + actual", run: () => { setCalendarUI({ ...cal, focus:"both" }, true); renderAll(); } },
@@ -9158,6 +9446,12 @@ function hookUI(){
       setUiPrefs({ ...cur, topbarSide: ui.topbarSideSelect.value }, true);
     });
   }
+  if(ui.calendarOptionsToggle){
+    ui.calendarOptionsToggle.addEventListener("click", () => {
+      calendarViewOptionsOpen = !calendarViewOptionsOpen;
+      renderCalendarControls();
+    });
+  }
   ui.calendarDensityBtn.addEventListener("click", () => {
     const cur = normalizedCalendarUI();
     setCalendarUI({ ...cur, compact: !cur.compact }, true);
@@ -9209,12 +9503,10 @@ function hookUI(){
       if(nextPane) setAopPane(nextPane);
     });
   });
-  ui.openDayNotesBtn.addEventListener("click", () => {
-    openDayNotesPanel(true);
-    renderAll();
-    loadDayNoteUI();
-    renderEntries();
-  });
+  ui.openDayNotesBtn.addEventListener("click", openSelectedDayNotes);
+  if(ui.addSelectedPlannedBtn) ui.addSelectedPlannedBtn.addEventListener("click", () => markSelectedDayAs("planned"));
+  if(ui.addSelectedActualBtn) ui.addSelectedActualBtn.addEventListener("click", () => markSelectedDayAs("actual"));
+  if(ui.openSelectedNotesBtn) ui.openSelectedNotesBtn.addEventListener("click", openSelectedDayNotes);
   ui.saveTemplateBtn.addEventListener("click", saveMonthlyTemplate);
   ui.themeSelect.addEventListener("change", () => applyColorTheme(ui.themeSelect.value, true));
   if(ui.customColorsToggle){
@@ -9327,6 +9619,13 @@ function hookUI(){
     renderAll();
   });
 
+  if(ui.toggleAopAddFormBtn){
+    ui.toggleAopAddFormBtn.addEventListener("click", () => {
+      aopAddFormOpen = !aopAddFormOpen;
+      renderAopAddFormControls();
+      if(aopAddFormOpen) requestAnimationFrame(() => ui.aopNewName?.focus());
+    });
+  }
   ui.aopAdd.addEventListener("click", () => {
     addAop(ui.aopNewName.value, ui.aopNewColor.value, ui.aopNewArea?.value);
     ui.aopNewName.value = "";
@@ -9675,6 +9974,8 @@ function init(){
     toggleTools: document.getElementById("toggleTools"),
     showAllSections: document.getElementById("showAllSections"),
     openDayNotesBtn: document.getElementById("openDayNotesBtn"),
+    calendarOptionsToggle: document.getElementById("calendarOptionsToggle"),
+    calendarAdvancedOptions: document.getElementById("calendarAdvancedOptions"),
     calendarDensityBtn: document.getElementById("calendarDensityBtn"),
     filterMarkedOnlyBtn: document.getElementById("filterMarkedOnlyBtn"),
     filterActiveAopBtn: document.getElementById("filterActiveAopBtn"),
@@ -9718,12 +10019,21 @@ function init(){
 
     // calendars
     selectedInfo: document.getElementById("selectedInfo"),
+    dayWorkspaceDate: document.getElementById("dayWorkspaceDate"),
+    dayWorkspaceMeta: document.getElementById("dayWorkspaceMeta"),
+    dayWorkspaceTarget: document.getElementById("dayWorkspaceTarget"),
+    dayWorkspaceCounts: document.getElementById("dayWorkspaceCounts"),
+    addSelectedPlannedBtn: document.getElementById("addSelectedPlannedBtn"),
+    addSelectedActualBtn: document.getElementById("addSelectedActualBtn"),
+    openSelectedNotesBtn: document.getElementById("openSelectedNotesBtn"),
     dowPlanned: document.getElementById("dowPlanned"),
     dowActual: document.getElementById("dowActual"),
     daysPlanned: document.getElementById("daysPlanned"),
     daysActual: document.getElementById("daysActual"),
 
     // aop
+    toggleAopAddFormBtn: document.getElementById("toggleAopAddFormBtn"),
+    aopAddFormWrap: document.getElementById("aopAddFormWrap"),
     aopNewName: document.getElementById("aopNewName"),
     aopNewColor: document.getElementById("aopNewColor"),
     aopNewArea: document.getElementById("aopNewArea"),
