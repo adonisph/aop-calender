@@ -1706,6 +1706,34 @@
       border-top: 1px solid var(--line);
     }
     .cal-toolbar .spacer{ flex: 1 1 auto; }
+    .calendar-master-legend{
+      display:none;
+      align-items:center;
+      gap:6px;
+      flex-wrap:wrap;
+      min-width: 190px;
+    }
+    .calendar-master-legend.show{ display:flex; }
+    .legend-chip{
+      display:inline-flex;
+      align-items:center;
+      gap:5px;
+      padding: 4px 7px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.05);
+      color: rgba(255,255,255,.82);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .2px;
+      white-space: nowrap;
+    }
+    .legend-dot{
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      box-shadow: 0 0 0 2px rgba(0,0,0,.22);
+    }
     .cal-wrap{ display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 12px; }
     .cal-wrap.compact .day{
       min-height: 76px;
@@ -1721,6 +1749,10 @@
     }
     .grid:not(.single):not(.aop-achieved-wide) .cal-wrap.compact .day{
       min-height: 76px;
+    }
+    .cal-wrap.compact .day.master-summary-day,
+    .grid:not(.single):not(.aop-achieved-wide) .cal-wrap.compact .day.master-summary-day{
+      min-height: 82px;
     }
     @media (max-width: 980px){ .cal-wrap{ grid-template-columns: 1fr; } }
 
@@ -1839,6 +1871,57 @@
       border: 1px solid rgba(0,0,0,.35);
       box-shadow: 0 1px 0 rgba(0,0,0,.35);
     }
+    .day.master-summary-day .mark-count{
+      background: rgba(0,0,0,.62);
+      border-color: rgba(255,255,255,.30);
+    }
+    .day .master-area-pill{
+      position:absolute;
+      left: 6px;
+      right: 6px;
+      bottom: 18px;
+      display:flex;
+      align-items:center;
+      gap:5px;
+      min-width:0;
+      color: rgba(255,255,255,.88);
+      font-size: 9px;
+      font-weight: 900;
+      letter-spacing: .35px;
+      text-transform: uppercase;
+      white-space: nowrap;
+      overflow:hidden;
+      text-overflow: ellipsis;
+      pointer-events:none;
+      opacity: .92;
+      text-shadow: 0 1px 2px rgba(0,0,0,.7);
+    }
+    .day .master-area-pill::before{
+      content:"";
+      flex: 0 0 auto;
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: var(--master-pill-color, var(--power));
+      box-shadow: 0 0 0 2px rgba(0,0,0,.32);
+    }
+    .marks.master-summary{
+      bottom: 5px;
+      gap: 3px;
+    }
+    .marks.master-summary .mark{
+      height: 7px;
+      border-radius: 999px;
+      border-color: rgba(255,255,255,.18);
+      box-shadow:
+        0 0 0 1px rgba(0,0,0,.25),
+        0 0 12px rgba(255,255,255,.05);
+    }
+    .cal-wrap.compact .day .master-area-pill{
+      bottom: 15px;
+      font-size: 8px;
+    }
+    .cal-wrap.compact .marks.master-summary .mark{ height: 6px; }
     .day.actual-cal .mark{ border-radius: 999px; }
     .mark.more{
       flex: 0 0 auto;
@@ -2701,6 +2784,7 @@
         <button id="calendarDensityBtn" class="btn-ghost btn-toggle" type="button" aria-pressed="false">Compact View</button>
         <button id="filterMarkedOnlyBtn" class="btn-ghost btn-toggle" type="button" aria-pressed="false">Only Marked</button>
         <button id="filterActiveAopBtn" class="btn-ghost btn-toggle" type="button" aria-pressed="false">Only Active AOP</button>
+        <div id="calendarMasterLegend" class="calendar-master-legend" aria-label="Master category colors"></div>
         <span class="spacer"></span>
         <label for="calendarFocusSelect" style="margin:0;">Focus</label>
         <select id="calendarFocusSelect">
@@ -3037,6 +3121,14 @@ const AREA_VIEWS = [
   { id:"others_some", label:"Others/SoMe" },
   { id:"special_events", label:"Special Events" }
 ];
+const AREA_VIEW_COLORS = {
+  pool:"#38bdf8",
+  sales:"#22c55e",
+  delivery:"#f59e0b",
+  aftersales:"#fb7185",
+  others_some:"#a78bfa",
+  special_events:"#facc15"
+};
 const MASTER_VIEW_ID = "master";
 const DEFAULT_AREA_VIEW = "pool";
 const DEFAULT_THEME = "ember";
@@ -3309,6 +3401,21 @@ function areaLabel(areaId){
   const found = AREA_VIEWS.find(v => v.id === safe);
   return found ? found.label : "Pool";
 }
+function areaSortIndex(areaId){
+  const safe = normalizeAreaId(areaId);
+  const idx = AREA_VIEWS.findIndex(v => v.id === safe);
+  return idx === -1 ? AREA_VIEWS.length : idx;
+}
+function areaColor(areaId){
+  const safe = normalizeAreaId(areaId);
+  return AREA_VIEW_COLORS[safe] || "#94a3b8";
+}
+function areaShortLabel(areaId){
+  const label = areaLabel(areaId);
+  if(label === "Others/SoMe") return "Other";
+  if(label === "Special Events") return "Events";
+  return label;
+}
 function currentAreaViewId(){
   return normalizeAreaViewId(view.state?.settings?.areaView);
 }
@@ -3332,6 +3439,32 @@ function visibleAopOrder(areaId){
 function filterEntriesByArea(entries, areaId){
   const safeArea = normalizeAreaViewId(areaId || currentAreaViewId());
   return (entries || []).filter(e => isAopInArea(e.aopId, safeArea));
+}
+function calendarAreaMarkGroups(entries){
+  const groups = new Map();
+  for(const entry of (entries || [])){
+    const aop = view.state.aops?.[entry.aopId] || null;
+    const areaId = aop ? aopAreaId(aop) : DEFAULT_AREA_VIEW;
+    if(!groups.has(areaId)){
+      groups.set(areaId, {
+        areaId,
+        label: areaLabel(areaId),
+        shortLabel: areaShortLabel(areaId),
+        color: areaColor(areaId),
+        aopIds: new Set(),
+        names: []
+      });
+    }
+    const group = groups.get(areaId);
+    if(entry.aopId && !group.aopIds.has(entry.aopId)){
+      group.aopIds.add(entry.aopId);
+      group.names.push(resolveAopName(entry.aopId));
+    }
+  }
+  const out = [...groups.values()];
+  for(const group of out) group.count = group.aopIds.size;
+  out.sort((a,b) => areaSortIndex(a.areaId) - areaSortIndex(b.areaId));
+  return out;
 }
 function suggestedAreaForNewAop(){
   const current = currentAreaViewId();
@@ -4098,6 +4231,17 @@ function renderCalendarControls(){
   syncToggleBtn(ui.filterMarkedOnlyBtn, cfg.markedOnly);
   syncToggleBtn(ui.filterActiveAopBtn, cfg.activeOnly);
   if(ui.calendarFocusSelect) ui.calendarFocusSelect.value = cfg.focus;
+  if(ui.calendarMasterLegend){
+    const showMasterLegend = currentAreaViewId() === MASTER_VIEW_ID;
+    ui.calendarMasterLegend.classList.toggle("show", showMasterLegend);
+    ui.calendarMasterLegend.innerHTML = showMasterLegend
+      ? AREA_VIEWS.map(v => `
+          <span class="legend-chip" title="${escapeHtml(v.label)} category color">
+            <span class="legend-dot" style="background:${escapeHtml(areaColor(v.id))}"></span>${escapeHtml(areaShortLabel(v.id))}
+          </span>
+        `).join("")
+      : "";
+  }
   if(ui.calWrap) ui.calWrap.classList.toggle("compact", cfg.compact);
   if(ui.plannedCalendarCard) ui.plannedCalendarCard.classList.toggle("is-hidden", cfg.focus === "actual");
   if(ui.actualCalendarCard) ui.actualCalendarCard.classList.toggle("is-hidden", cfg.focus === "planned");
@@ -7740,6 +7884,7 @@ function renderCalendar(container, type){
       ? view.calendarFilterAopId
       : view.state.activeAopId;
   const activeFilterId = (cfg.activeOnly && filterTargetId && isAopInArea(filterTargetId)) ? filterTargetId : null;
+  const masterSummaryMode = currentAreaViewId() === MASTER_VIEW_ID;
 
   for(let i=0; i<42; i++){
     const d = new Date(start);
@@ -7749,17 +7894,21 @@ function renderCalendar(container, type){
     const inMonth = (d.getMonth() === view.month);
     const bucket = view.state.entries?.[dateKey] || { planned: [], actual: [] };
     const allEntries = filterEntriesByArea(bucket[type]);
-    const uniqueAopIds = [...new Set(allEntries.map(e => e.aopId).filter(Boolean))];
     const editingSelectedDay = view.selectedDate === dateKey;
-    const visibleAopIds = (activeFilterId && !editingSelectedDay)
-      ? uniqueAopIds.filter(id => id === activeFilterId)
-      : uniqueAopIds;
-    const visibleColors = distinctColors(visibleAopIds.map(id => resolveAopColor(id) || "#6b7280"), 99);
+    const visibleEntries = (activeFilterId && !editingSelectedDay)
+      ? allEntries.filter(e => e.aopId === activeFilterId)
+      : allEntries;
+    const visibleAopIds = [...new Set(visibleEntries.map(e => e.aopId).filter(Boolean))];
+    const areaGroups = masterSummaryMode ? calendarAreaMarkGroups(visibleEntries) : [];
+    const visibleColors = masterSummaryMode
+      ? areaGroups.map(g => g.color)
+      : distinctColors(visibleAopIds.map(id => resolveAopColor(id) || "#6b7280"), 99);
     const hasVisibleMarks = visibleAopIds.length > 0;
     const filteredOut = inMonth && cfg.markedOnly && !hasVisibleMarks;
 
     const cell = document.createElement("div");
     cell.className = `day ${type === "actual" ? "actual-cal" : "planned-cal"}`;
+    if(masterSummaryMode) cell.classList.add("master-summary-day");
     if(!inMonth) cell.classList.add("outside");
     if(filteredOut) cell.classList.add("filtered-out");
 
@@ -7779,7 +7928,7 @@ function renderCalendar(container, type){
     if(inMonth && noteRows.length) cell.classList.add("hasnote");
 
     if(inMonth && hasVisibleMarks && !lockedByRules && !view.diffMode){
-      const dominant = visibleColors[0];
+      const dominant = masterSummaryMode ? (areaGroups[0]?.color || visibleColors[0]) : visibleColors[0];
       if(dominant){
         cell.style.background = `linear-gradient(180deg, ${hexToRgba(dominant, 0.20)}, rgba(0,0,0,.20))`;
       }
@@ -7803,8 +7952,9 @@ function renderCalendar(container, type){
     if(view.selectedDate === dateKey && view.selectedCalendar === type){
       cell.classList.add("selected");
       const active = (view.state.activeAopId && isAopInArea(view.state.activeAopId)) ? resolveAopColor(view.state.activeAopId) : null;
-      if(active && !view.diffMode){
-        cell.style.background = `linear-gradient(180deg, ${hexToRgba(active, 0.26)}, rgba(0,0,0,.18))`;
+      const selectedColor = masterSummaryMode ? (areaGroups[0]?.color || active) : active;
+      if(selectedColor && !view.diffMode){
+        cell.style.background = `linear-gradient(180deg, ${hexToRgba(selectedColor, 0.26)}, rgba(0,0,0,.18))`;
       }
     }
 
@@ -7817,16 +7967,27 @@ function renderCalendar(container, type){
       const count = document.createElement("span");
       count.className = "mark-count";
       count.textContent = String(visibleAopIds.length);
+      count.title = masterSummaryMode
+        ? `${visibleAopIds.length} AOP${visibleAopIds.length === 1 ? "" : "s"} across ${areaGroups.length} categor${areaGroups.length === 1 ? "y" : "ies"}`
+        : `${visibleAopIds.length} AOP${visibleAopIds.length === 1 ? "" : "s"}`;
       cell.appendChild(count);
+    }
+
+    if(inMonth && masterSummaryMode && hasVisibleMarks && areaGroups.length){
+      const areaPill = document.createElement("span");
+      areaPill.className = "master-area-pill";
+      areaPill.textContent = areaGroups.length === 1 ? areaGroups[0].shortLabel : `${areaGroups.length} areas`;
+      areaPill.style.setProperty("--master-pill-color", areaGroups[0].color);
+      cell.appendChild(areaPill);
     }
 
     if(inMonth){
       const marks = document.createElement("div");
-      marks.className = "marks";
+      marks.className = masterSummaryMode ? "marks master-summary" : "marks";
       const bars = visibleColors.slice(0, MAX_MARK_BARS);
       for(const c of bars){
         const m = document.createElement("span");
-        m.className = "mark";
+        m.className = masterSummaryMode ? "mark area-mark" : "mark";
         m.style.background = c;
         marks.appendChild(m);
       }
@@ -7843,9 +8004,16 @@ function renderCalendar(container, type){
     if(inMonth){
       const titleParts = [`${dateKey} (${type.toUpperCase()})`];
       if(visibleAopIds.length){
-        const names = visibleAopIds.map(id => resolveAopName(id));
-        titleParts.push(`${type === "planned" ? "Planned" : "Actual"} AOPs (${names.length}):`);
-        names.forEach((name, idx) => titleParts.push(`${idx + 1}. ${name}`));
+        if(masterSummaryMode && areaGroups.length){
+          titleParts.push(`${type === "planned" ? "Planned" : "Actual"} AOPs (${visibleAopIds.length}) across ${areaGroups.length} categor${areaGroups.length === 1 ? "y" : "ies"}:`);
+          areaGroups.forEach((group, idx) => {
+            titleParts.push(`${idx + 1}. ${group.label} (${group.count}): ${group.names.join(", ")}`);
+          });
+        }else{
+          const names = visibleAopIds.map(id => resolveAopName(id));
+          titleParts.push(`${type === "planned" ? "Planned" : "Actual"} AOPs (${names.length}):`);
+          names.forEach((name, idx) => titleParts.push(`${idx + 1}. ${name}`));
+        }
       }else{
         titleParts.push(`${type === "planned" ? "Planned" : "Actual"} AOPs: none`);
       }
@@ -9571,6 +9739,7 @@ function init(){
     filterMarkedOnlyBtn: document.getElementById("filterMarkedOnlyBtn"),
     filterActiveAopBtn: document.getElementById("filterActiveAopBtn"),
     calendarFocusSelect: document.getElementById("calendarFocusSelect"),
+    calendarMasterLegend: document.getElementById("calendarMasterLegend"),
     dashboardCard: document.getElementById("dashboardCard"),
     mainGrid: document.getElementById("mainGrid"),
     calCard: document.getElementById("calCard"),
