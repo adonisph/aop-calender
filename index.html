@@ -157,7 +157,6 @@
 
     header{
       padding:8px 14px;
-      padding-right: 120px;
       border-bottom: 1px solid var(--line);
       background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,0));
       position: sticky;
@@ -183,6 +182,8 @@
       margin-left: auto;
       margin-right: 0;
       flex: 0 1 auto;
+      max-width: 100%;
+      justify-content:flex-end;
     }
     header .row.topbar-side-left #topbarToolbar{
       order: 1;
@@ -362,6 +363,21 @@
     }
     #topbarToolbar > .tb-item > select{
       padding-right: 34px;
+    }
+    #topbarToolbar > .tb-item[data-tb-key="aop"] > button{
+      max-width: 152px;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    @media (max-width: 1120px){
+      #headerInfo{
+        flex-basis:100%;
+      }
+      #topbarToolbar{
+        width:100%;
+        margin-left:0;
+        justify-content:flex-start;
+      }
     }
     @media (max-width: 1260px){
       .tb-extra{ display:inline-flex !important; }
@@ -975,7 +991,15 @@
       font-style: italic;
     }
 
-    main{ padding: 18px 20px 30px; max-width: 1300px; margin: 0 auto; }
+    main{
+      padding: 18px clamp(10px, 1.6vw, 24px) 30px;
+      width: 100%;
+      max-width: min(1680px, calc(100vw - 16px));
+      margin: 0 auto;
+    }
+    body.many-sections-open main{
+      max-width: min(1720px, calc(100vw - 12px));
+    }
 
     .card{
       background: linear-gradient(180deg, #151515, var(--surface));
@@ -1021,6 +1045,15 @@
     .card-header .title span{ font-size: 12px; color: var(--muted); }
 
     .pillbar{ display:flex; gap: 8px; flex-wrap:wrap; align-items:center; justify-content:flex-end; }
+    .section-calendars .card-header{
+      align-items:flex-start;
+    }
+    .section-calendars .pillbar{
+      max-width: 480px;
+    }
+    .section-calendars .pillbar .kbdHint{
+      flex: 1 1 220px;
+    }
 
     .badge{
       font-size: 12px; padding: 6px 10px;
@@ -1058,7 +1091,7 @@
 
     .small{ font-size: 12px; color: var(--muted); }
     .kbdHint{ font-size: 12px; color: var(--muted); }
-        .panel-tabs{
+    .panel-tabs{
       display:flex;
       gap:8px;
       flex-wrap:wrap;
@@ -1077,7 +1110,29 @@
       flex-direction:column;
       min-height:0;
     }
-    .section-aop .card-header{ flex: 0 0 auto; }
+    .section-aop .card-header{
+      flex: 0 0 auto;
+      display:grid;
+      grid-template-columns: minmax(0, 1fr);
+      align-items:start;
+    }
+    .section-aop .card-header .title{
+      min-width:0;
+    }
+    .section-aop .panel-tabs{
+      width:100%;
+      display:grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap:6px;
+      justify-content:stretch;
+    }
+    .section-aop .panel-tabs .btn-toggle{
+      width:100%;
+      min-width:0;
+      padding:7px 8px;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
     .pane-scroll{
       max-height: clamp(420px, 72vh, 980px);
       overflow-y:auto;
@@ -1190,17 +1245,43 @@
 
     .grid{
       display:grid;
-      grid-template-columns: minmax(700px, 1.16fr) minmax(520px, .84fr);
+      grid-template-columns: minmax(720px, 1.18fr) minmax(420px, .82fr);
       gap: 16px;
       margin-top: 16px;
       align-items:start;
     }
     .grid > *{ min-width:0; }
     .grid.aop-achieved-wide:not(.single){
-      grid-template-columns: minmax(700px, 1.16fr) minmax(520px, .84fr);
+      grid-template-columns: minmax(720px, 1.18fr) minmax(420px, .82fr);
     }
     .grid.single{ grid-template-columns: 1fr; }
-    @media (max-width: 980px){ .grid{ grid-template-columns: 1fr; } }
+    @media (min-width: 1500px){
+      .section-aop .card-header{
+        grid-template-columns: minmax(0, 1fr) minmax(300px, auto);
+      }
+      .section-aop .panel-tabs{
+        width:auto;
+      }
+    }
+    .grid.both-open .section-aop .card-header{
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .grid.both-open .section-aop .panel-tabs{
+      width:100%;
+    }
+    @media (max-width: 1420px){
+      .grid:not(.single){
+        grid-template-columns: 1fr;
+      }
+      .grid:not(.single) .pane-scroll{
+        max-height:none;
+      }
+    }
+    @media (max-width: 620px){
+      .section-aop .panel-tabs{
+        grid-template-columns: 1fr;
+      }
+    }
 
     .focus-wrap{
       padding: 12px 14px;
@@ -1724,12 +1805,43 @@
       padding: 9px 11px;
       font-weight: 800;
     }
+    .grid.both-open .section-calendars .card-header{
+      display:grid;
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .grid.both-open .section-calendars .pillbar{
+      width:100%;
+      max-width:none;
+      justify-content:space-between;
+    }
+    .grid.both-open .day-workspace{
+      grid-template-columns: minmax(180px, .9fr) minmax(240px, 1.1fr);
+    }
+    .grid.both-open .day-workspace-actions{
+      grid-column: 1 / -1;
+      display:grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      justify-content:stretch;
+    }
+    .grid.both-open .day-workspace-actions button{
+      width:100%;
+    }
     @media (max-width: 980px){
       .day-workspace{
         grid-template-columns: 1fr;
         align-items:stretch;
       }
       .day-workspace-actions{ justify-content:flex-start; }
+    }
+    @media (max-width: 620px){
+      .grid.both-open .day-workspace,
+      .day-workspace{
+        grid-template-columns: 1fr;
+      }
+      .grid.both-open .day-workspace-actions,
+      .day-workspace-actions{
+        grid-template-columns: 1fr;
+      }
     }
     .calendar-master-legend{
       display:none;
@@ -4679,6 +4791,11 @@ function renderSectionVisibility(){
   if(ui.utilityCard) ui.utilityCard.style.display = effective.tools ? "" : "none";
   ui.dayNotesCard.style.display = "";
   ui.mainGrid.classList.toggle("single", effective.calendars !== effective.aopNotes);
+  ui.mainGrid.classList.toggle("both-open", effective.calendars && effective.aopNotes);
+  document.body.classList.toggle(
+    "many-sections-open",
+    [effective.dashboard, effective.calendars, effective.aopNotes, effective.tools].filter(Boolean).length >= 3
+  );
   ui.dayNotesCard.classList.toggle("open", dayNotesDrawerOpen);
   if(ui.dayNotesBackdrop){
     ui.dayNotesBackdrop.classList.toggle("open", dayNotesDrawerOpen);
