@@ -2697,11 +2697,11 @@
       <div class="tb-item" data-tb-key="year"><select id="yearSelect" title="Select year"></select></div>
       <div class="tb-item" data-tb-key="area"><select id="areaViewSelect" title="Select category view">
         <option value="master">Master (All)</option>
-        <option value="pool">Pool</option>
-        <option value="sales">Sales</option>
-        <option value="delivery">Delivery</option>
-        <option value="aftersales">Aftersales</option>
-        <option value="others_some">Others/SoMe</option>
+        <option value="pool">Erik</option>
+        <option value="sales">Joona</option>
+        <option value="delivery">Emma</option>
+        <option value="aftersales">Saana</option>
+        <option value="others_some">Christel</option>
         <option value="special_events">Special Events</option>
       </select></div>
       <div class="tb-item" data-tb-key="customize">
@@ -3106,11 +3106,11 @@
                 <div>
                   <label>Category</label>
                   <select id="aopNewArea">
-                    <option value="pool">Pool</option>
-                    <option value="sales">Sales</option>
-                    <option value="delivery">Delivery</option>
-                    <option value="aftersales">Aftersales</option>
-                    <option value="others_some">Others/SoMe</option>
+                    <option value="pool">Erik</option>
+                    <option value="sales">Joona</option>
+                    <option value="delivery">Emma</option>
+                    <option value="aftersales">Saana</option>
+                    <option value="others_some">Christel</option>
                     <option value="special_events">Special Events</option>
                   </select>
                 </div>
@@ -3368,11 +3368,11 @@ const monthNames = ["January","February","March","April","May","June","July","Au
 const AOP_PANES = ["catalog","notation","allnotes"];
 const DEFAULT_TOPBAR_ORDER = ["today","month","year","area","customize","sep","dashboard","calendars","aop","tools","showall"];
 const AREA_VIEWS = [
-  { id:"pool", label:"Pool" },
-  { id:"sales", label:"Sales" },
-  { id:"delivery", label:"Delivery" },
-  { id:"aftersales", label:"Aftersales" },
-  { id:"others_some", label:"Others/SoMe" },
+  { id:"pool", label:"Erik" },
+  { id:"sales", label:"Joona" },
+  { id:"delivery", label:"Emma" },
+  { id:"aftersales", label:"Saana" },
+  { id:"others_some", label:"Christel" },
   { id:"special_events", label:"Special Events" }
 ];
 const AREA_VIEW_COLORS = {
@@ -3666,7 +3666,7 @@ function areaLabel(areaId){
   const safe = normalizeAreaViewId(areaId);
   if(safe === MASTER_VIEW_ID) return "Master (All)";
   const found = AREA_VIEWS.find(v => v.id === safe);
-  return found ? found.label : "Pool";
+  return found ? found.label : "Erik";
 }
 function areaSortIndex(areaId){
   const safe = normalizeAreaId(areaId);
@@ -3679,7 +3679,7 @@ function areaColor(areaId){
 }
 function areaShortLabel(areaId){
   const label = areaLabel(areaId);
-  if(label === "Others/SoMe") return "Other";
+  if(label === "Christel") return "Christel";
   if(label === "Special Events") return "Events";
   return label;
 }
