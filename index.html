@@ -5111,7 +5111,7 @@ async function connectTeamSync(opts){
       setSyncModalStatus(msg || "Invalid credentials", true);
     }else{
       clearSyncFieldErrors();
-      setSyncModalStatus("Connect failed. Check workspace settings.", true);
+      setSyncModalStatus(`Connect failed: ${msg || "Unknown Supabase error"}`, true);
     }
     teamSync.connected = false;
     teamSync.userId = null;
