@@ -4498,7 +4498,19 @@ function loadState(){
     return defaultState();
   }
 }
-function saveStateLocal(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(view.state)); }
+function saveStateLocal(){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(view.state));
+    teamSync.localCacheFull = false;
+    return true;
+  }catch(err){
+    // Shared state can grow beyond the browser's localStorage allowance. Keep cloud sync working.
+    teamSync.localCacheFull = true;
+    try{ localStorage.removeItem(STORAGE_KEY); }catch{}
+    console.warn("Planner state was not cached locally:", err);
+    return false;
+  }
+}
 function saveState(){
   saveStateLocal();
   scheduleTeamSyncSave("local-change");
@@ -5103,7 +5115,8 @@ async function connectTeamSync(opts){
     setSyncModalStatus("", false);
     closeSyncLoginModal();
 
-    setTeamSyncStatus(`Connected: ${teamSync.userEmail || "user"} (${isTeamAutoSyncEnabled() ? "auto on" : "auto off"})`);
+    const cacheNote = teamSync.localCacheFull ? " | local browser cache is full; cloud sync remains active" : "";
+    setTeamSyncStatus(`Connected: ${teamSync.userEmail || "user"} (${isTeamAutoSyncEnabled() ? "auto on" : "auto off"})${cacheNote}`);
   }catch(err){
     const msg = String(err?.message || err || "");
     if(/auth|credential|password|email|invalid/i.test(msg)){
