@@ -1708,6 +1708,12 @@
     .selected-day-item i{ width:7px; height:7px; border-radius:50%; flex:none; }
     .selected-day-item em{ margin-left:auto; color:#b9a4ff; font-size:10px; font-style:normal; }
     .selected-day-empty{ color:var(--muted); font-size:12px; }
+    .day .master-area-pill{
+      position:absolute; left:6px; right:6px; bottom:20px; overflow:hidden;
+      white-space:nowrap; text-overflow:ellipsis; font-size:9px; font-weight:800;
+      color:var(--muted); pointer-events:none;
+    }
+    .cal-wrap.compact .day .master-area-pill{ bottom:15px; font-size:8px; }
     .cal-wrap{ display:grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 12px; }
     .cal-wrap.compact .day{
       min-height: 64px;
@@ -3270,6 +3276,17 @@ function filterEntriesByArea(entries, areaId){
   const safeArea = normalizeAreaViewId(areaId || currentAreaViewId());
   return (entries || []).filter(e => isAopInArea(e.aopId, safeArea));
 }
+function calendarAreaMarkGroups(entries){
+  const groups = new Map();
+  for(const entry of (entries || [])){
+    const item = view.state.aops?.[entry.aopId];
+    if(!item) continue;
+    const areaId = aopAreaId(item);
+    if(!groups.has(areaId)) groups.set(areaId, { label:areaLabel(areaId), ids:new Set() });
+    groups.get(areaId).ids.add(entry.aopId);
+  }
+  return [...groups.values()].map(group=>({ ...group, count:group.ids.size }));
+}
 function suggestedAreaForNewAop(){
   const current = currentAreaViewId();
   return current === MASTER_VIEW_ID ? DEFAULT_AREA_VIEW : normalizeAreaId(current);
@@ -4541,6 +4558,10 @@ function migrateIfNeeded(st){
     st.dayNotes[dateKey] = { text: "", planned_text:"", actual_text:"", created_at: nowIso(), updated_at: "" };
   }
 
+  if(recoverHistoricalAreaNotes(st)){
+    Object.defineProperty(st, "__recoveredHistoricalNotes", { value:true, enumerable:false });
+  }
+
   st.version = 7;
   return st;
 }
@@ -4553,10 +4574,6 @@ function loadState(){
   }catch(e){
     return defaultState();
   }
-
-  if(recoverHistoricalAreaNotes(st)){
-    Object.defineProperty(st, "__recoveredHistoricalNotes", { value:true, enumerable:false });
-  }
 }
 function saveStateLocal(){
   try{
@@ -4564,10 +4581,19 @@ function saveStateLocal(){
     teamSync.localCacheFull = false;
     return true;
   }catch(err){
-    // Shared state can grow beyond the browser's localStorage allowance. Keep cloud sync working.
-    teamSync.localCacheFull = true;
-    console.warn("Planner state was not cached locally:", err);
-    return false;
+    // Preserve the working planner data. Only its revision history is removed from the browser cache.
+    try{
+      const compact = JSON.parse(JSON.stringify(view.state));
+      if(compact.syncHistory) compact.syncHistory = { snapshots:[] };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(compact));
+      teamSync.localCacheFull = true;
+      console.warn("Planner history was compacted to fit browser storage:", err);
+      return true;
+    }catch(compactErr){
+      teamSync.localCacheFull = true;
+      console.warn("Planner state was not cached locally:", compactErr);
+      return false;
+    }
   }
 }
 function saveState(){
@@ -4910,9 +4936,79 @@ function applyTeamRoleUi(){
   }
 }
 
+function clonePlannerState(state){
+  try{ return JSON.parse(JSON.stringify(state)); }catch{ return defaultState(); }
+}
+function newerRecord(left, right){
+  const leftTime = Date.parse(String(left?.updated_at || "")) || 0;
+  const rightTime = Date.parse(String(right?.updated_at || "")) || 0;
+  return rightTime >= leftTime ? right : left;
+}
+function mergeDayNotesPreservingAll(localNotes, remoteNotes){
+  const out = { ...(remoteNotes || {}) };
+  for(const [dateKey, localRaw] of Object.entries(localNotes || {})){
+    const local = localRaw || {};
+    const remote = out[dateKey] || {};
+    const winner = newerRecord(local, remote);
+    const mergedAreas = { ...normalizeAreaNotes(remote.area_notes), ...normalizeAreaNotes(local.area_notes) };
+    out[dateKey] = {
+      ...winner,
+      text: winner.text || "",
+      actual_text: winner.actual_text || winner.text || "",
+      planned_text: remote.planned_text || local.planned_text || "",
+      area_notes: mergedAreas,
+      created_at: remote.created_at || local.created_at || nowIso(),
+      updated_at: winner.updated_at || remote.updated_at || local.updated_at || ""
+    };
+  }
+  return out;
+}
+function mergeIncomingSharedState(localState, incomingState){
+  const local = migrateIfNeeded(clonePlannerState(localState));
+  const incoming = migrateIfNeeded(clonePlannerState(incomingState));
+  const merged = incoming;
+  merged.aops = { ...incoming.aops };
+  for(const [id, item] of Object.entries(local.aops || {})){
+    merged.aops[id] = merged.aops[id] ? newerRecord(item, merged.aops[id]) : item;
+  }
+  merged.aopOrder = [...new Set([...(incoming.aopOrder || []), ...(local.aopOrder || [])])].filter(id => merged.aops[id]);
+  merged.aopMonthly = { ...incoming.aopMonthly };
+  for(const [aopId, localMonths] of Object.entries(local.aopMonthly || {})){
+    merged.aopMonthly[aopId] = { ...(merged.aopMonthly[aopId] || {}) };
+    for(const [monthKey, localMonth] of Object.entries(localMonths || {})){
+      const remoteMonth = merged.aopMonthly[aopId][monthKey];
+      merged.aopMonthly[aopId][monthKey] = remoteMonth ? newerRecord(localMonth, remoteMonth) : localMonth;
+    }
+  }
+  merged.entries = { ...incoming.entries };
+  for(const [dateKey, localBucket] of Object.entries(local.entries || {})){
+    const remoteBucket = merged.entries[dateKey] || { planned:[], actual:[] };
+    const mergeEntries = type => {
+      const seen = new Set();
+      return [...(remoteBucket[type] || []), ...(localBucket[type] || [])].filter(entry => {
+        const id = entry?.id || `${entry?.aopId}:${entry?.ts || ""}`;
+        if(seen.has(id)) return false;
+        seen.add(id); return true;
+      });
+    };
+    merged.entries[dateKey] = { planned:mergeEntries("planned"), actual:mergeEntries("actual") };
+  }
+  merged.dayNotes = mergeDayNotesPreservingAll(local.dayNotes, incoming.dayNotes);
+  const snapshots = [...(incoming.syncHistory?.snapshots || []), ...(local.syncHistory?.snapshots || [])];
+  if(snapshots.length){
+    const seen = new Set();
+    merged.syncHistory = { snapshots:snapshots.filter(snapshot => {
+      const id = snapshot?.id || `${snapshot?.created_at || ""}:${snapshot?.summary || ""}`;
+      if(seen.has(id)) return false;
+      seen.add(id); return true;
+    }) };
+  }
+  return migrateIfNeeded(merged);
+}
+
 function applyIncomingSharedState(nextState){
   if(!nextState || typeof nextState !== "object") return false;
-  const migrated = migrateIfNeeded(nextState);
+  const migrated = mergeIncomingSharedState(view.state, nextState);
   const recoveredHistoricalNotes = migrated.__recoveredHistoricalNotes === true;
   teamSyncSuppressPush = true;
   try{
@@ -6439,6 +6535,7 @@ function renderCalendar(container, type){
     const inMonth = (d.getMonth() === view.month);
     const bucket = view.state.entries?.[dateKey] || { planned: [], actual: [] };
     const allEntries = filterEntriesByArea(bucket[type]);
+    const masterAreaGroups = currentAreaViewId() === MASTER_VIEW_ID ? calendarAreaMarkGroups(allEntries) : [];
     const uniqueAopIds = [...new Set(allEntries.map(e => e.aopId).filter(Boolean))];
     const visibleAopIds = activeFilterId ? uniqueAopIds.filter(id => id === activeFilterId) : uniqueAopIds;
     const visibleColors = distinctColors(visibleAopIds.map(id => resolveAopColor(id) || "#6b7280"), 99);
@@ -6447,7 +6544,7 @@ function renderCalendar(container, type){
 
     const dayNoteText = (view.state.dayNotes?.[dateKey]?.text || "").trim();
     const isPastDay = dateKey < ymd(new Date());
-    const needsDayNote = type === "actual" && inMonth && isPastDay && !isWeekend(d) && !dayNoteText;
+    const needsDayNote = type === "actual" && inMonth && isPastDay && !isWeekend(d) && !hasDayNote(dateKey);
     const cell = document.createElement("div");
     cell.className = `day ${type === "actual" ? "actual-cal" : "planned-cal"}`;
     if(!inMonth) cell.classList.add("outside");
@@ -6505,6 +6602,13 @@ function renderCalendar(container, type){
     num.textContent = d.getDate();
     cell.appendChild(num);
 
+    if(inMonth && masterAreaGroups.length){
+      const areaPill = document.createElement("div");
+      areaPill.className = "master-area-pill";
+      areaPill.textContent = masterAreaGroups.map(group => `${group.label} ${group.count}`).join(" · ");
+      cell.appendChild(areaPill);
+    }
+
     if(inMonth && hasVisibleMarks){
       const count = document.createElement("span");
       count.className = "mark-count";
@@ -6539,6 +6643,9 @@ function renderCalendar(container, type){
         const lead = names.slice(0, 3).join(", ");
         const extra = names.length > 3 ? ` +${names.length - 3} more` : "";
         titleParts.push(`AOP: ${lead}${extra}`);
+      }
+      if(masterAreaGroups.length){
+        titleParts.push(`Areas: ${masterAreaGroups.map(group => `${group.label} (${group.count})`).join(", ")}`);
       }
       if(type === "actual"){
         const noteText = (view.state.dayNotes?.[dateKey]?.text || "").trim();
