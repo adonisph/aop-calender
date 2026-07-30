@@ -2949,7 +2949,7 @@
  *      required_created_at, required_updated_at
  *   } } }
  * - entries: { [YYYY-MM-DD]: { planned:[{id,aopId,ts}], actual:[...]} }
- * - dayNotes: { [YYYY-MM-DD]: { text, created_at, updated_at } }
+ * - dayNotes: { [YYYY-MM-DD]: { text, planned_text, actual_text, created_at, updated_at } }
  */
 
 const STORAGE_KEY = "power_aop_planner_v7";
@@ -4457,32 +4457,37 @@ function migrateIfNeeded(st){
     delete st.aops[aopId].notation_updated_at;
   }
 
-  // Normalize dayNotes:
-  // - v6 had dayNotes[dateKey] = { planned:{notes}, actual:{notes} }
-  // - Convert to v7: { text }
+  // Normalize dayNotes. Older versions kept separate Planned and Actual notes.
+  // Retain both so historical notes never disappear during an upgrade.
   for(const dateKey of Object.keys(st.dayNotes)){
     const dn = st.dayNotes[dateKey];
     if(dn && typeof dn === "object" && ("planned" in dn || "actual" in dn) && !("text" in dn)){
-      const best =
-        (dn.planned && typeof dn.planned.notes === "string" && dn.planned.notes.trim()) ? dn.planned.notes :
-        (dn.actual && typeof dn.actual.notes === "string" && dn.actual.notes.trim()) ? dn.actual.notes :
-        "";
-      st.dayNotes[dateKey] = { text: best, created_at: nowIso(), updated_at: best ? nowIso() : "" };
+      const plannedText = typeof dn.planned?.notes === "string" ? dn.planned.notes : "";
+      const actualText = typeof dn.actual?.notes === "string" ? dn.actual.notes : "";
+      st.dayNotes[dateKey] = {
+        text: actualText,
+        planned_text: plannedText,
+        actual_text: actualText,
+        created_at: nowIso(),
+        updated_at: (plannedText || actualText) ? nowIso() : ""
+      };
       continue;
     }
     if(typeof dn === "string"){
-      st.dayNotes[dateKey] = { text: dn, created_at: nowIso(), updated_at: dn ? nowIso() : "" };
+      st.dayNotes[dateKey] = { text: dn, planned_text:"", actual_text:dn, created_at: nowIso(), updated_at: dn ? nowIso() : "" };
       continue;
     }
     if(dn && typeof dn === "object"){
       st.dayNotes[dateKey] = {
         text: typeof dn.text === "string" ? dn.text : "",
+        planned_text: typeof dn.planned_text === "string" ? dn.planned_text : "",
+        actual_text: typeof dn.actual_text === "string" ? dn.actual_text : (typeof dn.text === "string" ? dn.text : ""),
         created_at: dn.created_at || nowIso(),
         updated_at: dn.updated_at || (dn.text ? nowIso() : "")
       };
       continue;
     }
-    st.dayNotes[dateKey] = { text: "", created_at: nowIso(), updated_at: "" };
+    st.dayNotes[dateKey] = { text: "", planned_text:"", actual_text:"", created_at: nowIso(), updated_at: "" };
   }
 
   st.version = 7;
@@ -4506,7 +4511,6 @@ function saveStateLocal(){
   }catch(err){
     // Shared state can grow beyond the browser's localStorage allowance. Keep cloud sync working.
     teamSync.localCacheFull = true;
-    try{ localStorage.removeItem(STORAGE_KEY); }catch{}
     console.warn("Planner state was not cached locally:", err);
     return false;
   }
@@ -5348,7 +5352,7 @@ function getEntryAopColors(dateKey, type){
 /* --- Day Notes (unified) --- */
 function ensureDayNote(dateKey){
   if(!view.state.dayNotes[dateKey]){
-    view.state.dayNotes[dateKey] = { text:"", created_at: nowIso(), updated_at:"" };
+    view.state.dayNotes[dateKey] = { text:"", planned_text:"", actual_text:"", created_at: nowIso(), updated_at:"" };
   }
   return view.state.dayNotes[dateKey];
 }
@@ -6243,11 +6247,13 @@ function renderAllDayNotes(){
   const monthPrefix = `${currentMonthKey()}-`;
   const rows = Object.entries(view.state.dayNotes || {})
     .map(([dateKey, dn])=>{
-      const text = (dn?.text || "").trim();
-      if(!text) return null;
+      const plannedText = (dn?.planned_text || "").trim();
+      const actualText = (dn?.actual_text || dn?.text || "").trim();
+      if(!plannedText && !actualText) return null;
       return {
         dateKey,
-        text,
+        plannedText,
+        actualText,
         inMonth: dateKey.startsWith(monthPrefix),
         createdAt: dn?.created_at || "",
         updatedAt: dn?.updated_at || ""
@@ -6258,7 +6264,7 @@ function renderAllDayNotes(){
     .filter(r=>{
       if(filters.thisMonth && !r.inMonth) return false;
       if(!q) return true;
-      return (`${r.dateKey} ${r.text}`.toLowerCase().includes(q));
+      return (`${r.dateKey} ${r.plannedText} ${r.actualText}`.toLowerCase().includes(q));
     });
 
   if(rows.length === 0){
@@ -6277,9 +6283,8 @@ function renderAllDayNotes(){
         </div>
         <button type="button" class="btn-ghost" data-open-note-day="${escapeHtml(r.dateKey)}" ${r.inMonth ? "" : "disabled"}>${r.inMonth ? "Open" : "Locked"}</button>
       </div>
-      <div class="kv">
-        <div>Note</div><div>${escapeHtml(r.text)}</div>
-      </div>
+      ${r.plannedText ? `<div class="kv"><div>Planned</div><div>${escapeHtml(r.plannedText)}</div></div>` : ""}
+      ${r.actualText ? `<div class="kv"><div>Actual</div><div>${escapeHtml(r.actualText)}</div></div>` : ""}
     </div>
   `).join("");
 
@@ -6333,6 +6338,7 @@ function saveDayNote(options){
 
   if(!dn.created_at) dn.created_at = t;
   dn.text = newText;
+  dn.actual_text = newText;
   dn.updated_at = newText ? t : "";
   saveState();
 
