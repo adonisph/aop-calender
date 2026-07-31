@@ -1709,13 +1709,16 @@
     .selected-day-item em{ margin-left:auto; color:#b9a4ff; font-size:10px; font-style:normal; }
     .selected-day-empty{ color:var(--muted); font-size:12px; }
     .day .master-area-pill{
-      position:absolute; left:6px; right:6px; bottom:20px; overflow:hidden;
-      white-space:nowrap; text-overflow:ellipsis; font-size:9px; font-weight:800;
+      position:absolute; left:6px; right:6px; top:28px; bottom:18px;
+      display:flex; flex-wrap:wrap; align-content:flex-start; gap:3px 5px;
+      overflow:hidden; font-size:9px; font-weight:800; line-height:1.15;
       color:var(--muted); pointer-events:none;
     }
-    .master-area-chip{ display:inline-flex; align-items:center; gap:3px; margin-right:5px; }
+    .day.master-summary-day{ min-height:112px; }
+    .master-area-chip{ display:inline-flex; align-items:center; gap:3px; }
     .master-area-chip i{ width:6px; height:6px; border-radius:999px; display:inline-block; }
-    .cal-wrap.compact .day .master-area-pill{ bottom:15px; font-size:8px; }
+    .cal-wrap.compact .day.master-summary-day{ min-height:82px; }
+    .cal-wrap.compact .day .master-area-pill{ top:23px; bottom:13px; font-size:8px; }
     .cal-wrap{ display:grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 12px; }
     .cal-wrap.compact .day{
       min-height: 64px;
@@ -6554,6 +6557,7 @@ function renderCalendar(container, type){
     const needsDayNote = type === "actual" && inMonth && isPastDay && !isWeekend(d) && !hasDayNote(dateKey);
     const cell = document.createElement("div");
     cell.className = `day ${type === "actual" ? "actual-cal" : "planned-cal"}`;
+    if(masterAreaGroups.length) cell.classList.add("master-summary-day");
     if(!inMonth) cell.classList.add("outside");
     if(filteredOut) cell.classList.add("filtered-out");
     if(needsDayNote) cell.classList.add("note-needed");
