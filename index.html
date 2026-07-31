@@ -1713,6 +1713,8 @@
       white-space:nowrap; text-overflow:ellipsis; font-size:9px; font-weight:800;
       color:var(--muted); pointer-events:none;
     }
+    .master-area-chip{ display:inline-flex; align-items:center; gap:3px; margin-right:5px; }
+    .master-area-chip i{ width:6px; height:6px; border-radius:999px; display:inline-block; }
     .cal-wrap.compact .day .master-area-pill{ bottom:15px; font-size:8px; }
     .cal-wrap{ display:grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 12px; }
     .cal-wrap.compact .day{
@@ -2972,6 +2974,10 @@ const AREA_VIEWS = [
   { id:"others_some", label:"Christel" },
   { id:"special_events", label:"Special Events" }
 ];
+const AREA_VIEW_COLORS = {
+  pool:"#22c55e", sales:"#38bdf8", delivery:"#f59e0b",
+  aftersales:"#fb7185", others_some:"#a78bfa", special_events:"#facc15"
+};
 const MASTER_VIEW_ID = "master";
 const DEFAULT_AREA_VIEW = "pool";
 const DEFAULT_THEME = "ember";
@@ -3141,6 +3147,7 @@ function areaLabel(areaId){
   const found = AREA_VIEWS.find(v => v.id === safe);
   return found ? found.label : "Erik";
 }
+function areaColor(areaId){ return AREA_VIEW_COLORS[normalizeAreaId(areaId)] || "#94a3b8"; }
 function normalizeAreaNotes(raw){
   const source = raw && typeof raw === "object" ? raw : {};
   const out = {};
@@ -3282,7 +3289,7 @@ function calendarAreaMarkGroups(entries){
     const item = view.state.aops?.[entry.aopId];
     if(!item) continue;
     const areaId = aopAreaId(item);
-    if(!groups.has(areaId)) groups.set(areaId, { label:areaLabel(areaId), ids:new Set() });
+    if(!groups.has(areaId)) groups.set(areaId, { areaId, label:areaLabel(areaId), ids:new Set() });
     groups.get(areaId).ids.add(entry.aopId);
   }
   return [...groups.values()].map(group=>({ ...group, count:group.ids.size }));
@@ -6605,7 +6612,7 @@ function renderCalendar(container, type){
     if(inMonth && masterAreaGroups.length){
       const areaPill = document.createElement("div");
       areaPill.className = "master-area-pill";
-      areaPill.textContent = masterAreaGroups.map(group => `${group.label} ${group.count}`).join(" · ");
+      areaPill.innerHTML = masterAreaGroups.map(group => `<span class="master-area-chip" style="color:${areaColor(group.areaId)}"><i style="background:${areaColor(group.areaId)}"></i>${escapeHtml(group.label)} ${group.count}</span>`).join("");
       cell.appendChild(areaPill);
     }
 
