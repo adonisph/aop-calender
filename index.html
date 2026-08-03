@@ -2278,8 +2278,8 @@
   <div class="side-nav-label">Navigation</div>
   <button type="button" data-side-target="toggleDashboard">Dashboard</button>
   <button type="button" data-side-target="toggleCalendars">Calender</button>
-  <button type="button" data-side-target="notesCard">Notes</button>
   <button type="button" data-side-target="toggleAopNotes">AOP Library</button>
+  <button type="button" data-side-target="notesCard">Notes</button>
   <button type="button" data-side-target="workspaceCard">Shortcuts &amp; Guide</button>
   <button type="button" data-side-target="toggleTools">Display / Data</button>
 </nav>
@@ -2642,6 +2642,7 @@
         <div class="day-add-controls">
           <select id="dayAddSelect" aria-label="Item to add"></select>
         </div>
+        <div class="small" id="dayAddSelectionHint">No AOP selected.</div>
       </div>
 
       <div class="cal-wrap" id="calWrap">
@@ -2735,6 +2736,7 @@
         <div style="margin-top:10px;">
           <label for="aopNotationSelect">AOP/Custom</label>
           <select id="aopNotationSelect"></select>
+          <div class="small" id="aopNotationOwner">No AOP selected.</div>
         </div>
         <div class="aop-notation">
           <label for="aopNotation">Achieved during Sprint</label>
@@ -2745,32 +2747,6 @@
           <div class="hint" id="aopNotationState">Select an AOP to edit notation.</div>
         </div>
 
-        <div class="aop-evidence" id="aopEvidenceSection">
-          <div class="aop-evidence-head">
-            <strong style="font-size:12px; font-weight:800; font-style:italic;">Deflection/Total Screenshot Match</strong>
-            <span id="aopEvidenceHint" class="status-pill">No AOP selected</span>
-          </div>
-          <div class="aop-evidence-grid">
-            <div>
-              <label for="aopEvidenceDeflection">Deflection rate (%)</label>
-              <input id="aopEvidenceDeflection" type="number" min="0" max="100" step="0.1" placeholder="e.g. 74.0" />
-            </div>
-            <div>
-              <label for="aopEvidenceTotal">Total count (#)</label>
-              <input id="aopEvidenceTotal" type="number" min="0" step="1" placeholder="e.g. 5643" />
-            </div>
-            <div>
-              <label for="aopEvidenceFile">Screenshot</label>
-              <input id="aopEvidenceFile" type="file" accept="image/*" />
-            </div>
-            <div>
-              <button id="aopEvidenceAddBtn" class="btn-primary" type="button" style="width:100%;">Add Snapshot</button>
-            </div>
-          </div>
-          <div class="small" id="aopEvidenceState">Select an AOP to add screenshot evidence.</div>
-          <div class="small" id="aopEvidenceAudit">-</div>
-          <div id="aopEvidenceList" class="aop-evidence-list"></div>
-        </div>
       </div>
 
       <div class="section-pad panel-pane goals-highlight" id="paneTemplate" hidden>
@@ -2965,6 +2941,7 @@
 
 const STORAGE_KEY = "power_aop_planner_v7";
 const TEAM_SYNC_CONFIG_KEY = "power_aop_team_sync_v1";
+const LOCAL_APPEARANCE_KEY_PREFIX = "power_aop_user_appearance_v1";
 const DOW = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const AOP_PANES = ["catalog","notation"];
@@ -3067,6 +3044,7 @@ let teamSyncSaveTimer = null;
 let teamSyncChannel = null;
 let teamSyncBusy = false;
 let teamSyncSuppressPush = false;
+let localStateVersion = 0;
 let teamSync = {
   connected: false,
   supabase: null,
@@ -3082,6 +3060,9 @@ let view = {
   selectedDate: null,
   selectedCalendar: "planned",
   diffMode: false,
+  calendarAopId: null,
+  notationAopId: null,
+  goalsAopId: null,
   state: loadState()
 };
 let rainCanvas = null;
@@ -3120,6 +3101,108 @@ function shiftMonthKey(monthKey, delta){
 function uuid(){ return (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2)); }
 function timeShort(){ return new Date().toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"}); }
 
+function appearanceProfileId(){
+  const email = String(teamSync?.userEmail || "").trim().toLowerCase();
+  return email || "local";
+}
+function appearanceStorageKey(profileId){
+  const safe = String(profileId || "local").trim().toLowerCase().replace(/[^a-z0-9@._-]/g, "_") || "local";
+  return `${LOCAL_APPEARANCE_KEY_PREFIX}:${safe}`;
+}
+function normalizeCustomizationSettings(rawSettings){
+  const src = rawSettings && typeof rawSettings === "object" ? rawSettings : {};
+  const section = src.sectionVisibility || {};
+  const up = src.uiPrefs || {};
+  const dayNoteFilters = src.dayNoteFilters || {};
+  const calUI = src.calendarUI || {};
+  const themeId = COLOR_THEMES[src.colorTheme] ? src.colorTheme : DEFAULT_THEME;
+  const validTestViews = ["toggleDashboard","toggleCalendars","toggleAopNotes","toggleTools","workspaceCard","notesCard"];
+  return {
+    sectionVisibility: {
+      dashboard: section.dashboard !== false,
+      calendars: section.calendars !== false,
+      aopNotes: section.aopNotes !== false,
+      tools: section.tools !== false
+    },
+    aopPane: AOP_PANES.includes(src.aopPane) ? src.aopPane : "catalog",
+    libraryKind: src.libraryKind === "custom" ? "custom" : "aop",
+    areaView: normalizeAreaViewId(src.areaView),
+    colorTheme: themeId,
+    uiPrefs: {
+      density: up.density === "comfortable" ? "comfortable" : "compact",
+      textScale: up.textScale === "large" || up.textScale === "xlarge" ? up.textScale : "normal",
+      corner: up.corner === "tight" || up.corner === "round" ? up.corner : "normal",
+      topbarSide: normalizeTopbarSide(up.topbarSide),
+      customColorsEnabled: up.customColorsEnabled === true,
+      customColors: normalizeCustomColors(up.customColors, themeId),
+      highContrast: up.highContrast === true,
+      showTips: up.showTips !== false,
+      layoutPreset: ["custom","focus","review","sync","dashboard"].includes(up.layoutPreset) ? up.layoutPreset : "custom",
+      topbarOrder: normalizeTopbarOrder(up.topbarOrder)
+    },
+    rainEnabled: src.rainEnabled !== false,
+    teamSyncOpen: src.teamSyncOpen === true,
+    masterNotationSort: normalizeMasterNotationSort(src.masterNotationSort),
+    dashboardSort: normalizeDashboardSort(src.dashboardSort),
+    dayNoteFilters: { thisMonth: dayNoteFilters.thisMonth === true },
+    calendarUI: {
+      compact: calUI.compact === true,
+      markedOnly: calUI.markedOnly === true,
+      activeOnly: calUI.activeOnly === true,
+      focus: calUI.focus === "planned" || calUI.focus === "actual" ? calUI.focus : "both"
+    },
+    testAreaView: validTestViews.includes(src.testAreaView) ? src.testAreaView : "toggleCalendars"
+  };
+}
+function snapshotAppearanceSettings(stateObj){
+  const source = stateObj && typeof stateObj === "object" ? stateObj : view.state;
+  return normalizeCustomizationSettings(source?.settings || {});
+}
+function applyAppearanceSettingsSnapshot(stateObj, snapshot){
+  if(!stateObj || typeof stateObj !== "object") return;
+  stateObj.settings = normalizeCustomizationSettings(snapshot || stateObj.settings || {});
+}
+function readAppearanceProfile(profileId){
+  try{
+    const raw = localStorage.getItem(appearanceStorageKey(profileId));
+    if(!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? normalizeCustomizationSettings(parsed) : null;
+  }catch{
+    return null;
+  }
+}
+function writeAppearanceProfile(profileId, snapshot){
+  if(!snapshot || typeof snapshot !== "object") return;
+  localStorage.setItem(appearanceStorageKey(profileId), JSON.stringify(normalizeCustomizationSettings(snapshot)));
+}
+function persistLocalAppearanceProfile(){
+  if(!view.state?.settings) return;
+  writeAppearanceProfile(appearanceProfileId(), snapshotAppearanceSettings(view.state));
+}
+function applyLocalAppearanceProfile(profileId){
+  if(!view.state?.settings) return false;
+  const snapshot = readAppearanceProfile(profileId || appearanceProfileId());
+  if(!snapshot) return false;
+  applyAppearanceSettingsSnapshot(view.state, snapshot);
+  return true;
+}
+function buildSharedSyncState(){
+  const clone = clonePlannerState(view.state);
+  applyAppearanceSettingsSnapshot(clone, defaultState().settings);
+  clone.activeAopId = null;
+  if(Array.isArray(clone.syncHistory?.snapshots)){
+    clone.syncHistory.snapshots = clone.syncHistory.snapshots.map(snapshot => {
+      if(!snapshot?.state || typeof snapshot.state !== "object") return snapshot;
+      const nextSnapshot = { ...snapshot, state:clonePlannerState(snapshot.state) };
+      applyAppearanceSettingsSnapshot(nextSnapshot.state, defaultState().settings);
+      nextSnapshot.state.activeAopId = null;
+      return nextSnapshot;
+    });
+  }
+  return clone;
+}
+
 function currentThemeId(){
   const id = view.state?.settings?.colorTheme;
   return COLOR_THEMES[id] ? id : DEFAULT_THEME;
@@ -3156,12 +3239,13 @@ function normalizeAreaNotes(raw){
   const out = {};
   for(const [areaId, value] of Object.entries(source)){
     const text = typeof value?.text === "string" ? value.text.trim() : "";
-    if(!text) continue;
+    const updatedAt = typeof value?.updated_at === "string" ? value.updated_at : "";
+    if(!text && !updatedAt) continue;
     const safeArea = normalizeAreaId(areaId);
     out[safeArea] = {
       text,
       created_at: typeof value?.created_at === "string" ? value.created_at : "",
-      updated_at: typeof value?.updated_at === "string" ? value.updated_at : ""
+      updated_at: updatedAt
     };
   }
   return out;
@@ -3209,18 +3293,24 @@ function visibleAopOrder(areaId){
 function libraryItemKind(item){
   return item?.kind === "custom" ? "custom" : "aop";
 }
+function aopDisplayLabel(aopId){
+  const item = view.state?.aops?.[aopId];
+  if(!item) return "Missing AOP";
+  return `${areaLabel(aopAreaId(item))} - ${item.name || "Unnamed AOP"}`;
+}
 function currentLibraryKind(){
   return view.state?.settings?.libraryKind === "custom" ? "custom" : "aop";
 }
 function setLibraryKind(kind){
   view.state.settings.libraryKind = kind === "custom" ? "custom" : "aop";
-  saveState();
+  saveStateLocal();
   renderAopCatalog();
 }
 function setLibraryItemKind(id, kind){
   const item = view.state?.aops?.[id];
   if(!item) return;
   item.kind = kind === "custom" ? "custom" : "aop";
+  item.updated_at = nowIso();
   saveState();
   renderAll();
   renderEntries();
@@ -3231,11 +3321,17 @@ function renderDayAddPanel(){
   const kind = dayAddKind === "custom" ? "custom" : "aop";
   const label = kind === "custom" ? "Custom Status" : "AOP";
   const available = visibleAopOrder().filter(id => libraryItemKind(view.state.aops[id]) === kind);
-  const previous = ui.dayAddSelect.value;
+  const previous = view.calendarAopId || ui.dayAddSelect.value || view.state.activeAopId;
   ui.dayAddSelect.innerHTML = available.length
-    ? `<option value="">Choose ${label}</option>` + available.map(id => `<option value="${id}">${escapeHtml(view.state.aops[id].name)}</option>`).join("")
+    ? `<option value="">Choose ${label}</option>` + available.map(id => `<option value="${id}">${escapeHtml(aopDisplayLabel(id))}</option>`).join("")
     : `<option value="">No ${label.toLowerCase()}s available</option>`;
-  if(available.includes(previous)) ui.dayAddSelect.value = previous;
+  view.calendarAopId = available.includes(previous) ? previous : null;
+  ui.dayAddSelect.value = view.calendarAopId || "";
+  if(ui.dayAddSelectionHint){
+    ui.dayAddSelectionHint.textContent = view.calendarAopId
+      ? `Selected: ${aopDisplayLabel(view.calendarAopId)}`
+      : `No ${label.toLowerCase()} selected.`;
+  }
   if(ui.dayAddTitle){
     ui.dayAddTitle.textContent = view.selectedDate
       ? `${label}: ${view.selectedDate} (${(view.selectedCalendar || "planned").toUpperCase()})`
@@ -3247,12 +3343,10 @@ function renderDayAddPanel(){
   if(ui.dayAddCustomBtn) ui.dayAddCustomBtn.setAttribute("aria-selected", kind === "custom" ? "true" : "false");
 }
 function addSelectedDayItem(){
-  const id = ui.dayAddSelect?.value;
+  const id = view.calendarAopId || ui.dayAddSelect?.value;
   if(!view.selectedDate || !id || !view.state.aops[id]) return;
   view.state.activeAopId = id;
-  syncAopSelectors(id);
-  markSelectedDay();
-  if(ui.dayAddSelect) ui.dayAddSelect.value = "";
+  markSelectedDay(id);
 }
 function renderSelectedDayItems(){
   if(!ui.selectedDayItems) return;
@@ -3329,7 +3423,7 @@ function setAreaView(areaId, persist){
     }
   }
   ensureActiveAopInView();
-  if(persist) saveState();
+  if(persist) saveStateLocal();
   renderAll();
   loadMonthlyTemplate();
   loadDayNoteUI();
@@ -3342,6 +3436,7 @@ function setAopArea(aopId, areaId){
   const safe = normalizeAreaId(areaId);
   if(aopAreaId(a) === safe) return;
   a.area = safe;
+  a.updated_at = nowIso();
   ensureActiveAopInView();
   saveState();
   renderAll();
@@ -3356,6 +3451,7 @@ function setAopColor(aopId, color, persist){
   const safe = normalizeHexColor(color, a.color || theme.power);
   if(normalizeHexColor(a.color || "", theme.power) === safe) return;
   a.color = safe;
+  a.updated_at = nowIso();
   if(persist !== false) saveState();
   renderAll();
   loadMonthlyTemplate();
@@ -3614,7 +3710,7 @@ function applyColorTheme(themeId, persist){
     }
   }
 
-  if(view.state?.settings && persist) saveState();
+  if(view.state?.settings && persist) saveStateLocal();
 }
 function matrixGlyph(){
   const source = Math.random() < 0.72 ? RAIN_GLYPHS : RAIN_CHARS;
@@ -3725,7 +3821,7 @@ function renderRainToggle(){
 function setRainEnabled(enabled, persist){
   if(!view.state?.settings) return;
   view.state.settings.rainEnabled = enabled !== false;
-  if(persist) saveState();
+  if(persist) saveStateLocal();
   renderRainToggle();
 }
 function normalizeTopbarOrder(raw){
@@ -3777,7 +3873,7 @@ function setUiPrefs(next, persist){
     topbarOrder: normalizeTopbarOrder(next?.topbarOrder)
   };
   view.state.settings.uiPrefs = safe;
-  if(persist) saveState();
+  if(persist) saveStateLocal();
   const keepCustomizeScroll = customizeOpen && !!ui.customizePopout && ui.customizePopout.hidden !== true;
   const popoutScrollTop = keepCustomizeScroll ? ui.customizePopout.scrollTop : 0;
   const popoutScrollLeft = keepCustomizeScroll ? ui.customizePopout.scrollLeft : 0;
@@ -3970,7 +4066,7 @@ function applyLayoutPreset(presetId, persist){
     view.diffMode = true;
   }
   setUiPrefs({ ...prefs, layoutPreset: preset }, false);
-  if(persist !== false) saveState();
+  if(persist !== false) saveStateLocal();
   renderAll();
   loadMonthlyTemplate();
   loadDayNoteUI();
@@ -4007,7 +4103,7 @@ function setCalendarUI(next, persist){
   if(prefs.layoutPreset !== "custom"){
     view.state.settings.uiPrefs = { ...prefs, layoutPreset:"custom" };
   }
-  if(persist !== false) saveState();
+  if(persist !== false) saveStateLocal();
 }
 function renderCalendarControls(){
   const cfg = normalizedCalendarUI();
@@ -4048,7 +4144,7 @@ function setDayNoteFilters(next, persist){
   view.state.settings.dayNoteFilters = {
     thisMonth: next.thisMonth === true
   };
-  if(persist !== false) saveState();
+  if(persist !== false) saveStateLocal();
   renderDayNoteFilters();
   renderAllDayNotes();
 }
@@ -4127,7 +4223,7 @@ function renderDayActualLinks(){
   const selectedId = prevSelected === "" ? "" : (allAopIds.includes(prevSelected) ? prevSelected : fallback);
   ui.dayActualAopSelect.innerHTML = [
     `<option value="">Select AOP...</option>`,
-    ...allAopIds.map(id => `<option value="${escapeHtml(id)}">${escapeHtml(resolveAopName(id))}</option>`)
+    ...allAopIds.map(id => `<option value="${escapeHtml(id)}">${escapeHtml(aopDisplayLabel(id))}</option>`)
   ].join("");
   ui.dayActualAopSelect.value = selectedId;
   ui.dayActualAopSelect.disabled = !canEdit || allAopIds.length === 0;
@@ -4252,7 +4348,7 @@ function applySectionVisibility(next){
   if(prefs.layoutPreset !== "custom"){
     view.state.settings.uiPrefs = { ...prefs, layoutPreset:"custom" };
   }
-  saveState();
+  saveStateLocal();
   renderSectionVisibility();
   applyUiPrefs();
 }
@@ -4296,7 +4392,7 @@ function setAopPane(pane){
     return;
   }
   view.state.settings.aopPane = safePane;
-  saveState();
+  saveStateLocal();
   renderAopPane();
 }
 
@@ -4369,9 +4465,11 @@ function defaultState(){
     aops: {},
     aopOrder: [],
     activeAopId: null,
+    aopTombstones: {},
     aopMonthly: {},
     entries: {},
-    dayNotes: {}
+    dayNotes: {},
+    entryTombstones: {}
   };
 }
 
@@ -4436,15 +4534,39 @@ function migrateIfNeeded(st){
   st.entries = st.entries || {};
   st.aopMonthly = st.aopMonthly || {};
   st.dayNotes = st.dayNotes || {};
+  st.aopTombstones = normalizeAopTombstones(st.aopTombstones);
+  st.entryTombstones = normalizeEntryTombstones(st.entryTombstones);
   const now = new Date();
   const nowMonthKey = ymKey(now.getFullYear(), now.getMonth());
   for(const aopId of Object.keys(st.aops)){
     const a = st.aops[aopId] || {};
+    const createdAt = typeof a.created_at === "string" ? a.created_at : "";
+    const updatedAt = typeof a.updated_at === "string" ? a.updated_at : createdAt;
     st.aops[aopId] = {
       ...a,
       area: normalizeAreaId(a.area),
-      kind: a.kind === "custom" ? "custom" : "aop"
+      kind: a.kind === "custom" ? "custom" : "aop",
+      created_at: createdAt,
+      updated_at: updatedAt
     };
+  }
+  for(const [aopId, tombstone] of Object.entries(st.aopTombstones)){
+    if(st.aops[aopId] && isoMs(tombstone.deleted_at) >= recordFreshness(st.aops[aopId])){
+      delete st.aops[aopId];
+      delete st.aopMonthly[aopId];
+    }
+  }
+  st.aopOrder = st.aopOrder.filter(id => !!st.aops[id]);
+  for(const [dateKey, bucket] of Object.entries(st.entries)){
+    const nextBucket = { planned:[], actual:[] };
+    for(const type of ["planned","actual"]){
+      nextBucket[type] = (bucket?.[type] || []).filter(entry => {
+        const tombstone = entry?.id ? st.entryTombstones[entry.id] : null;
+        return !tombstone || isoMs(tombstone.deleted_at) < isoMs(entry.ts);
+      });
+    }
+    if(nextBucket.planned.length || nextBucket.actual.length) st.entries[dateKey] = nextBucket;
+    else delete st.entries[dateKey];
   }
 
   // Normalize monthly templates
@@ -4533,8 +4655,8 @@ function migrateIfNeeded(st){
       const areaNotes = normalizeAreaNotes(dn.by_area);
       st.dayNotes[dateKey] = {
         text:"", planned_text:"", actual_text:"", area_notes:areaNotes,
-        created_at: nowIso(),
-        updated_at: Object.keys(areaNotes).length ? nowIso() : ""
+        created_at: "",
+        updated_at: ""
       };
       continue;
     }
@@ -4545,13 +4667,13 @@ function migrateIfNeeded(st){
         text: actualText,
         planned_text: plannedText,
         actual_text: actualText,
-        created_at: nowIso(),
-        updated_at: (plannedText || actualText) ? nowIso() : ""
+        created_at: "",
+        updated_at: ""
       };
       continue;
     }
     if(typeof dn === "string"){
-      st.dayNotes[dateKey] = { text: dn, planned_text:"", actual_text:dn, created_at: nowIso(), updated_at: dn ? nowIso() : "" };
+      st.dayNotes[dateKey] = { text: dn, planned_text:"", actual_text:dn, created_at:"", updated_at:"" };
       continue;
     }
     if(dn && typeof dn === "object"){
@@ -4560,12 +4682,12 @@ function migrateIfNeeded(st){
         planned_text: typeof dn.planned_text === "string" ? dn.planned_text : "",
         actual_text: typeof dn.actual_text === "string" ? dn.actual_text : (typeof dn.text === "string" ? dn.text : ""),
         area_notes: normalizeAreaNotes(dn.area_notes),
-        created_at: dn.created_at || nowIso(),
-        updated_at: dn.updated_at || (dn.text ? nowIso() : "")
+        created_at: dn.created_at || "",
+        updated_at: dn.updated_at || ""
       };
       continue;
     }
-    st.dayNotes[dateKey] = { text: "", planned_text:"", actual_text:"", created_at: nowIso(), updated_at: "" };
+    st.dayNotes[dateKey] = { text:"", planned_text:"", actual_text:"", area_notes:{}, created_at:"", updated_at:"" };
   }
 
   if(recoverHistoricalAreaNotes(st)){
@@ -4587,6 +4709,11 @@ function loadState(){
 }
 function saveStateLocal(){
   try{
+    persistLocalAppearanceProfile();
+  }catch(err){
+    console.warn("Personal display settings were not cached:", err);
+  }
+  try{
     localStorage.setItem(STORAGE_KEY, JSON.stringify(view.state));
     teamSync.localCacheFull = false;
     return true;
@@ -4607,6 +4734,7 @@ function saveStateLocal(){
   }
 }
 function saveState(){
+  localStateVersion += 1;
   saveStateLocal();
   scheduleTeamSyncSave("local-change");
 }
@@ -4772,7 +4900,7 @@ function applyMasterViewAccessControl(){
   if(!allowed && currentAreaViewId() === MASTER_VIEW_ID){
     view.state.settings.areaView = DEFAULT_AREA_VIEW;
     ensureActiveAopInView();
-    saveState();
+    saveStateLocal();
     if(ui.areaViewSelect) ui.areaViewSelect.value = DEFAULT_AREA_VIEW;
     setTeamSyncStatus("Master view is teamlead-only", true);
     renderAll();
@@ -4949,26 +5077,122 @@ function applyTeamRoleUi(){
 function clonePlannerState(state){
   try{ return JSON.parse(JSON.stringify(state)); }catch{ return defaultState(); }
 }
-function newerRecord(left, right){
-  const leftTime = Date.parse(String(left?.updated_at || "")) || 0;
-  const rightTime = Date.parse(String(right?.updated_at || "")) || 0;
-  return rightTime >= leftTime ? right : left;
+function isoMs(iso){
+  const value = Date.parse(String(iso || ""));
+  return Number.isFinite(value) ? value : 0;
+}
+function recordFreshness(record){
+  if(!record || typeof record !== "object") return 0;
+  return Math.max(
+    isoMs(record.updated_at),
+    isoMs(record.notation_updated_at),
+    isoMs(record.goal_updated_at),
+    isoMs(record.comments_updated_at),
+    isoMs(record.required_updated_at),
+    isoMs(record.created_at)
+  );
+}
+function preferLocalRecord(localRecord, remoteRecord){
+  if(!remoteRecord) return clonePlannerState(localRecord);
+  if(!localRecord) return clonePlannerState(remoteRecord);
+  return clonePlannerState(recordFreshness(localRecord) >= recordFreshness(remoteRecord) ? localRecord : remoteRecord);
+}
+function mergeMonthlyRecords(localRecord, remoteRecord){
+  if(!remoteRecord) return clonePlannerState(localRecord);
+  if(!localRecord) return clonePlannerState(remoteRecord);
+  const merged = preferLocalRecord(localRecord, remoteRecord);
+  const fieldGroups = [
+    { fields:["goal","goal_created_at","goal_updated_at"], stamp:"goal_updated_at" },
+    { fields:["comments","comments_created_at","comments_updated_at"], stamp:"comments_updated_at" },
+    { fields:["notation","notation_updated_at"], stamp:"notation_updated_at" },
+    { fields:["required","required_created_at","required_updated_at"], stamp:"required_updated_at" }
+  ];
+  for(const group of fieldGroups){
+    const localStamp = isoMs(localRecord[group.stamp]) || recordFreshness(localRecord);
+    const remoteStamp = isoMs(remoteRecord[group.stamp]) || recordFreshness(remoteRecord);
+    const source = localStamp >= remoteStamp ? localRecord : remoteRecord;
+    for(const field of group.fields) merged[field] = source[field];
+  }
+  const metricsSource = recordFreshness(localRecord) >= recordFreshness(remoteRecord) ? localRecord : remoteRecord;
+  for(const field of ["deflection_start","deflection_end","conversation_start","conversation_end"]){
+    merged[field] = metricsSource[field];
+  }
+  merged.created_at = localRecord.created_at || remoteRecord.created_at || "";
+  merged.updated_at = isoMs(localRecord.updated_at) >= isoMs(remoteRecord.updated_at)
+    ? (localRecord.updated_at || remoteRecord.updated_at || "")
+    : (remoteRecord.updated_at || localRecord.updated_at || "");
+  return merged;
+}
+function normalizeAopTombstones(raw){
+  const source = raw && typeof raw === "object" ? raw : {};
+  const out = {};
+  for(const [id, tombstone] of Object.entries(source)){
+    const deletedAt = String(tombstone?.deleted_at || "").trim();
+    if(id && deletedAt) out[id] = { deleted_at:deletedAt };
+  }
+  return out;
+}
+function normalizeEntryTombstones(raw){
+  const source = raw && typeof raw === "object" ? raw : {};
+  const out = {};
+  for(const [id, tombstone] of Object.entries(source)){
+    const deletedAt = String(tombstone?.deleted_at || "").trim();
+    if(!id || !deletedAt) continue;
+    out[id] = {
+      deleted_at: deletedAt,
+      dateKey: String(tombstone?.dateKey || ""),
+      type: tombstone?.type === "planned" ? "planned" : "actual"
+    };
+  }
+  return out;
+}
+function mergeTombstones(localRaw, remoteRaw, normalizer){
+  const local = normalizer(localRaw);
+  const remote = normalizer(remoteRaw);
+  const merged = { ...remote };
+  for(const [id, tombstone] of Object.entries(local)){
+    if(!merged[id] || isoMs(tombstone.deleted_at) >= isoMs(merged[id].deleted_at)) merged[id] = tombstone;
+  }
+  return merged;
+}
+function setAopTombstone(aopId, deletedAt){
+  if(!aopId) return;
+  if(!view.state.aopTombstones || typeof view.state.aopTombstones !== "object") view.state.aopTombstones = {};
+  view.state.aopTombstones[aopId] = { deleted_at:deletedAt || nowIso() };
+}
+function setEntryTombstone(entry, dateKey, type, deletedAt){
+  if(!entry?.id) return;
+  if(!view.state.entryTombstones || typeof view.state.entryTombstones !== "object") view.state.entryTombstones = {};
+  view.state.entryTombstones[entry.id] = {
+    deleted_at: deletedAt || nowIso(),
+    dateKey: String(dateKey || ""),
+    type: type === "planned" ? "planned" : "actual"
+  };
+}
+function clearEntryTombstone(entryId){
+  if(entryId && view.state.entryTombstones) delete view.state.entryTombstones[entryId];
 }
 function mergeDayNotesPreservingAll(localNotes, remoteNotes){
-  const out = { ...(remoteNotes || {}) };
-  for(const [dateKey, localRaw] of Object.entries(localNotes || {})){
-    const local = localRaw || {};
-    const remote = out[dateKey] || {};
-    const winner = newerRecord(local, remote);
-    const mergedAreas = { ...normalizeAreaNotes(remote.area_notes), ...normalizeAreaNotes(local.area_notes) };
+  const out = {};
+  const dateKeys = new Set([...Object.keys(localNotes || {}), ...Object.keys(remoteNotes || {})]);
+  for(const dateKey of dateKeys){
+    const local = localNotes?.[dateKey] || {};
+    const remote = remoteNotes?.[dateKey] || {};
+    const winner = preferLocalRecord(local, remote);
+    const localAreas = normalizeAreaNotes(local.area_notes);
+    const remoteAreas = normalizeAreaNotes(remote.area_notes);
+    const mergedAreas = {};
+    for(const areaId of new Set([...Object.keys(localAreas), ...Object.keys(remoteAreas)])){
+      mergedAreas[areaId] = preferLocalRecord(localAreas[areaId], remoteAreas[areaId]);
+    }
     out[dateKey] = {
       ...winner,
       text: winner.text || "",
       actual_text: winner.actual_text || winner.text || "",
-      planned_text: remote.planned_text || local.planned_text || "",
+      planned_text: winner.planned_text || "",
       area_notes: mergedAreas,
-      created_at: remote.created_at || local.created_at || nowIso(),
-      updated_at: winner.updated_at || remote.updated_at || local.updated_at || ""
+      created_at: winner.created_at || local.created_at || remote.created_at || "",
+      updated_at: winner.updated_at || ""
     };
   }
   return out;
@@ -4976,32 +5200,44 @@ function mergeDayNotesPreservingAll(localNotes, remoteNotes){
 function mergeIncomingSharedState(localState, incomingState){
   const local = migrateIfNeeded(clonePlannerState(localState));
   const incoming = migrateIfNeeded(clonePlannerState(incomingState));
-  const merged = incoming;
-  merged.aops = { ...incoming.aops };
-  for(const [id, item] of Object.entries(local.aops || {})){
-    merged.aops[id] = merged.aops[id] ? newerRecord(item, merged.aops[id]) : item;
+  const merged = { ...incoming };
+  merged.settings = snapshotAppearanceSettings(local);
+  merged.activeAopId = local.activeAopId || null;
+  merged.aopTombstones = mergeTombstones(local.aopTombstones, incoming.aopTombstones, normalizeAopTombstones);
+  merged.entryTombstones = mergeTombstones(local.entryTombstones, incoming.entryTombstones, normalizeEntryTombstones);
+  merged.aops = {};
+  for(const id of new Set([...Object.keys(incoming.aops || {}), ...Object.keys(local.aops || {})])){
+    const item = preferLocalRecord(local.aops?.[id], incoming.aops?.[id]);
+    const tombstone = merged.aopTombstones[id];
+    if(item && (!tombstone || isoMs(tombstone.deleted_at) < recordFreshness(item))) merged.aops[id] = item;
   }
   merged.aopOrder = [...new Set([...(incoming.aopOrder || []), ...(local.aopOrder || [])])].filter(id => merged.aops[id]);
-  merged.aopMonthly = { ...incoming.aopMonthly };
-  for(const [aopId, localMonths] of Object.entries(local.aopMonthly || {})){
-    merged.aopMonthly[aopId] = { ...(merged.aopMonthly[aopId] || {}) };
-    for(const [monthKey, localMonth] of Object.entries(localMonths || {})){
-      const remoteMonth = merged.aopMonthly[aopId][monthKey];
-      merged.aopMonthly[aopId][monthKey] = remoteMonth ? newerRecord(localMonth, remoteMonth) : localMonth;
+  merged.aopMonthly = {};
+  for(const aopId of Object.keys(merged.aops)){
+    const localMonths = local.aopMonthly?.[aopId] || {};
+    const remoteMonths = incoming.aopMonthly?.[aopId] || {};
+    const months = {};
+    for(const monthKey of new Set([...Object.keys(remoteMonths), ...Object.keys(localMonths)])){
+      months[monthKey] = mergeMonthlyRecords(localMonths[monthKey], remoteMonths[monthKey]);
     }
+    merged.aopMonthly[aopId] = months;
   }
-  merged.entries = { ...incoming.entries };
-  for(const [dateKey, localBucket] of Object.entries(local.entries || {})){
-    const remoteBucket = merged.entries[dateKey] || { planned:[], actual:[] };
-    const mergeEntries = type => {
+  merged.entries = {};
+  for(const dateKey of new Set([...Object.keys(incoming.entries || {}), ...Object.keys(local.entries || {})])){
+    const localBucket = local.entries?.[dateKey] || { planned:[], actual:[] };
+    const remoteBucket = incoming.entries?.[dateKey] || { planned:[], actual:[] };
+    const nextBucket = { planned:[], actual:[] };
+    for(const type of ["planned","actual"]){
       const seen = new Set();
-      return [...(remoteBucket[type] || []), ...(localBucket[type] || [])].filter(entry => {
-        const id = entry?.id || `${entry?.aopId}:${entry?.ts || ""}`;
+      nextBucket[type] = [...(remoteBucket[type] || []), ...(localBucket[type] || [])].filter(entry => {
+        const id = entry?.id || `${type}:${entry?.aopId}:${entry?.ts || ""}`;
         if(seen.has(id)) return false;
-        seen.add(id); return true;
+        seen.add(id);
+        const tombstone = entry?.id ? merged.entryTombstones[entry.id] : null;
+        return !tombstone || isoMs(tombstone.deleted_at) < isoMs(entry.ts);
       });
-    };
-    merged.entries[dateKey] = { planned:mergeEntries("planned"), actual:mergeEntries("actual") };
+    }
+    if(nextBucket.planned.length || nextBucket.actual.length) merged.entries[dateKey] = nextBucket;
   }
   merged.dayNotes = mergeDayNotesPreservingAll(local.dayNotes, incoming.dayNotes);
   const snapshots = [...(incoming.syncHistory?.snapshots || []), ...(local.syncHistory?.snapshots || [])];
@@ -5016,17 +5252,39 @@ function mergeIncomingSharedState(localState, incomingState){
   return migrateIfNeeded(merged);
 }
 
-function applyIncomingSharedState(nextState){
-  if(!nextState || typeof nextState !== "object") return false;
-  const migrated = mergeIncomingSharedState(view.state, nextState);
-  const recoveredHistoricalNotes = migrated.__recoveredHistoricalNotes === true;
+function applyMergedStateSilently(nextState){
+  const personalSettings = snapshotAppearanceSettings(view.state);
   teamSyncSuppressPush = true;
   try{
-    view.state = migrated;
+    view.state = nextState;
+    applyAppearanceSettingsSnapshot(view.state, personalSettings);
     saveStateLocal();
   }finally{
     teamSyncSuppressPush = false;
   }
+}
+function flushPendingEditorsBeforeRemoteApply(){
+  if(dayNoteAutosaveTimer){
+    clearDayNoteAutosaveTimer();
+    saveDayNote({ fromAutosave:true });
+  }
+  if(aopNotationSaveTimer){
+    clearTimeout(aopNotationSaveTimer);
+    aopNotationSaveTimer = null;
+    const aopId = selectedAopForNotation();
+    if(aopId && ui.aopNotation) persistAopNotation(aopId, selectedNotationMonthKey(), ui.aopNotation.value || "");
+  }
+  if(ui.tmplGoal && ui.tmplComments && !ui.tmplGoal.disabled && !ui.tmplComments.disabled){
+    saveMonthlyTemplate();
+  }
+}
+
+function applyIncomingSharedState(nextState){
+  if(!nextState || typeof nextState !== "object") return false;
+  flushPendingEditorsBeforeRemoteApply();
+  const migrated = mergeIncomingSharedState(view.state, nextState);
+  const recoveredHistoricalNotes = migrated.__recoveredHistoricalNotes === true;
+  applyMergedStateSilently(migrated);
   renderAll();
   loadMonthlyTemplate();
   loadDayNoteUI();
@@ -5089,7 +5347,7 @@ async function ensureTeamWorkspaceExists(){
   }
   const payload = {
     id: workspaceId,
-    state: view.state,
+    state: buildSharedSyncState(),
     updated_by: teamSync.userId || null
   };
   const inserted = await teamSync.supabase
@@ -5139,10 +5397,24 @@ async function pushRemoteState(opts){
   teamSyncBusy = true;
   applyTeamSyncUiState();
   try{
+    flushPendingEditorsBeforeRemoteApply();
+    const localVersionAtStart = localStateVersion;
     const workspaceId = normalizeWorkspaceId(teamSync.config.workspaceId);
+    const localSharedState = buildSharedSyncState();
+    const remoteRow = await teamSync.supabase
+      .from(TEAM_SYNC_TABLE)
+      .select("id,state,updated_at")
+      .eq("id", workspaceId)
+      .maybeSingle();
+    if(remoteRow.error && remoteRow.status !== 406) throw remoteRow.error;
+    const mergedSharedState = remoteRow.data?.state
+      ? mergeIncomingSharedState(localSharedState, remoteRow.data.state)
+      : localSharedState;
+    applyAppearanceSettingsSnapshot(mergedSharedState, defaultState().settings);
+    mergedSharedState.activeAopId = null;
     const payload = {
       id: workspaceId,
-      state: view.state,
+      state: mergedSharedState,
       updated_by: teamSync.userId || null
     };
     const { data, error } = await teamSync.supabase
@@ -5152,6 +5424,9 @@ async function pushRemoteState(opts){
       .single();
     if(error) throw error;
     teamSync.lastRemoteUpdatedAt = data?.updated_at || "";
+    const reconciledState = mergeIncomingSharedState(view.state, mergedSharedState);
+    applyMergedStateSilently(reconciledState);
+    if(localStateVersion !== localVersionAtStart) scheduleTeamSyncSave("post-push-catchup");
     if(options.manual){
       setTeamSyncStatus(`Pushed ${timeShort()}`);
     }
@@ -5276,7 +5551,9 @@ async function connectTeamSync(opts){
     teamSync.userId = user.id;
     teamSync.userEmail = user.email || "";
     const role = user.user_metadata?.role || user.app_metadata?.role || "member";
+    if(!applyLocalAppearanceProfile()) persistLocalAppearanceProfile();
     setSyncRole(role);
+    saveStateLocal();
 
     await ensureTeamWorkspaceExists();
     teamSync.connected = true;
@@ -5299,8 +5576,17 @@ async function connectTeamSync(opts){
     teamSync.connected = false;
     teamSync.userId = null;
     teamSync.userEmail = "";
+    const localAppearanceLoaded = applyLocalAppearanceProfile("local");
     setSyncRole("local");
     setTeamSyncStatus("Local-only mode");
+    if(localAppearanceLoaded){
+      saveStateLocal();
+      renderAll();
+      loadMonthlyTemplate();
+      loadDayNoteUI();
+      renderEntries();
+      renderDashboard();
+    }
   }finally{
     if(ui.syncPassword) ui.syncPassword.value = "";
     setSyncPasswordVisibility(false);
@@ -5317,16 +5603,26 @@ async function disconnectTeamSync(){
   if(teamSync.supabase){
     try{ await teamSync.supabase.auth.signOut(); }catch{}
   }
+  try{ persistLocalAppearanceProfile(); }catch{}
   teamSync.supabase = null;
   teamSync.connected = false;
   teamSync.userId = null;
   teamSync.userEmail = "";
+  const localAppearanceLoaded = applyLocalAppearanceProfile("local");
   teamSync.lastRemoteUpdatedAt = "";
   closeSyncLoginModal();
   clearSyncFieldErrors();
   setSyncPasswordVisibility(false);
   setSyncRole("local");
   setTeamSyncStatus("Disconnected. Local-only mode.");
+  if(localAppearanceLoaded){
+    saveStateLocal();
+    renderAll();
+    loadMonthlyTemplate();
+    loadDayNoteUI();
+    renderEntries();
+    renderDashboard();
+  }
   applyTeamSyncUiState();
 }
 
@@ -5518,15 +5814,40 @@ function getEntryAopColors(dateKey, type){
 /* --- Day Notes (unified) --- */
 function ensureDayNote(dateKey){
   if(!view.state.dayNotes[dateKey]){
-    view.state.dayNotes[dateKey] = { text:"", planned_text:"", actual_text:"", created_at: nowIso(), updated_at:"" };
+    view.state.dayNotes[dateKey] = { text:"", planned_text:"", actual_text:"", area_notes:{}, created_at: nowIso(), updated_at:"" };
   }
   return view.state.dayNotes[dateKey];
 }
-function hasDayNote(dateKey){
+function dayNoteForArea(dayNote, areaId){
+  const note = dayNote || {};
+  const scope = normalizeAreaViewId(areaId || currentAreaViewId());
+  const areaNotes = normalizeAreaNotes(note.area_notes);
+  if(scope === MASTER_VIEW_ID){
+    return {
+      text: String(note.text || note.actual_text || ""),
+      created_at: note.created_at || "",
+      updated_at: note.updated_at || ""
+    };
+  }
+  if(areaNotes[scope]) return areaNotes[scope];
+  if(Object.keys(areaNotes).length === 0){
+    return {
+      text: String(note.text || note.actual_text || ""),
+      created_at: note.created_at || "",
+      updated_at: note.updated_at || ""
+    };
+  }
+  return { text:"", created_at:"", updated_at:"" };
+}
+function hasDayNote(dateKey, areaId){
   const dn = view.state.dayNotes[dateKey];
   if(!dn) return false;
-  if(typeof dn.text === "string" && dn.text.trim()) return true;
-  return Object.values(normalizeAreaNotes(dn.area_notes)).some(note => note.text.trim());
+  const scope = normalizeAreaViewId(areaId || currentAreaViewId());
+  if(scope === MASTER_VIEW_ID){
+    if(typeof dn.text === "string" && dn.text.trim()) return true;
+    return Object.values(normalizeAreaNotes(dn.area_notes)).some(note => note.text.trim());
+  }
+  return !!dayNoteForArea(dn, scope).text.trim();
 }
 
 /* --- Capacity (planned-only) --- */
@@ -5617,22 +5938,21 @@ function renderDows(){
 }
 
 function selectedAopId(){
-  const candidates = [ui.aopSelect?.value, ui.aopNotationSelect?.value, ui.aopSelectGoals?.value, view.state.activeAopId];
-  for(const id of candidates){
-    if(id && view.state.aops[id] && isAopInArea(id)) return id;
-  }
-  return null;
+  const id = view.state.activeAopId;
+  return (id && view.state.aops[id] && isAopInArea(id)) ? id : null;
 }
 
 function syncAopSelectors(id){
   const safe = (id && view.state.aops[id] && isAopInArea(id)) ? id : "";
   if(ui.aopSelect) ui.aopSelect.value = safe;
-  if(ui.aopNotationSelect) ui.aopNotationSelect.value = safe;
-  if(ui.aopSelectGoals) ui.aopSelectGoals.value = safe;
 }
 
 function selectedAopForNotation(){
-  const id = selectedAopId();
+  const id = view.notationAopId || ui.aopNotationSelect?.value;
+  return (id && view.state.aops[id] && isAopInArea(id)) ? id : null;
+}
+function selectedGoalsAopId(){
+  const id = view.goalsAopId || ui.aopSelectGoals?.value;
   return (id && view.state.aops[id] && isAopInArea(id)) ? id : null;
 }
 function selectedNotationMonthKey(){
@@ -5796,6 +6116,7 @@ function dashboardAttentionScore(row){
 }
 function openAopNotationFromDashboard(aopId){
   if(!aopId || !view.state?.aops?.[aopId]) return;
+  view.notationAopId = aopId;
   if(view.state.activeAopId !== aopId){
     setActiveAop(aopId);
   }
@@ -6050,7 +6371,7 @@ function persistAopNotation(aopId, monthKey, rawText){
   }
   const t = nowIso();
   month.notation = next;
-  month.notation_updated_at = next ? t : "";
+  month.notation_updated_at = t;
   month.updated_at = t;
   saveState();
   if(selectedAopForNotation() === aopId && selectedNotationMonthKey() === monthKey){
@@ -6139,9 +6460,10 @@ function renderAopCatalog(){
       name.className = "name";
       const monthNotation = readAopMonthlyNotation(id, monthKey);
       const notePreview = aopNotationPreviewText(monthNotation.notation || "");
+      const ownerText = `Owner: ${areaLabel(aopAreaId(a))}`;
       name.innerHTML = notePreview
-        ? `<div class="name-main">${escapeHtml(a.name)}</div><div class="name-preview">${escapeHtml(notePreview)}</div>`
-        : `<div class="name-main">${escapeHtml(a.name)}</div>`;
+        ? `<div class="name-main">${escapeHtml(a.name)}</div><div class="name-preview">${escapeHtml(ownerText)} | ${escapeHtml(notePreview)}</div>`
+        : `<div class="name-main">${escapeHtml(a.name)}</div><div class="name-preview">${escapeHtml(ownerText)}</div>`;
 
       left.appendChild(name);
 
@@ -6210,17 +6532,24 @@ function renderAopCatalog(){
     order.map(id=>{
       const a = view.state.aops[id];
       if(!a) return "";
-      return `<option value="${id}">${escapeHtml(a.name)}</option>`;
+      return `<option value="${id}">${escapeHtml(aopDisplayLabel(id))}</option>`;
     }).join("");
   if(ui.aopSelect) ui.aopSelect.innerHTML = optionsHtml;
   if(ui.aopNotationSelect) ui.aopNotationSelect.innerHTML = optionsHtml;
   if(ui.aopSelectGoals) ui.aopSelectGoals.innerHTML = optionsHtml;
 
-  if(view.state.activeAopId && view.state.aops[view.state.activeAopId] && isAopInArea(view.state.activeAopId)){
-    syncAopSelectors(view.state.activeAopId);
-  }else{
-    const sticky = [prevSelectId, prevNotationSelectId, prevGoalsSelectId].find(id => !!id && order.includes(id)) || "";
-    syncAopSelectors(sticky);
+  const activeId = order.includes(view.state.activeAopId) ? view.state.activeAopId : "";
+  const notationId = [view.notationAopId, prevNotationSelectId, activeId].find(id => !!id && order.includes(id)) || "";
+  const goalsId = [view.goalsAopId, prevGoalsSelectId, activeId].find(id => !!id && order.includes(id)) || "";
+  view.notationAopId = notationId || null;
+  view.goalsAopId = goalsId || null;
+  syncAopSelectors(activeId || prevSelectId);
+  if(ui.aopNotationSelect) ui.aopNotationSelect.value = notationId;
+  if(ui.aopSelectGoals) ui.aopSelectGoals.value = goalsId;
+  if(ui.aopNotationOwner){
+    ui.aopNotationOwner.textContent = notationId
+      ? `Selected: ${aopDisplayLabel(notationId)}`
+      : "No AOP selected.";
   }
   loadAopNotationUI();
 }
@@ -6230,12 +6559,15 @@ function addAop(name, color, areaId, kind = currentLibraryKind()){
   if(!clean){ alert(`Enter a ${kind === "custom" ? "custom status" : "AOP"} name.`); return; }
   const theme = COLOR_THEMES[currentThemeId()] || COLOR_THEMES[DEFAULT_THEME];
   const id = uuid();
+  const t = nowIso();
   view.state.aops[id] = {
     id,
     name: clean,
     color: color || theme.power,
     area: normalizeAreaId(areaId || suggestedAreaForNewAop()),
-    kind: kind === "custom" ? "custom" : "aop"
+    kind: kind === "custom" ? "custom" : "aop",
+    created_at: t,
+    updated_at: t
   };
   view.state.aopOrder = [...(view.state.aopOrder||[]), id];
   view.state.activeAopId = id;
@@ -6251,7 +6583,7 @@ function addAop(name, color, areaId, kind = currentLibraryKind()){
 function setActiveAop(id){
   if(!view.state.aops[id] || !isAopInArea(id)) return;
   view.state.activeAopId = id;
-  saveState();
+  saveStateLocal();
   renderAll();
   syncAopSelectors(id);
   loadMonthlyTemplate();
@@ -6265,6 +6597,7 @@ function removeAop(id){
   const itemLabel = libraryItemKind(a) === "custom" ? "Custom Status" : "AOP";
   if(!confirm(`Remove ${itemLabel} "${a.name}"?\n\nExisting calendar marks will remain, but will display as missing.`)) return;
 
+  setAopTombstone(id);
   delete view.state.aops[id];
   delete view.state.aopMonthly[id];
   view.state.aopOrder = (view.state.aopOrder||[]).filter(x=>x!==id);
@@ -6280,7 +6613,7 @@ function removeAop(id){
 
 /* --- Monthly template UI (Goal + Comments + Audit) --- */
 function loadMonthlyTemplate(){
-  const aopId = selectedAopId();
+  const aopId = selectedGoalsAopId();
   const mk = currentMonthKey();
   ui.monthKeyInfo.textContent = `Goals/Comments key: ${mk}`;
 
@@ -6302,7 +6635,7 @@ function loadMonthlyTemplate(){
   const tmpl = ensureMonthly(aopId, mk);
   ui.tmplGoal.value = tmpl.goal || "";
   ui.tmplComments.value = tmpl.comments || "";
-  if(ui.templateAopHint) ui.templateAopHint.textContent = `AOP: ${view.state.aops[aopId].name}`;
+  if(ui.templateAopHint) ui.templateAopHint.textContent = `AOP: ${aopDisplayLabel(aopId)}`;
 
   ui.goalAudit.textContent =
     `Goal created: ${fmtIsoShort(tmpl.goal_created_at)} | updated: ${fmtIsoShort(tmpl.goal_updated_at)}`;
@@ -6312,7 +6645,7 @@ function loadMonthlyTemplate(){
 }
 
 function saveMonthlyTemplate(){
-  const aopId = selectedAopId();
+  const aopId = selectedGoalsAopId();
   if(!aopId || !view.state.aops[aopId]) return;
 
   const mk = currentMonthKey();
@@ -6321,18 +6654,25 @@ function saveMonthlyTemplate(){
 
   const newGoal = (ui.tmplGoal.value || "").trim();
   const newComments = (ui.tmplComments.value || "").trim();
+  let changed = false;
 
   if(newGoal !== tmpl.goal){
     if(!tmpl.goal_created_at && newGoal) tmpl.goal_created_at = t;
-    tmpl.goal_updated_at = newGoal ? t : "";
+    tmpl.goal_updated_at = t;
     tmpl.goal = newGoal;
+    changed = true;
   }
   if(newComments !== tmpl.comments){
     if(!tmpl.comments_created_at && newComments) tmpl.comments_created_at = t;
-    tmpl.comments_updated_at = newComments ? t : "";
+    tmpl.comments_updated_at = t;
     tmpl.comments = newComments;
+    changed = true;
   }
 
+  if(!changed){
+    setTemplateSaveState(`Saved ${timeShort()}`);
+    return;
+  }
   tmpl.updated_at = t;
   saveState();
 
@@ -6343,7 +6683,7 @@ function saveMonthlyTemplate(){
 }
 function clearActiveAop(){
   view.state.activeAopId = null;
-  saveState();
+  saveStateLocal();
   renderAll();
   loadMonthlyTemplate();
   renderEntries();
@@ -6361,7 +6701,7 @@ function toggleActiveAop(id){
 /* --- Day Note UI (unified) --- */
 function dayNoteKeyLabel(){
   const dateKey = view.selectedDate || "-";
-  return `${dateKey}`;
+  return `${dateKey} | ${areaLabel(currentAreaViewId())}`;
 }
 function dayNoteEditStatus(){
   const dateKey = view.selectedDate;
@@ -6397,10 +6737,11 @@ function loadDayNoteUI(){
     return;
   }
 
-  const dn = view.state.dayNotes?.[dateKey] || { text:"", created_at:"", updated_at:"" };
-  ui.dayNoteText.value = dn.text || "";
+  const dn = view.state.dayNotes?.[dateKey] || { text:"", area_notes:{}, created_at:"", updated_at:"" };
+  const selectedNote = dayNoteForArea(dn, currentAreaViewId());
+  ui.dayNoteText.value = selectedNote.text || "";
   ui.dayNoteAudit.textContent =
-    `Day note created: ${fmtIsoShort(dn.created_at)} | updated: ${fmtIsoShort(dn.updated_at)}`;
+    `Day note created: ${fmtIsoShort(selectedNote.created_at)} | updated: ${fmtIsoShort(selectedNote.updated_at)}`;
   setDayNoteSaveState(status.reason);
   setActualLinkState(status.reason);
 
@@ -6421,7 +6762,7 @@ function renderAllDayNotes(){
         areaId,
         label: areaLabel(areaId),
         text: note.text
-      }));
+      })).filter(note => note.text);
       if(!plannedText && !actualText && areaNotes.length === 0) return null;
       return {
         dateKey,
@@ -6505,21 +6846,33 @@ function saveDayNote(options){
   const dn = ensureDayNote(dateKey);
   const t = nowIso();
   const newText = (ui.dayNoteText.value || "").trim();
-  const prevText = (dn.text || "").trim();
+  const scope = currentAreaViewId();
+  const selectedNote = dayNoteForArea(dn, scope);
+  const prevText = (selectedNote.text || "").trim();
   if(newText === prevText){
     setDayNoteSaveState(`Saved ${timeShort()}`);
     return;
   }
 
-  if(!dn.created_at) dn.created_at = t;
-  dn.text = newText;
-  dn.actual_text = newText;
-  dn.updated_at = newText ? t : "";
+  if(scope === MASTER_VIEW_ID){
+    if(!dn.created_at) dn.created_at = t;
+    dn.text = newText;
+    dn.actual_text = newText;
+  }else{
+    const areaNotes = normalizeAreaNotes(dn.area_notes);
+    areaNotes[scope] = {
+      text: newText,
+      created_at: selectedNote.created_at || t,
+      updated_at: t
+    };
+    dn.area_notes = areaNotes;
+  }
+  dn.updated_at = t;
   saveState();
 
   setDayNoteSaveState(`Saved ${timeShort()}`);
   ui.dayNoteAudit.textContent =
-    `Day note created: ${fmtIsoShort(dn.created_at)} | updated: ${fmtIsoShort(dn.updated_at)}`;
+    `Day note created: ${fmtIsoShort(scope === MASTER_VIEW_ID ? dn.created_at : (selectedNote.created_at || t))} | updated: ${fmtIsoShort(t)}`;
   renderCalendar(ui.daysPlanned, "planned");
   renderCalendar(ui.daysActual, "actual");
   renderAllDayNotes();
@@ -6659,7 +7012,7 @@ function renderCalendar(container, type){
         titleParts.push(`Areas: ${masterAreaGroups.map(group => `${group.label} (${group.count})`).join(", ")}`);
       }
       if(type === "actual"){
-        const noteText = (view.state.dayNotes?.[dateKey]?.text || "").trim();
+        const noteText = dayNoteForArea(view.state.dayNotes?.[dateKey], currentAreaViewId()).text.trim();
         if(noteText){
           titleParts.push(`Note: ${noteText.slice(0, 90)}${noteText.length > 90 ? "..." : ""}`);
         }
@@ -6716,14 +7069,17 @@ function syncSelectedInfo(){
   }
   const [y,m,d] = view.selectedDate.split("-");
   const pretty = `${Number(d)} ${monthNames[Number(m)-1]} ${y}`;
-  ui.selectedInfo.textContent = `Selected: ${pretty} (${view.selectedCalendar.toUpperCase()})`;
+  const target = view.calendarAopId && view.state.aops[view.calendarAopId]
+    ? ` | Add target: ${aopDisplayLabel(view.calendarAopId)}`
+    : "";
+  ui.selectedInfo.textContent = `Selected: ${pretty} (${view.selectedCalendar.toUpperCase()})${target}`;
 }
 
 /* --- Mark Day (calendar stamp) --- */
-function markSelectedDay(){
+function markSelectedDay(aopIdOverride){
   if(!view.selectedDate){ alert("Select a day on a calendar first."); return; }
   const type = view.selectedCalendar || "planned";
-  const aopId = selectedAopId();
+  const aopId = aopIdOverride || view.calendarAopId;
   if(!aopId || !view.state.aops[aopId] || !isAopInArea(aopId)){
     alert("Select an AOP first.");
     return;
@@ -6766,7 +7122,7 @@ function removeSelectedDayMark(){
   const visibleArr = filterEntriesByArea(arr);
   if(visibleArr.length === 0) return;
 
-  const aopId = selectedAopId();
+  const aopId = view.calendarAopId;
   const target = aopId ? (visibleArr.find(e => e.aopId === aopId) || visibleArr[0]) : visibleArr[0];
   if(!target?.id) return;
   deleteMark(view.selectedDate, type, target.id);
@@ -6890,6 +7246,7 @@ function deleteMark(dateKey, type, id, options){
   if(idx < 0) return;
   const removed = arr[idx];
   arr.splice(idx, 1);
+  setEntryTombstone(removed, dateKey, type);
   bucket[type] = arr;
   if((bucket.planned?.length||0)===0 && (bucket.actual?.length||0)===0){
     delete view.state.entries[dateKey];
@@ -6905,6 +7262,8 @@ function deleteMark(dateKey, type, id, options){
       ensureDateKey(dateKey);
       const list = view.state.entries[dateKey][type] || [];
       if(list.some(e => e.id === removed.id)) return;
+      clearEntryTombstone(removed.id);
+      removed.ts = nowIso();
       list.unshift(removed);
       view.state.entries[dateKey][type] = list;
       saveState();
@@ -7325,7 +7684,9 @@ async function importJson(file){
   const parsed = JSON.parse(text);
   const incoming = parsed.state || parsed;
   if(!isValidImportedState(incoming)) throw new Error("Invalid JSON.");
+  const personalSettings = readAppearanceProfile(appearanceProfileId()) || snapshotAppearanceSettings(view.state);
   view.state = migrateIfNeeded(incoming);
+  applyAppearanceSettingsSnapshot(view.state, personalSettings);
   saveState();
   if(teamSync.connected && teamSync.supabase){
     if(teamSyncSaveTimer){
@@ -7720,6 +8081,14 @@ function hookUI(){
   if(ui.libraryCustomBtn) ui.libraryCustomBtn.addEventListener("click", () => setLibraryKind("custom"));
   if(ui.dayAddAopBtn) ui.dayAddAopBtn.addEventListener("click", () => { dayAddKind = "aop"; renderDayAddPanel(); });
   if(ui.dayAddCustomBtn) ui.dayAddCustomBtn.addEventListener("click", () => { dayAddKind = "custom"; renderDayAddPanel(); });
+  if(ui.dayAddSelect) ui.dayAddSelect.addEventListener("change", () => {
+    const id = ui.dayAddSelect.value || "";
+    view.calendarAopId = id && view.state.aops[id] && isAopInArea(id) ? id : null;
+    if(view.calendarAopId) view.state.activeAopId = view.calendarAopId;
+    saveStateLocal();
+    renderDayAddPanel();
+    syncSelectedInfo();
+  });
   if(ui.dayAddSelect) ui.dayAddSelect.addEventListener("keydown", (event) => {
     if(event.key !== "Enter") return;
     event.preventDefault();
@@ -7906,18 +8275,39 @@ function hookUI(){
     ui.dashFilterHighDeltaBtn.addEventListener("click", () => setDashboardFilterToggle("highDeltaOnly"));
   }
 
-  const onAopSelectionChange = (nextId) => {
-    const id = nextId || "";
+  ui.aopSelect?.addEventListener("change", () => {
+    const id = ui.aopSelect.value || "";
     if(id) setActiveAop(id);
-    else {
-      clearActiveAop();
-    }
-  };
-  ui.aopSelect?.addEventListener("change", () => onAopSelectionChange(ui.aopSelect.value));
+    else clearActiveAop();
+  });
   if(ui.aopNotationSelect){
-    ui.aopNotationSelect.addEventListener("change", () => onAopSelectionChange(ui.aopNotationSelect.value));
+    ui.aopNotationSelect.addEventListener("change", () => {
+      const nextId = ui.aopNotationSelect.value || "";
+      const previousId = view.notationAopId;
+      if(aopNotationSaveTimer){
+        clearTimeout(aopNotationSaveTimer);
+        aopNotationSaveTimer = null;
+      }
+      if(previousId && view.state.aops[previousId] && ui.aopNotation){
+        persistAopNotation(previousId, selectedNotationMonthKey(), ui.aopNotation.value || "");
+      }
+      view.notationAopId = nextId && view.state.aops[nextId] && isAopInArea(nextId) ? nextId : null;
+      ui.aopNotationSelect.value = view.notationAopId || "";
+      if(ui.aopNotationOwner){
+        ui.aopNotationOwner.textContent = view.notationAopId
+          ? `Selected: ${aopDisplayLabel(view.notationAopId)}`
+          : "No AOP selected.";
+      }
+      loadAopNotationUI();
+    });
   }
-  ui.aopSelectGoals.addEventListener("change", () => onAopSelectionChange(ui.aopSelectGoals.value));
+  ui.aopSelectGoals.addEventListener("change", () => {
+    saveMonthlyTemplate();
+    const nextId = ui.aopSelectGoals.value || "";
+    view.goalsAopId = nextId && view.state.aops[nextId] && isAopInArea(nextId) ? nextId : null;
+    ui.aopSelectGoals.value = view.goalsAopId || "";
+    loadMonthlyTemplate();
+  });
 
   ui.tmplGoal.addEventListener("blur", saveMonthlyTemplate);
   ui.tmplComments.addEventListener("blur", saveMonthlyTemplate);
@@ -8216,6 +8606,7 @@ function init(){
     dayAddAopBtn: document.getElementById("dayAddAopBtn"),
     dayAddCustomBtn: document.getElementById("dayAddCustomBtn"),
     dayAddSelect: document.getElementById("dayAddSelect"),
+    dayAddSelectionHint: document.getElementById("dayAddSelectionHint"),
     selectedDayTitle: document.getElementById("selectedDayTitle"),
     selectedDayCount: document.getElementById("selectedDayCount"),
     selectedDayItems: document.getElementById("selectedDayItems"),
@@ -8238,6 +8629,7 @@ function init(){
     aopNotation: document.getElementById("aopNotation"),
     aopNotationTemplateBtn: document.getElementById("aopNotationTemplateBtn"),
     aopNotationState: document.getElementById("aopNotationState"),
+    aopNotationOwner: document.getElementById("aopNotationOwner"),
     aopSelect: document.getElementById("aopSelect"),
     aopNotationSelect: document.getElementById("aopNotationSelect"),
     aopSelectGoals: document.getElementById("aopSelectGoals"),
@@ -8278,6 +8670,9 @@ function init(){
     allDayNotesList: document.getElementById("allDayNotesList"),
   };
 
+  if(!applyLocalAppearanceProfile("local")){
+    try{ persistLocalAppearanceProfile(); }catch{}
+  }
   buildSelectors();
   renderDows();
   applyTeamSyncConfigToInputs();
@@ -8308,11 +8703,15 @@ function init(){
     ];
     for(const s of seeds){
       const id = uuid();
+      const t = nowIso();
       view.state.aops[id] = {
         id,
         name: s.name,
         color: s.color,
-        area: DEFAULT_AREA_VIEW
+        area: DEFAULT_AREA_VIEW,
+        kind: "aop",
+        created_at: t,
+        updated_at: t
       };
       view.state.aopOrder.push(id);
       view.state.aopMonthly[id] = view.state.aopMonthly[id] || {};
