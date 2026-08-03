@@ -1977,6 +1977,14 @@
       width:100%;
       min-height: 220px;
     }
+    .day-note-scope-overview{
+      margin-top:10px;
+      padding-top:10px;
+      border-top:1px solid var(--line);
+    }
+    .day-note-scope-overview .kv{
+      grid-template-columns:110px minmax(0,1fr);
+    }
     .filters{
       display:flex;
       gap:8px;
@@ -2804,9 +2812,10 @@
       <div class="small" id="dayNoteInfo">Day note key: -</div>
 
       <div style="margin-top:10px;">
-        <label>Day Notes (selected day)</label>
+        <label id="dayNoteScopeLabel">Day Notes (selected day)</label>
         <textarea id="dayNoteText" placeholder="Notes for this specific day..."></textarea>
         <div class="small" id="dayNoteAudit" style="margin-top:6px;">-</div>
+        <div id="dayNoteScopeNotes" class="day-note-scope-overview" hidden></div>
       </div>
 
       <div class="actual-linkbox">
@@ -2837,7 +2846,7 @@
     <div class="card-header">
       <div class="title">
         <strong>All Day Notes</strong>
-        <span>Read and search notes separately from the day editor.</span>
+        <span id="allDayNotesScopeLabel">Read and search notes separately from the day editor.</span>
       </div>
     </div>
     <div class="section-pad">
@@ -5830,24 +5839,73 @@ function dayNoteForArea(dayNote, areaId){
     };
   }
   if(areaNotes[scope]) return areaNotes[scope];
-  if(Object.keys(areaNotes).length === 0){
-    return {
-      text: String(note.text || note.actual_text || ""),
+  return { text:"", created_at:"", updated_at:"" };
+}
+function dayNoteScopeRows(dayNote, areaId){
+  const note = dayNote || {};
+  const scope = normalizeAreaViewId(areaId || currentAreaViewId());
+  const areaNotes = normalizeAreaNotes(note.area_notes);
+  if(scope !== MASTER_VIEW_ID){
+    const selected = areaNotes[scope];
+    return selected?.text?.trim() ? [{
+      areaId: scope,
+      label: areaLabel(scope),
+      text: selected.text.trim(),
+      created_at: selected.created_at || "",
+      updated_at: selected.updated_at || ""
+    }] : [];
+  }
+
+  const rows = [];
+  const masterText = String(note.text || "").trim();
+  const actualText = String(note.actual_text || "").trim();
+  const plannedText = String(note.planned_text || "").trim();
+  const primaryText = masterText || actualText;
+  if(primaryText){
+    rows.push({
+      areaId: MASTER_VIEW_ID,
+      label: "Master",
+      text: primaryText,
       created_at: note.created_at || "",
       updated_at: note.updated_at || ""
-    };
+    });
   }
-  return { text:"", created_at:"", updated_at:"" };
+  if(actualText && actualText !== primaryText){
+    rows.push({
+      areaId: "legacy_actual",
+      label: "Legacy Actual",
+      text: actualText,
+      created_at: note.created_at || "",
+      updated_at: note.updated_at || ""
+    });
+  }
+  if(plannedText && plannedText !== primaryText && plannedText !== actualText){
+    rows.push({
+      areaId: "legacy_planned",
+      label: "Legacy Planned",
+      text: plannedText,
+      created_at: note.created_at || "",
+      updated_at: note.updated_at || ""
+    });
+  }
+  for(const area of AREA_VIEWS){
+    const selected = areaNotes[area.id];
+    if(!selected?.text?.trim()) continue;
+    rows.push({
+      areaId: area.id,
+      label: area.label,
+      text: selected.text.trim(),
+      created_at: selected.created_at || "",
+      updated_at: selected.updated_at || ""
+    });
+  }
+  return rows;
 }
 function hasDayNote(dateKey, areaId){
   const dn = view.state.dayNotes[dateKey];
   if(!dn) return false;
   const scope = normalizeAreaViewId(areaId || currentAreaViewId());
-  if(scope === MASTER_VIEW_ID){
-    if(typeof dn.text === "string" && dn.text.trim()) return true;
-    return Object.values(normalizeAreaNotes(dn.area_notes)).some(note => note.text.trim());
-  }
-  return !!dayNoteForArea(dn, scope).text.trim();
+  return dayNoteScopeRows(dn, scope).length > 0;
 }
 
 /* --- Capacity (planned-only) --- */
@@ -6715,6 +6773,30 @@ function dayNoteEditStatus(){
   }
   return { canEdit:true, reason:"Ready" };
 }
+function renderDayNoteScopeNotes(dateKey){
+  const scope = currentAreaViewId();
+  const isMaster = scope === MASTER_VIEW_ID;
+  if(ui.dayNoteScopeLabel){
+    ui.dayNoteScopeLabel.textContent = isMaster
+      ? "Master note (all area notes shown below)"
+      : `${areaLabel(scope)} note`;
+  }
+  if(!ui.dayNoteScopeNotes) return;
+  ui.dayNoteScopeNotes.hidden = !isMaster;
+  if(!isMaster){
+    ui.dayNoteScopeNotes.innerHTML = "";
+    return;
+  }
+  const rows = dateKey ? dayNoteScopeRows(view.state.dayNotes?.[dateKey], MASTER_VIEW_ID) : [];
+  ui.dayNoteScopeNotes.innerHTML = rows.length
+    ? `<strong>All notes for ${escapeHtml(dateKey)}</strong>` + rows.map(row => `
+        <div class="kv">
+          <div>${escapeHtml(row.label)}</div>
+          <div>${escapeHtml(row.text)}</div>
+        </div>
+      `).join("")
+    : `<div class="small">No notes have been added for this day.</div>`;
+}
 function loadDayNoteUI(){
   const calType = view.selectedCalendar ? view.selectedCalendar.toUpperCase() : "PLANNED";
   ui.dayNoteInfo.textContent = `Day note key: ${dayNoteKeyLabel()} (${calType})`;
@@ -6730,6 +6812,7 @@ function loadDayNoteUI(){
   if(!enabled){
     ui.dayNoteText.value = "";
     ui.dayNoteAudit.textContent = "-";
+    renderDayNoteScopeNotes(null);
     setDayNoteSaveState(status.reason);
     setActualLinkState("Select a day");
     renderDayActualLinks();
@@ -6742,6 +6825,7 @@ function loadDayNoteUI(){
   ui.dayNoteText.value = selectedNote.text || "";
   ui.dayNoteAudit.textContent =
     `Day note created: ${fmtIsoShort(selectedNote.created_at)} | updated: ${fmtIsoShort(selectedNote.updated_at)}`;
+  renderDayNoteScopeNotes(dateKey);
   setDayNoteSaveState(status.reason);
   setActualLinkState(status.reason);
 
@@ -6754,24 +6838,25 @@ function renderAllDayNotes(){
   const q = (ui.allDayNotesSearch?.value || "").trim().toLowerCase();
   const filters = normalizedDayNoteFilters();
   const monthPrefix = `${currentMonthKey()}-`;
+  const scope = currentAreaViewId();
+  const isMaster = scope === MASTER_VIEW_ID;
+  if(ui.allDayNotesScopeLabel){
+    ui.allDayNotesScopeLabel.textContent = isMaster
+      ? "Showing notes from every area."
+      : `Showing ${areaLabel(scope)} notes only.`;
+  }
   const rows = Object.entries(view.state.dayNotes || {})
     .map(([dateKey, dn])=>{
-      const plannedText = (dn?.planned_text || "").trim();
-      const actualText = (dn?.actual_text || dn?.text || "").trim();
-      const areaNotes = Object.entries(normalizeAreaNotes(dn?.area_notes)).map(([areaId, note])=>({
-        areaId,
-        label: areaLabel(areaId),
-        text: note.text
-      })).filter(note => note.text);
-      if(!plannedText && !actualText && areaNotes.length === 0) return null;
+      const scopedNotes = dayNoteScopeRows(dn, scope);
+      if(scopedNotes.length === 0) return null;
+      const createdTimes = scopedNotes.map(note => note.created_at).filter(Boolean).sort();
+      const updatedTimes = scopedNotes.map(note => note.updated_at).filter(Boolean).sort();
       return {
         dateKey,
-        plannedText,
-        actualText,
-        areaNotes,
+        scopedNotes,
         inMonth: dateKey.startsWith(monthPrefix),
-        createdAt: dn?.created_at || "",
-        updatedAt: dn?.updated_at || ""
+        createdAt: createdTimes[0] || "",
+        updatedAt: updatedTimes[updatedTimes.length - 1] || ""
       };
     })
     .filter(Boolean)
@@ -6779,7 +6864,7 @@ function renderAllDayNotes(){
     .filter(r=>{
       if(filters.thisMonth && !r.inMonth) return false;
       if(!q) return true;
-      return (`${r.dateKey} ${r.plannedText} ${r.actualText} ${r.areaNotes.map(n=>`${n.label} ${n.text}`).join(" ")}`.toLowerCase().includes(q));
+      return (`${r.dateKey} ${r.scopedNotes.map(n=>`${n.label} ${n.text}`).join(" ")}`.toLowerCase().includes(q));
     });
 
   if(rows.length === 0){
@@ -6798,9 +6883,7 @@ function renderAllDayNotes(){
         </div>
         <button type="button" class="btn-ghost" data-open-note-day="${escapeHtml(r.dateKey)}" ${r.inMonth ? "" : "disabled"}>${r.inMonth ? "Open" : "Locked"}</button>
       </div>
-      ${r.plannedText ? `<div class="kv"><div>Planned</div><div>${escapeHtml(r.plannedText)}</div></div>` : ""}
-      ${r.actualText ? `<div class="kv"><div>Actual</div><div>${escapeHtml(r.actualText)}</div></div>` : ""}
-      ${r.areaNotes.map(n=>`<div class="kv"><div>${escapeHtml(n.label)}</div><div>${escapeHtml(n.text)}</div></div>`).join("")}
+      ${r.scopedNotes.map(n=>`<div class="kv"><div>${escapeHtml(n.label)}</div><div>${escapeHtml(n.text)}</div></div>`).join("")}
     </div>
   `).join("");
 
@@ -6873,6 +6956,7 @@ function saveDayNote(options){
   setDayNoteSaveState(`Saved ${timeShort()}`);
   ui.dayNoteAudit.textContent =
     `Day note created: ${fmtIsoShort(scope === MASTER_VIEW_ID ? dn.created_at : (selectedNote.created_at || t))} | updated: ${fmtIsoShort(t)}`;
+  renderDayNoteScopeNotes(dateKey);
   renderCalendar(ui.daysPlanned, "planned");
   renderCalendar(ui.daysActual, "actual");
   renderAllDayNotes();
@@ -6905,7 +6989,7 @@ function renderCalendar(container, type){
     const hasVisibleMarks = visibleAopIds.length > 0;
     const filteredOut = inMonth && cfg.markedOnly && !hasVisibleMarks;
 
-    const dayNoteText = (view.state.dayNotes?.[dateKey]?.text || "").trim();
+    const dayHasNote = hasDayNote(dateKey);
     const isPastDay = dateKey < ymd(new Date());
     const needsDayNote = type === "actual" && inMonth && isPastDay && !isWeekend(d) && !hasDayNote(dateKey);
     const cell = document.createElement("div");
@@ -6928,7 +7012,7 @@ function renderCalendar(container, type){
       const dot = document.createElement("div");
       dot.className = "note-dot";
       cell.appendChild(dot);
-      if(inMonth && dayNoteText) cell.classList.add("hasnote");
+      if(inMonth && dayHasNote) cell.classList.add("hasnote");
     }
 
     if(inMonth && hasVisibleMarks && !lockedByRules && !view.diffMode){
@@ -7148,7 +7232,11 @@ function renderEntries(){
 
   const mk = selectedDateKey.slice(0,7);
   const dn = ensureDayNote(selectedDateKey);
-  const dayNoteText = (dn.text || "").trim();
+  const dayNoteRows = dayNoteScopeRows(dn, currentAreaViewId());
+  const noteCreatedTimes = dayNoteRows.map(note => note.created_at).filter(Boolean).sort();
+  const noteUpdatedTimes = dayNoteRows.map(note => note.updated_at).filter(Boolean).sort();
+  const noteCreatedAt = noteCreatedTimes[0] || "";
+  const noteUpdatedAt = noteUpdatedTimes[noteUpdatedTimes.length - 1] || "";
 
   // Day note summary card (always first)
   const dnCard = document.createElement("div");
@@ -7158,13 +7246,13 @@ function renderEntries(){
     <div class="item-head">
       <div>
         <strong>Day Note</strong>
-        <div class="meta">Created: ${escapeHtml(fmtIsoShort(dn.created_at))} | Updated: ${escapeHtml(fmtIsoShort(dn.updated_at))}</div>
+        <div class="meta">Created: ${escapeHtml(fmtIsoShort(noteCreatedAt))} | Updated: ${escapeHtml(fmtIsoShort(noteUpdatedAt))}</div>
       </div>
-      <span class="badge">${dayNoteText ? "Has note" : "No note"}</span>
+      <span class="badge">${dayNoteRows.length ? `${dayNoteRows.length} note${dayNoteRows.length === 1 ? "" : "s"}` : "No note"}</span>
     </div>
-    <div class="kv">
-      <div>Note</div><div>${escapeHtml(dayNoteText || "-")}</div>
-    </div>
+    ${dayNoteRows.length
+      ? dayNoteRows.map(note => `<div class="kv"><div>${escapeHtml(note.label)}</div><div>${escapeHtml(note.text)}</div></div>`).join("")
+      : `<div class="kv"><div>Note</div><div>-</div></div>`}
   `;
   ui.entries.appendChild(dnCard);
 
@@ -8651,8 +8739,10 @@ function init(){
 
     // day notes
     dayNoteInfo: document.getElementById("dayNoteInfo"),
+    dayNoteScopeLabel: document.getElementById("dayNoteScopeLabel"),
     dayNoteText: document.getElementById("dayNoteText"),
     dayNoteAudit: document.getElementById("dayNoteAudit"),
+    dayNoteScopeNotes: document.getElementById("dayNoteScopeNotes"),
     dayActualCount: document.getElementById("dayActualCount"),
     dayActualAopSelect: document.getElementById("dayActualAopSelect"),
     addActualSelectedBtn: document.getElementById("addActualSelectedBtn"),
@@ -8664,6 +8754,7 @@ function init(){
     nextDayNoteBtn: document.getElementById("nextDayNoteBtn"),
     dayNoteSaveState: document.getElementById("dayNoteSaveState"),
     allDayNotesSearch: document.getElementById("allDayNotesSearch"),
+    allDayNotesScopeLabel: document.getElementById("allDayNotesScopeLabel"),
     clearAllDayNotesSearch: document.getElementById("clearAllDayNotesSearch"),
     filterThisMonthBtn: document.getElementById("filterThisMonthBtn"),
     allDayNotesCount: document.getElementById("allDayNotesCount"),
