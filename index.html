@@ -5513,8 +5513,8 @@ async function connectTeamSync(opts){
     });
 
     let session = null;
-    const email = String(ui.syncEmail?.value || "").trim();
-    const password = String(ui.syncPassword?.value || "");
+    const email = manual ? String(ui.syncEmail?.value || "").trim() : "";
+    const password = manual ? String(ui.syncPassword?.value || "") : "";
     if((email && !password) || (!email && password)){
       markSyncFieldErrors([ui.syncEmail, ui.syncPassword]);
       setSyncModalStatus("Enter both email and password", true);
@@ -8694,7 +8694,12 @@ function init(){
   view.selectedCalendar = view.selectedCalendar || "planned";
 
   // Seed AOPs if empty (optional starter set)
-  if((view.state.aopOrder||[]).length === 0){
+  const hasConfiguredTeamWorkspace = !!(
+    teamSync.config?.url &&
+    teamSync.config?.anonKey &&
+    teamSync.config?.workspaceId
+  );
+  if((view.state.aopOrder||[]).length === 0 && !hasConfiguredTeamWorkspace){
     const seeds = [
       { name: "Refund Status / Warranty handling", color: "#60a5fa" },
       { name: "Return an order / Existing Case Status", color: "#86efac" },
