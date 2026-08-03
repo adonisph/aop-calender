@@ -3296,7 +3296,7 @@ function libraryItemKind(item){
 function aopDisplayLabel(aopId){
   const item = view.state?.aops?.[aopId];
   if(!item) return "Missing AOP";
-  return `${areaLabel(aopAreaId(item))} - ${item.name || "Unnamed AOP"}`;
+  return `${item.name || "Unnamed AOP"} - ${areaLabel(aopAreaId(item))}`;
 }
 function currentLibraryKind(){
   return view.state?.settings?.libraryKind === "custom" ? "custom" : "aop";
