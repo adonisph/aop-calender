@@ -2848,6 +2848,7 @@
         <strong>All Day Notes</strong>
         <span id="allDayNotesScopeLabel">Read and search notes separately from the day editor.</span>
       </div>
+      <button id="openAchievedFromNotesBtn" class="btn-primary" type="button">Open Achieved</button>
     </div>
     <div class="section-pad">
       <div class="inline-controls">
@@ -4403,6 +4404,19 @@ function setAopPane(pane){
   view.state.settings.aopPane = safePane;
   saveStateLocal();
   renderAopPane();
+}
+
+function openAchievedFromNotes(){
+  if(dayNotesDrawerOpen && ui.dayNoteText && !ui.dayNoteText.disabled){
+    saveDayNote({ fromAutosave:true });
+  }
+  setDayNotesDrawer(false, false);
+  showTestAreaView("toggleAopNotes");
+  setAopPane("notation");
+  if(ui.aopNotesCard){
+    ui.aopNotesCard.scrollIntoView({ behavior:"smooth", block:"start", inline:"nearest" });
+  }
+  setTimeout(() => ui.aopNotationSelect?.focus({ preventScroll:true }), 80);
 }
 
 function renderAopPane(){
@@ -7881,6 +7895,7 @@ function buildCommandPaletteCommands(){
     { id:"open-dashboard", label:"Open Dashboard", hint:"Workspace view", run: () => showTestAreaView("toggleDashboard") },
     { id:"open-calendars", label:"Open Calender", hint:"Workspace view", run: () => showTestAreaView("toggleCalendars") },
     { id:"open-notes-list", label:"Open Notes", hint:"Workspace view", run: () => showTestAreaView("notesCard") },
+    { id:"open-achieved", label:"Open Achieved", hint:"AOP outcomes", run: openAchievedFromNotes },
     { id:"open-aop", label:"Open AOP Library", hint:"Workspace view", run: () => showTestAreaView("toggleAopNotes") },
     { id:"open-tools", label:"Open Display/Data", hint:"Workspace view", run: () => showTestAreaView("toggleTools") },
     { id:"open-workspace", label:"Open Shortcuts & Guide", hint:"Help and shortcuts", run: () => showTestAreaView("workspaceCard") },
@@ -8419,6 +8434,7 @@ function hookUI(){
   ui.dayNoteText.addEventListener("input", scheduleDayNoteAutosave);
   ui.dayNoteText.addEventListener("blur", () => saveDayNote({ fromAutosave:true }));
   ui.allDayNotesSearch.addEventListener("input", renderAllDayNotes);
+  ui.openAchievedFromNotesBtn.addEventListener("click", openAchievedFromNotes);
   ui.clearAllDayNotesSearch.addEventListener("click", () => {
     ui.allDayNotesSearch.value = "";
     renderAllDayNotes();
@@ -8755,6 +8771,7 @@ function init(){
     dayNoteSaveState: document.getElementById("dayNoteSaveState"),
     allDayNotesSearch: document.getElementById("allDayNotesSearch"),
     allDayNotesScopeLabel: document.getElementById("allDayNotesScopeLabel"),
+    openAchievedFromNotesBtn: document.getElementById("openAchievedFromNotesBtn"),
     clearAllDayNotesSearch: document.getElementById("clearAllDayNotesSearch"),
     filterThisMonthBtn: document.getElementById("filterThisMonthBtn"),
     allDayNotesCount: document.getElementById("allDayNotesCount"),
