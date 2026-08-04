@@ -2606,11 +2606,11 @@
       </div>
       <div id="masterNotationPanel" class="master-notation-panel" hidden>
         <div class="master-notation-head">
-          <strong>Master Notation (Sprint Outcomes)</strong>
+          <strong>Sprint Outcomes</strong>
           <div class="master-notation-tools">
             <span id="masterNotationMeta" class="small">-</span>
             <label for="masterNotationSort" class="small" style="margin:0;">Sort</label>
-            <select id="masterNotationSort" aria-label="Sort master notation">
+            <select id="masterNotationSort" aria-label="Sort sprint outcomes">
               <option value="achievements_desc">Most achieved</option>
               <option value="updated_desc">Latest updated</option>
               <option value="area_asc">Area</option>
@@ -6192,15 +6192,17 @@ function dashboardAttentionScore(row){
   return score;
 }
 function openAopNotationFromDashboard(aopId){
-  if(!aopId || !view.state?.aops?.[aopId]) return;
+  if(!aopId || !view.state?.aops?.[aopId] || !isAopInArea(aopId)) return;
   view.notationAopId = aopId;
   if(view.state.activeAopId !== aopId){
     setActiveAop(aopId);
   }
+  showTestAreaView("toggleAopNotes");
   setAopPane("notation");
   if(ui.aopNotesCard){
     ui.aopNotesCard.scrollIntoView({ behavior:"smooth", block:"start", inline:"nearest" });
   }
+  setTimeout(() => ui.aopNotation?.focus({ preventScroll:true }), 80);
 }
 function dashboardRowMatchesFilters(row){
   const q = dashboardUi.query.trim().toLowerCase();
@@ -6257,12 +6259,12 @@ function setMasterNotationSort(nextSort, persist){
 }
 function renderMasterNotationPanel(){
   if(!ui.masterNotationPanel || !ui.masterNotationList || !ui.masterNotationMeta) return;
-  const isTeamlead = syncRoleLabel(teamSync?.role) === "teamlead";
-  ui.masterNotationPanel.hidden = !isTeamlead;
-  if(!isTeamlead) return;
+  const scopeArea = currentAreaViewId();
+  const canViewOutcomes = scopeArea !== MASTER_VIEW_ID || canAccessMasterView();
+  ui.masterNotationPanel.hidden = !canViewOutcomes;
+  if(!canViewOutcomes) return;
 
   const mk = currentMonthKey();
-  const scopeArea = currentAreaViewId();
   const scopeLabel = areaLabel(scopeArea);
   const sort = currentMasterNotationSort();
   if(ui.masterNotationSort && ui.masterNotationSort.value !== sort){
@@ -6393,15 +6395,12 @@ function scrollToMasterNotationCard(aopId){
   setTimeout(() => card.classList.remove("jump-highlight"), 1300);
   return true;
 }
-function jumpToMasterNotationForAop(aopId){
+function jumpToSprintOutcomeForAop(aopId){
   const mk = currentMonthKey();
   if(!hasMasterNotationForAopMonth(aopId, mk)) return false;
-  if(currentAreaViewId() !== MASTER_VIEW_ID){
-    if(!canAccessMasterView()) return false;
-    setAreaView(MASTER_VIEW_ID, true);
-  }else{
-    renderMasterNotationPanel();
-  }
+  if(currentAreaViewId() === MASTER_VIEW_ID && !canAccessMasterView()) return false;
+  if(!isAopInArea(aopId)) return false;
+  renderMasterNotationPanel();
   requestAnimationFrame(() => {
     if(scrollToMasterNotationCard(aopId)) return;
     renderMasterNotationPanel();
@@ -7531,7 +7530,7 @@ function calcMonthStats(){
 }
 function renderDashboard(){
   const st = calcMonthStats();
-  const canJumpMasterNotation = canAccessMasterView();
+  const canOpenSprintOutcomes = currentAreaViewId() !== MASTER_VIEW_ID || canAccessMasterView();
   const dashboardSort = currentDashboardSort();
   if(ui.dashboardSortSelect && ui.dashboardSortSelect.value !== dashboardSort){
     ui.dashboardSortSelect.value = dashboardSort;
@@ -7591,7 +7590,7 @@ function renderDashboard(){
       achievementCount: parsedNotation.achievements.length,
       goals: parsedNotation.goals,
       achievements: parsedNotation.achievements,
-      canJumpNotation: hasNotation && canJumpMasterNotation
+      canJumpNotation: hasNotation && canOpenSprintOutcomes
     };
     row.attentionScore = dashboardAttentionScore(row);
     return row;
@@ -7678,7 +7677,7 @@ function renderDashboard(){
           <div class="aopname">
             <span class="sw" style="background:${escapeHtml(r.color)}"></span>
             ${r.canJumpNotation
-              ? `<button type="button" class="dash-aop-link" data-jump-master-aop="${escapeHtml(r.id)}" title="Open Master Notation">${escapeHtml(r.name)}</button>`
+              ? `<button type="button" class="dash-aop-link" data-jump-sprint-outcome="${escapeHtml(r.id)}" title="Open Sprint Outcome">${escapeHtml(r.name)}</button>`
               : `<span title="${escapeHtml(r.name)}" style="font-weight:700; color:var(--text);">${escapeHtml(r.name)}</span>`}
             
           </div>
@@ -7699,11 +7698,11 @@ function renderDashboard(){
       setDashboardAreaCollapsed(areaName, !isDashboardAreaCollapsed(areaName));
     });
   });
-  ui.dashTbody.querySelectorAll("button[data-jump-master-aop]").forEach(btn => {
+  ui.dashTbody.querySelectorAll("button[data-jump-sprint-outcome]").forEach(btn => {
     btn.addEventListener("click", () => {
-      const id = btn.getAttribute("data-jump-master-aop");
+      const id = btn.getAttribute("data-jump-sprint-outcome");
       if(!id) return;
-      jumpToMasterNotationForAop(id);
+      jumpToSprintOutcomeForAop(id);
     });
   });
   ui.dashTbody.querySelectorAll("[data-dash-row-deflect]").forEach(wrap => {
