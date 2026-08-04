@@ -2288,6 +2288,7 @@
   <button type="button" data-side-target="toggleCalendars">Calender</button>
   <button type="button" data-side-target="toggleAopNotes">AOP Library</button>
   <button type="button" data-side-target="notesCard">Notes</button>
+  <button type="button" data-side-target="achieved">Achieved</button>
   <button type="button" data-side-target="workspaceCard">Shortcuts &amp; Guide</button>
   <button type="button" data-side-target="toggleTools">Display / Data</button>
 </nav>
@@ -2848,12 +2849,12 @@
         <strong>All Day Notes</strong>
         <span id="allDayNotesScopeLabel">Read and search notes separately from the day editor.</span>
       </div>
-      <button id="openAchievedFromNotesBtn" class="btn-primary" type="button">Open Achieved</button>
     </div>
     <div class="section-pad">
       <div class="inline-controls">
         <input id="allDayNotesSearch" placeholder="Search by date or text..." />
         <button id="clearAllDayNotesSearch" class="btn-ghost" type="button">Clear</button>
+        <button id="openAchievedFromNotesBtn" class="btn-primary" type="button">Achieved</button>
         <span id="allDayNotesCount" class="status-pill">0 notes</span>
       </div>
       <div class="filters" style="margin-top:8px;">
@@ -3029,6 +3030,10 @@ function showTestAreaView(target){
 document.addEventListener("click", (event) => {
   const navButton = event.target.closest("[data-side-target]");
   if(!navButton) return;
+  if(navButton.dataset.sideTarget === "achieved"){
+    openAchievedFromNotes();
+    return;
+  }
   showTestAreaView(navButton.dataset.sideTarget);
 });
 let dayNoteAutosaveTimer = null;
