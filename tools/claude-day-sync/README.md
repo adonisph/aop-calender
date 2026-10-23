@@ -8,6 +8,9 @@ with what you worked on that day:
 - **A "Claude day log" in your day note**: which AOPs you worked on and where
   that work is now (on main, live in Decagon, on a branch, or not pushed yet),
   plus tools, tests and the Claude sessions you used.
+- **Sprint outcomes**: once a change reaches main or goes live in Decagon, a
+  `✅ <change> (<date>)` line is added under "Achieved during Sprint" in that
+  AOP's notation for the month. These lines show up in the Achieved view.
 
 It reads two things on your own laptop:
 
@@ -16,8 +19,9 @@ It reads two things on your own laptop:
   pushed.
 - **Your Claude Code sessions** from that day.
 
-It only adds. Your own notes, ticks and other people's areas are never changed;
-it checks this before every save and stops if anything else would change.
+It only adds. Your own notes, ticks and outcomes, and other people's areas, are
+never changed. It checks this before every save and stops if anything else
+would change.
 
 Setup takes about 10 minutes, once.
 
@@ -109,6 +113,21 @@ python "$HOME\aop-calendar-sync\claude_day_sync.py" run
 Reload the calendar and open your area. Today should show the new ticks and the
 "Claude day log" at the bottom of your day note.
 
+### Optional – fill in your past days
+
+To add your earlier work too, run a backfill from the date you want to start
+from. Try it first with `--dry-run`, which prints one line per day and saves
+nothing:
+
+```powershell
+python "$HOME\aop-calendar-sync\claude_day_sync.py" backfill --from 2026-08-01 --dry-run
+python "$HOME\aop-calendar-sync\claude_day_sync.py" backfill --from 2026-08-01
+```
+
+Everything is saved in a single write. Your commits go back as far as git
+history does. Claude sessions only go back as far as Claude Code has kept them
+on your laptop, usually a few weeks.
+
 ## Step 6 – Run it automatically every workday
 
 This creates a Windows task that runs it Monday–Friday at 16:30 with no window.
@@ -149,8 +168,24 @@ Unregister-ScheduledTask -TaskName "AI Calender day sync" -Confirm:$false
 - One per AOP per day, only for AOPs in **your** area.
 - Only for AOPs you committed or edited. Just opening an AOP goes in the note,
   not the calendar.
+- Weekdays only, the same as the calendar allows. Weekend work goes in the
+  note.
 - No tick if you already ticked that AOP yourself that day.
 - Delete a tick and it stays deleted.
+- A commit that changes more than 5 AOPs at once, such as a typo pass or a
+  voice-test cleanup, counts as one "bulk change" line in the note. It gives no
+  ticks or outcomes.
+
+**Sprint outcomes**, in each AOP's monthly notation under "Achieved during
+Sprint":
+
+- Only for AOPs in your area.
+- Only for changes that are on main or live in Decagon. A branch counts once it
+  is merged, if that happens within two weeks.
+- At most 3 lines per AOP per day, plus a "+N more changes" line.
+- The goal, comments, blockers and any outcomes you wrote yourself are kept as
+  they are.
+- Remove a line and it stays removed.
 
 **The day log** sits at the bottom of your day note, between two marker lines.
 For example:
@@ -190,6 +225,11 @@ Claude sessions: "Insurance V4 for chat"
   - `token.json`: your sign-in. Keep it private.
   - `sync.log`: what each run did.
   - `last_run.json`: where catch-up starts from.
+  - `achieved.json`: outcome lines already added once, so a line you removed
+    isn't added again.
+- **What it leaves alone:** the planned calendar, monthly goals, comments,
+  "required", deflection and conversation numbers, and custom statuses. Those
+  stay yours to fill in.
 
 ## If something goes wrong
 

@@ -1,21 +1,24 @@
 #!/usr/bin/env python3
 """Daily AI Calender sync: adds one person's AOP work to their own area.
 
-Sources, for one local calendar day:
+Sources, per local calendar day:
   - their commits in the power repo, on every branch (main, pushed branches,
     local branches not pushed yet) - Decagon dashboard commits included
   - their Claude Code sessions (~/.claude/projects): which AOP files they
     edited or opened, and the titles of sessions that touched the power repo
 
 What it writes, and nothing else:
-  - an "actual" tick per AOP of their own area they worked on that day
-    (fixed id, never re-added once someone deletes it)
+  - an "actual" tick per AOP of their own area they committed or edited that
+    weekday (fixed id, never re-added once someone deletes it)
   - a "Claude day log" block in their own area's day note; any text the
     person wrote stays as it is, only the block between the markers is
     replaced on a re-run
+  - a "✅ <change> (<date>)" line under "Achieved during Sprint:" in the
+    month's notation of each AOP of their own area, once a change of theirs
+    is on main or live in Decagon (never re-added once someone removes it)
 
 Every write is a compare-and-swap on the shared workspace row, and is refused
-unless the new state equals the old one apart from those two additions.
+unless the new state equals the old one apart from those additions.
 
 Standard library only. Run `python claude_day_sync.py --help`.
 """
@@ -38,6 +41,8 @@ HOME_DIR = Path(os.environ.get("AOP_SYNC_HOME") or Path.home() / ".aop-calendar-
 CONFIG_FILE = HOME_DIR / "config.json"
 TOKEN_FILE = HOME_DIR / "token.json"
 LAST_RUN_FILE = HOME_DIR / "last_run.json"
+# Sprint-outcome lines already added once; a line someone removed stays removed.
+ACHIEVED_LEDGER_FILE = HOME_DIR / "achieved.json"
 
 TABLE = "planner_workspaces"
 # Mirrors AREA_VIEWS in index.html. The app maps any unknown area to "pool"
@@ -54,9 +59,14 @@ AREAS = {
 BLOCK_START = "── Claude day log (auto) ──"
 BLOCK_END = "── end of Claude day log ──"
 ENTRY_SOURCE = "claude-sync"
+ACHIEVED_HEADER = "Achieved during Sprint:"
 MAX_CATCHUP_DAYS = 7
+ACHIEVED_LOOKBACK_DAYS = 14  # a branch merged within two weeks still becomes a sprint outcome
 MAX_SUBJECTS_PER_AOP = 3
+MAX_ACHIEVED_PER_AOP_DAY = 3
 MAX_SESSION_TITLES = 8
+BULK_AOP_LIMIT = 5  # a commit touching more AOPs than this is a sweep (typo pass, voice-test pruning), not AOP work
+LANDED =("on main", "live in Decagon (production)")
 
 OTHER_KINDS = {
     "tools": "tool",
@@ -71,10 +81,15 @@ OTHER_KINDS = {
     "tests": "test",
 }
 EDIT_TOOLS = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
-DASHBOARD_EDITOR_RE = re.compile(r"(?:\(|: )([A-ZÅÄÖÆØ][a-zåäöæø]+), (?:PR #\d+|\d{1,2} [A-Z][a-z]{2} \d{1,2}:\d{2})")
+# The editor a [Dashboard] commit names: "(Martins, PR #231, ...)", ": Saana, 22 Oct 12:10, 545eee2",
+# "(Erik Bredenwall, 13:49, 03a2858)". Group 1 is the first name.
+DASHBOARD_EDITOR_RE = re.compile(
+    r"(?:\(|: )([A-ZÅÄÖÆØ][a-zåäöæø]+)(?: [A-ZÅÄÖÆØ][a-zåäöæø]+)?, (?:PR #\d+|(?:\d{1,2} [A-Z][a-z]{2} )?\d{1,2}:\d{2})")
 # Matches aops/X.py and aops/generated/X.json inside JSON-dumped tool input,
 # where a Windows separator shows up as one or more backslashes.
 AOP_PATH_RE = re.compile(r"aops[\\/]+(?:generated[\\/]+)?([^\"\\/\n]+?)\.(?:json|py)\b")
+ACHIEVED_LINE_RE = re.compile(r"^✅ .+ \(\d{1,2} [A-Z][a-z]{2}\)$|^✅ \+\d+ more changes \(\d{1,2} [A-Z][a-z]{2}\)$")
+NOTATION_SECTION_RE = re.compile(r"^(goal|achieved\s*during\s*sprint|existing\s*blockers?)\b", re.I)
 
 
 # ---------------------------------------------------------------- utilities
@@ -86,6 +101,15 @@ def now_iso():
 def local_day_bounds(day):
     start = dt.datetime.combine(day, dt.time()).astimezone()
     return start, start + dt.timedelta(days=1)
+
+
+def day_range(first, last):
+    return [first + dt.timedelta(days=i) for i in range((last - first).days + 1)]
+
+
+def short_date(day_iso):
+    d = dt.date.fromisoformat(day_iso)
+    return f"{d.day} {d.strftime('%b')}"
 
 
 def parse_ts(raw):
@@ -174,17 +198,19 @@ def commit_location(repo, sha, main_ref, live_ref):
     return "not on any branch"
 
 
-def collect_commits(cfg, day, fetch=True):
+def fetch_repo(cfg):
+    r = git(Path(cfg["power_repo"]).expanduser(), "fetch", "--all", "--prune", "--quiet", check=False)
+    return [] if r.returncode == 0 else [f"git fetch failed, used what was already fetched: {r.stderr.strip()[:200]}"]
+
+
+def collect_commits(cfg, first, last):
+    """The person's commits authored on local days first..last, on any branch."""
     repo = Path(cfg["power_repo"]).expanduser()
     main_ref = cfg.get("main_ref", "origin/main")
     live_ref = cfg.get("live_ref", "origin/production")
     my_name = (cfg.get("name") or "").strip().lower()
-    warnings = []
-    if fetch:
-        r = git(repo, "fetch", "--all", "--prune", "--quiet", check=False)
-        if r.returncode:
-            warnings.append(f"git fetch failed, used what was already fetched: {r.stderr.strip()[:200]}")
-    start, end = local_day_bounds(day)
+    start, _ = local_day_bounds(first)
+    _, end = local_day_bounds(last)
     args = ["log", "--all", "--exclude=refs/stash", "--no-merges", "-F", "--regexp-ignore-case",
             f"--since={start.isoformat()}", "--date=iso-strict", "--name-only",
             "--format=%x1e%H%x1f%ad%x1f%ae%x1f%s%x1f%(trailers:key=Co-Authored-By,valueonly,separator=;)"]
@@ -205,12 +231,13 @@ def collect_commits(cfg, day, fetch=True):
         if editor and my_name and editor.group(1).lower() != my_name:
             continue
         paths = [f.strip() for f in files.splitlines() if f.strip()]
-        key = (subject.strip(), tuple(sorted(paths)))
+        key = (authored.date(), subject.strip(), tuple(sorted(paths)))
         if key in seen:  # the same change rebased or cherry-picked onto another branch
             continue
         seen.add(key)
         commits.append({
             "sha": sha[:8],
+            "day": authored.date().isoformat(),
             "time": authored.strftime("%H:%M"),
             "subject": subject.strip(),
             "how": "dashboard" if subject.startswith("[Dashboard]") else
@@ -218,7 +245,7 @@ def collect_commits(cfg, day, fetch=True):
             "where": commit_location(repo, sha, main_ref, live_ref),
             "items": [c for c in (classify_path(p) for p in paths) if c],
         })
-    return commits, warnings
+    return commits
 
 
 # ------------------------------------------------------ Claude Code sessions
@@ -237,13 +264,15 @@ def known_aop_names(cfg, extra=()):
     return names
 
 
-def collect_sessions(cfg, day, valid_names):
+def collect_sessions(cfg, first, last, valid_names):
+    """{day_iso: {session_id: {title, power, aops{name: edited}}}} for local days first..last."""
     root = Path(cfg.get("claude_projects_dir") or Path.home() / ".claude" / "projects").expanduser()
     repo_key = str(Path(cfg["power_repo"]).expanduser()).lower().replace("\\", "/")
-    start, end = local_day_bounds(day)
-    sessions = {}
+    start, _ = local_day_bounds(first)
+    _, end = local_day_bounds(last)
+    by_day, titles = {}, {}
     if not root.is_dir():
-        return sessions
+        return by_day
     for path in root.rglob("*.jsonl"):
         try:
             if dt.datetime.fromtimestamp(path.stat().st_mtime).astimezone() < start:
@@ -252,12 +281,11 @@ def collect_sessions(cfg, day, valid_names):
             continue
         rel = path.relative_to(root).parts
         sid = path.stem if len(rel) == 2 else rel[1]  # subagent transcripts count for their parent session
-        s = sessions.setdefault(sid, {"title": "", "active": False, "power": False, "aops": {}})
         with path.open(encoding="utf-8", errors="replace") as fh:
             for line in fh:
                 if '"customTitle"' in line:
                     try:
-                        s["title"] = json.loads(line).get("customTitle") or s["title"]
+                        titles[sid] = json.loads(line).get("customTitle") or titles.get(sid, "")
                     except ValueError:
                         pass
                     continue
@@ -270,7 +298,7 @@ def collect_sessions(cfg, day, valid_names):
                 ts = parse_ts(obj.get("timestamp"))
                 if not ts or not (start <= ts < end):
                     continue
-                s["active"] = True
+                s = by_day.setdefault(ts.date().isoformat(), {}).setdefault(sid, {"power": False, "aops": {}})
                 if str(obj.get("cwd", "")).lower().replace("\\", "/").startswith(repo_key):
                     s["power"] = True
                 content = (obj.get("message") or {}).get("content")
@@ -288,15 +316,26 @@ def collect_sessions(cfg, day, valid_names):
                         continue
                     name = names.pop()
                     s["aops"][name] = s["aops"].get(name) or block.get("name") in EDIT_TOOLS
-    return {sid: s for sid, s in sessions.items() if s["active"]}
+    for sessions in by_day.values():
+        for sid, s in sessions.items():
+            s["title"] = titles.get(sid, "")
+    return by_day
 
 
-def collect(cfg, day, fetch=True):
-    commits, warnings = collect_commits(cfg, day, fetch=fetch)
-    committed = {name for c in commits for kind, name in c["items"] if kind == "aop"}
-    sessions = collect_sessions(cfg, day, known_aop_names(cfg, committed))
-    aops, other = {}, {}
+# --------------------------------------------------------------- collecting
+
+def is_bulk(commit):
+    return sum(1 for kind, _ in commit["items"] if kind == "aop") > BULK_AOP_LIMIT
+
+
+def build_activity(day_iso, commits, sessions):
+    aops, other, bulk = {}, {}, {}
     for c in commits:
+        if is_bulk(c):
+            b = bulk.setdefault(clean_subject(c["subject"]), {"subject": clean_subject(c["subject"]), "aops": 0, "where": set()})
+            b["aops"] = max(b["aops"], sum(1 for kind, _ in c["items"] if kind == "aop"))
+            b["where"].add(c["where"])
+            continue
         for kind, name in c["items"]:
             if kind == "aop":
                 a = aops.setdefault(name, {"name": name, "commits": [], "claude": None})
@@ -308,16 +347,61 @@ def collect(cfg, day, fetch=True):
             a = aops.setdefault(name, {"name": name, "commits": [], "claude": None})
             a["claude"] = "edited" if edited or a["claude"] == "edited" else "opened"
     return {
-        "date": day.isoformat(),
+        "date": day_iso,
         "aops": sorted(aops.values(), key=lambda a: (-len(a["commits"]), a["name"].lower())),
         "other": sorted(({"kind": k.split("|")[0], "name": k.split("|")[1], "commits": len(v)}
                          for k, v in other.items()), key=lambda o: (o["kind"], o["name"].lower())),
+        "bulk": [{**b, "where": sorted(b["where"])} for b in bulk.values()],
         "sessions": {
             "power_titles": [s["title"] or "untitled session" for s in sessions.values() if s["power"]],
             "other_count": sum(1 for s in sessions.values() if not s["power"]),
         },
-        "warnings": warnings,
     }
+
+
+def clean_subject(subject, limit=120):
+    s = re.sub(r"^\[Dashboard\]\s*", "", subject).strip()
+    s = re.sub(r"\s*\([A-ZÅÄÖÆØ][a-zåäöæø]+(?: [A-ZÅÄÖÆØ][a-zåäöæø]+)?, [^)]*\)\s*$", "", s)  # "(Adonis, 23 Oct 07:10, b475bf3)"
+    s = " ".join(s.split()).rstrip(" .")
+    if len(s) > limit:
+        s = s[:limit].rsplit(" ", 1)[0].rstrip(" ,.:;") + "…"
+    return s
+
+
+def build_achievements(commits):
+    """Sprint-outcome lines for AOP changes that are on main or live in Decagon."""
+    grouped = {}
+    for c in commits:
+        if c["where"] not in LANDED or is_bulk(c):
+            continue
+        for kind, name in c["items"]:
+            if kind == "aop":
+                grouped.setdefault((name, c["day"]), []).append(clean_subject(c["subject"]))
+    items = []
+    for (name, day), subjects in sorted(grouped.items()):
+        unique = list(dict.fromkeys(s for s in subjects if s))
+        for subject in unique[:MAX_ACHIEVED_PER_AOP_DAY]:
+            items.append({"aop": name, "month": day[:7], "day": day,
+                          "line": f"✅ {subject} ({short_date(day)})", "key": f"{day}|{norm_name(name)}|{norm_name(subject)}"})
+        if len(unique) > MAX_ACHIEVED_PER_AOP_DAY:
+            rest = len(unique) - MAX_ACHIEVED_PER_AOP_DAY
+            items.append({"aop": name, "month": day[:7], "day": day,
+                          "line": f"✅ +{rest} more changes ({short_date(day)})", "key": f"{day}|{norm_name(name)}|+more"})
+    return items
+
+
+def collect(cfg, first, last, fetch=True):
+    """Activity per day for first..last, plus sprint outcomes from the last two weeks."""
+    warnings = fetch_repo(cfg) if fetch else []
+    since = min(first, dt.date.today() - dt.timedelta(days=ACHIEVED_LOOKBACK_DAYS))
+    commits = collect_commits(cfg, since, last)
+    committed = {name for c in commits for kind, name in c["items"] if kind == "aop"}
+    sessions = collect_sessions(cfg, first, last, known_aop_names(cfg, committed))
+    days = []
+    for day in day_range(first, last):
+        d = day.isoformat()
+        days.append(build_activity(d, [c for c in commits if c["day"] == d], sessions.get(d, {})))
+    return {"days": days, "achievements": build_achievements(commits), "warnings": warnings}
 
 
 # ------------------------------------------------------------- calendar state
@@ -329,6 +413,11 @@ def match_aop(name, aops, aliases):
         return exact[0]
     loose = [i for i, a in aops.items() if base_name(a.get("name")) == base_name(target)]
     return loose[0] if len(loose) == 1 else None
+
+
+def calendar_aops(state):
+    return {i: a for i, a in (state.get("aops") or {}).items()
+            if isinstance(a, dict) and a.get("kind", "aop") == "aop"}
 
 
 def strip_block(text):
@@ -347,6 +436,10 @@ def replace_block(text, block):
 def is_real_work(a):
     """Committed, or edited in Claude. Only opening an AOP goes in the note, not the calendar."""
     return bool(a["commits"]) or a["claude"] == "edited"
+
+
+def is_weekend(day_iso):
+    return dt.date.fromisoformat(day_iso).weekday() >= 5
 
 
 def render_block(activity, matches, area, cfg):
@@ -371,9 +464,11 @@ def render_block(activity, matches, area, cfg):
                 bits.append(f"{AREAS.get(owner, owner)}'s area")
             lines.append(f"• {a['name']}: {'; '.join(bits)}")
             for c in a["commits"][:MAX_SUBJECTS_PER_AOP]:
-                lines.append(f"   – {c['subject'][:110]}")
+                lines.append(f"   – {clean_subject(c['subject'], 110)}")
             if len(a["commits"]) > MAX_SUBJECTS_PER_AOP:
                 lines.append(f"   – +{len(a['commits']) - MAX_SUBJECTS_PER_AOP} more")
+    for b in activity.get("bulk", []):
+        lines.append(f"Bulk change across {b['aops']} AOPs: {b['subject'][:110]} ({'; '.join(b['where'])})")
     if looked:
         rest = len(looked) - MAX_SESSION_TITLES
         lines.append("Looked at in Claude: " + ", ".join(looked[:MAX_SESSION_TITLES]) + (f" +{rest} more" if rest > 0 else ""))
@@ -396,14 +491,15 @@ def render_block(activity, matches, area, cfg):
 
 
 def apply_day(state, activity, area, cfg, stamp=None):
-    """Return (new_state, report). Never mutates `state`."""
+    """Ticks and the day-log block for one day. Returns (new_state, report); never mutates `state`."""
     stamp = stamp or now_iso()
     st = copy.deepcopy(state)
     dk = activity["date"]
-    aops = {i: a for i, a in (st.get("aops") or {}).items() if isinstance(a, dict) and a.get("kind", "aop") == "aop"}
+    aops = calendar_aops(st)
     tombstones = st.get("entryTombstones") or {}
     aliases = cfg.get("aliases") or {}
-    report = {"date": dk, "ticked": [], "already_ticked": [], "deleted_before": [], "other_area": [], "unmatched": []}
+    report = {"date": dk, "weekend": is_weekend(dk), "ticked": [], "already_ticked": [], "deleted_before": [],
+              "other_area": [], "unmatched": [], "note": None}
 
     matches = {}
     for a in activity["aops"]:
@@ -418,6 +514,8 @@ def apply_day(state, activity, area, cfg, stamp=None):
         if aops[aop_id].get("area") != area:
             report["other_area"].append(label)
             continue
+        if report["weekend"]:  # the calendar itself refuses Actual ticks on weekends
+            continue
         entries = st.setdefault("entries", {})
         bucket = entries.get(dk) or {"planned": [], "actual": []}
         actual = list(bucket.get("actual") or [])
@@ -431,9 +529,7 @@ def apply_day(state, activity, area, cfg, stamp=None):
             entries[dk] = {**bucket, "planned": list(bucket.get("planned") or []), "actual": actual}
             report["ticked"].append(label)
 
-    has_work = activity["aops"] or activity["other"] or activity["sessions"]["power_titles"]
-    report["note"] = None
-    if has_work:
+    if activity["aops"] or activity["other"] or activity.get("bulk") or activity["sessions"]["power_titles"]:
         notes = st.setdefault("dayNotes", {})
         day_note = notes.get(dk)
         if isinstance(day_note, str):  # legacy plain-text note, same shape migrateIfNeeded produces
@@ -451,50 +547,159 @@ def apply_day(state, activity, area, cfg, stamp=None):
     return st, report
 
 
-def check_only_additions(old, new, area, dk):
-    """Raise unless `new` equals `old` apart from this tool's ticks and note block."""
+def insert_achieved(notation, new_lines):
+    """Add lines at the end of the notation's "Achieved during Sprint:" section, creating it if missing."""
+    lines = (notation or "").replace("\r\n", "\n").split("\n")
+    header = next((i for i, l in enumerate(lines) if re.match(r"^achieved\s*during\s*sprint\b", l.strip(), re.I)), None)
+    if header is None:
+        body = (notation or "").rstrip()
+        return f"{body}\n\n{ACHIEVED_HEADER}\n" + "\n".join(new_lines) if body else f"{ACHIEVED_HEADER}\n" + "\n".join(new_lines)
+    end = next((i for i in range(header + 1, len(lines)) if NOTATION_SECTION_RE.match(lines[i].strip())), len(lines))
+    while end > header + 1 and not lines[end - 1].strip():
+        end -= 1
+    return "\n".join(lines[:end] + new_lines + lines[end:]).rstrip()
+
+
+def apply_achievements(state, items, area, cfg, ledger, stamp=None):
+    """Sprint-outcome lines into each own-area AOP's monthly notation. Returns (new_state, added, keys)."""
+    stamp = stamp or now_iso()
+    st = copy.deepcopy(state)
+    aops = calendar_aops(st)
+    aliases = cfg.get("aliases") or {}
+    pending = {}
+    for item in items:
+        if item["key"] in ledger:
+            continue
+        aop_id = match_aop(item["aop"], aops, aliases)
+        if not aop_id or aops[aop_id].get("area") != area:
+            continue
+        pending.setdefault((aop_id, item["month"]), []).append(item)
+    added, keys = [], []
+    for (aop_id, month), group in sorted(pending.items()):
+        monthly = st.setdefault("aopMonthly", {}).setdefault(aop_id, {})
+        record = monthly.get(month)
+        notation = (record or {}).get("notation") or ""
+        existing = {l.strip() for l in notation.split("\n")}
+        # "GDPR Breach" and "GDPR Breach V4" files can both map to one calendar AOP
+        lines = list(dict.fromkeys(i["line"] for i in group if i["line"] not in existing))
+        keys += [i["key"] for i in group]
+        if not lines:
+            continue
+        if record is None:  # same starting values ensureMonthly gives a new month in the app
+            prev = monthly.get(shift_month(month, -1)) or {}
+            record = {"goal": "", "comments": "", "required": False,
+                      "deflection_start": prev.get("deflection_end", ""), "deflection_end": "",
+                      "conversation_start": prev.get("conversation_end", ""), "conversation_end": "",
+                      "notation": "", "notation_updated_at": "", "created_at": stamp, "updated_at": stamp,
+                      "goal_created_at": "", "goal_updated_at": "", "comments_created_at": "",
+                      "comments_updated_at": "", "required_created_at": "", "required_updated_at": ""}
+        record = {**record, "notation": insert_achieved(notation, lines), "notation_updated_at": stamp}
+        monthly[month] = record
+        added.append({"aop": aops[aop_id].get("name"), "month": month, "lines": lines})
+    return st, added, keys
+
+
+def shift_month(month, delta):
+    y, m = map(int, month.split("-"))
+    m += delta
+    y, m = y + (m - 1) // 12, (m - 1) % 12 + 1
+    return f"{y:04d}-{m:02d}"
+
+
+def apply_all(state, collected, area, cfg, ledger, stamp=None):
+    stamp = stamp or now_iso()
+    st, reports = state, []
+    for activity in collected["days"]:
+        st, report = apply_day(st, activity, area, cfg, stamp)
+        reports.append(report)
+    st, added, keys = apply_achievements(st, collected["achievements"], area, cfg, ledger, stamp)
+    return st, reports, added, keys
+
+
+# ------------------------------------------------------------------- guard
+
+def _check_notation(old_text, new_text):
+    """Every line of text the notation had must still be there, in order; blank lines don't count."""
+    old_lines = [l.rstrip() for l in (old_text or "").replace("\r\n", "\n").split("\n") if l.strip()]
+    new_lines = [l.rstrip() for l in (new_text or "").replace("\r\n", "\n").split("\n") if l.strip()]
+    it = iter(new_lines)
+    if not all(any(o == n for n in it) for o in old_lines):  # old must be an in-order subsequence of new
+        raise RuntimeError("Guard: an AOP's sprint notation would lose or change text. Nothing written.")
+    extra = list(new_lines)
+    for o in old_lines:
+        extra.remove(o)
+    for line in extra:
+        if line.strip() and line.strip() != ACHIEVED_HEADER and not ACHIEVED_LINE_RE.match(line.strip()):
+            raise RuntimeError(f"Guard: unexpected notation line {line[:60]!r}. Nothing written.")
+
+
+def check_only_additions(old, new, area, dks):
+    """Raise unless `new` equals `old` apart from this tool's ticks, note blocks and sprint-outcome lines."""
     expected = copy.deepcopy(new)
-    ours = f"{ENTRY_SOURCE}:{dk}:"
     old_entries = old.get("entries") or {}
-    new_entries = expected.get("entries")
-    if isinstance(new_entries, dict) and dk in new_entries:
-        old_actual = (old_entries.get(dk) or {}).get("actual") or []
-        bucket = new_entries[dk]
-        bucket["actual"] = [e for e in bucket.get("actual") or []
-                            if e in old_actual or not str((e or {}).get("id", "")).startswith(ours)]
-        if dk not in old_entries:
-            if bucket["actual"] or bucket.get("planned"):
-                raise RuntimeError("Guard: unexpected calendar entries would be added. Nothing written.")
-            del new_entries[dk]
     old_notes = old.get("dayNotes") or {}
-    new_notes = expected.get("dayNotes")
-    if isinstance(new_notes, dict) and dk in new_notes:
-        note = new_notes[dk]
-        old_note = old_notes.get(dk)
-        old_area = ((old_note.get("area_notes") or {}).get(area) or {}) if isinstance(old_note, dict) else {}
-        new_area = (note.get("area_notes") or {}).get(area)
-        if new_area and strip_block(new_area.get("text")) != strip_block(old_area.get("text")):
-            raise RuntimeError("Guard: the person's own note text would change. Nothing written.")
-        other_areas = set(note.get("area_notes") or {}) - {area}
-        if old_note is None:
-            if any(note.get(k) for k in ("text", "planned_text", "actual_text")) or other_areas:
-                raise RuntimeError("Guard: a new day note would hold more than the day log. Nothing written.")
-            del new_notes[dk]
-        elif isinstance(old_note, str):
-            if note.get("text") != old_note or other_areas:
-                raise RuntimeError("Guard: a legacy day note would change. Nothing written.")
-            new_notes[dk] = old_note
-        else:
-            area_notes = dict(note.get("area_notes") or {})
-            if area in (old_note.get("area_notes") or {}):
-                area_notes[area] = old_note["area_notes"][area]
+    for dk in dks:
+        ours = f"{ENTRY_SOURCE}:{dk}:"
+        new_entries = expected.get("entries")
+        if isinstance(new_entries, dict) and dk in new_entries:
+            old_actual = (old_entries.get(dk) or {}).get("actual") or []
+            bucket = new_entries[dk]
+            bucket["actual"] = [e for e in bucket.get("actual") or []
+                                if e in old_actual or not str((e or {}).get("id", "")).startswith(ours)]
+            if dk not in old_entries:
+                if bucket["actual"] or bucket.get("planned"):
+                    raise RuntimeError("Guard: unexpected calendar entries would be added. Nothing written.")
+                del new_entries[dk]
+        new_notes = expected.get("dayNotes")
+        if isinstance(new_notes, dict) and dk in new_notes:
+            note = new_notes[dk]
+            old_note = old_notes.get(dk)
+            old_area = ((old_note.get("area_notes") or {}).get(area) or {}) if isinstance(old_note, dict) else {}
+            new_area = (note.get("area_notes") or {}).get(area)
+            if new_area and strip_block(new_area.get("text")) != strip_block(old_area.get("text")):
+                raise RuntimeError("Guard: the person's own note text would change. Nothing written.")
+            other_areas = set(note.get("area_notes") or {}) - {area}
+            if old_note is None:
+                if any(note.get(k) for k in ("text", "planned_text", "actual_text")) or other_areas:
+                    raise RuntimeError("Guard: a new day note would hold more than the day log. Nothing written.")
+                del new_notes[dk]
+            elif isinstance(old_note, str):
+                if note.get("text") != old_note or other_areas:
+                    raise RuntimeError("Guard: a legacy day note would change. Nothing written.")
+                new_notes[dk] = old_note
             else:
-                area_notes.pop(area, None)
-            note = {**note, "area_notes": area_notes}
-            if "area_notes" not in old_note and not area_notes:
-                note.pop("area_notes")
-            new_notes[dk] = note
-    for key in ("entries", "dayNotes"):
+                area_notes = dict(note.get("area_notes") or {})
+                if area in (old_note.get("area_notes") or {}):
+                    area_notes[area] = old_note["area_notes"][area]
+                else:
+                    area_notes.pop(area, None)
+                note = {**note, "area_notes": area_notes}
+                if "area_notes" not in old_note and not area_notes:
+                    note.pop("area_notes")
+                new_notes[dk] = note
+    old_monthly = old.get("aopMonthly") or {}
+    new_monthly = expected.get("aopMonthly") or {}
+    own = {i for i, a in (old.get("aops") or {}).items() if isinstance(a, dict) and a.get("area") == area}
+    for aop_id, months in list(new_monthly.items()):
+        for month, record in list(months.items()):
+            before = (old_monthly.get(aop_id) or {}).get(month)
+            if record == before:
+                continue
+            if aop_id not in own:
+                raise RuntimeError("Guard: another area's AOP outcome would change. Nothing written.")
+            _check_notation((before or {}).get("notation"), record.get("notation"))
+            rest = {k: v for k, v in record.items() if k not in ("notation", "notation_updated_at")}
+            if before is None:
+                if rest.get("goal") or rest.get("comments") or rest.get("required"):
+                    raise RuntimeError("Guard: a new monthly AOP record would hold more than outcomes. Nothing written.")
+                del months[month]
+            else:
+                if rest != {k: v for k, v in before.items() if k not in ("notation", "notation_updated_at")}:
+                    raise RuntimeError("Guard: a monthly AOP field other than its outcomes would change. Nothing written.")
+                months[month] = before
+        if aop_id not in old_monthly and not months:
+            del new_monthly[aop_id]
+    for key in ("entries", "dayNotes", "aopMonthly"):
         if key not in old and expected.get(key) == {}:
             expected.pop(key)
     if expected != old:
@@ -559,55 +764,81 @@ class Workspace:
         return bool(rows)
 
 
-def sync_day_live(ws, cfg, activity, dry_run):
+def sync_live(ws, cfg, collected, dry_run):
+    """One compare-and-swap write for all collected days and sprint outcomes."""
     area = cfg["area"]
-    for attempt in range(5):
+    dks = [d["date"] for d in collected["days"]]
+    ledger = set(read_json(ACHIEVED_LEDGER_FILE, []) or [])
+    for _ in range(5):
         row = ws.fetch()
         old = row["state"]
-        new, report = apply_day(old, activity, area, cfg)
-        check_only_additions(old, new, area, activity["date"])
-        if new == old or dry_run:
-            report["written"] = False
-            return report
-        if ws.write_if_unchanged(new, row["updated_at"]):
-            report["written"] = True
-            report["verified"] = _contains_additions(ws.fetch()["state"], new, area, activity["date"])
-            return report
+        new, reports, added, keys = apply_all(old, collected, area, cfg, ledger)
+        check_only_additions(old, new, area, dks)
+        result = {"reports": reports, "added": added, "written": False}
+        if dry_run:
+            return result
+        if new != old and not ws.write_if_unchanged(new, row["updated_at"]):
+            continue  # someone saved in between: re-read and apply again
+        if new != old:
+            result["written"] = True
+            result["verified"] = _contains_additions(ws.fetch()["state"], new, area, dks)
+        write_json(ACHIEVED_LEDGER_FILE, sorted(ledger | set(keys)))
+        return result
     raise RuntimeError("The workspace kept changing while writing; gave up after 5 tries. Nothing lost - run again.")
 
 
-def _contains_additions(after, new, area, dk):
-    want = [e for e in ((new.get("entries") or {}).get(dk) or {}).get("actual", [])
-            if str(e.get("id", "")).startswith(ENTRY_SOURCE)]
-    have = ((after.get("entries") or {}).get(dk) or {}).get("actual", [])
-    note = (((after.get("dayNotes") or {}).get(dk) or {}).get("area_notes") or {}).get(area) or {}
-    return all(e in have for e in want) and BLOCK_START in note.get("text", "")
+def _contains_additions(after, new, area, dks):
+    for dk in dks:
+        want = [e for e in ((new.get("entries") or {}).get(dk) or {}).get("actual", [])
+                if str(e.get("id", "")).startswith(ENTRY_SOURCE)]
+        have = ((after.get("entries") or {}).get(dk) or {}).get("actual", [])
+        if not all(e in have for e in want):
+            return False
+        want_note = (((new.get("dayNotes") or {}).get(dk) or {}).get("area_notes") or {}).get(area) or {}
+        have_note = (((after.get("dayNotes") or {}).get(dk) or {}).get("area_notes") or {}).get(area) or {}
+        if BLOCK_START in want_note.get("text", "") and BLOCK_START not in have_note.get("text", ""):
+            return False
+    return True
 
 
 # ----------------------------------------------------------------- commands
 
 def days_to_run(explicit):
     if explicit:
-        return [dt.date.fromisoformat(explicit)]
+        d = dt.date.fromisoformat(explicit)
+        return d, d
     today = dt.date.today()
     last = (read_json(LAST_RUN_FILE) or {}).get("last_complete_day")
     first = today
     if last:
         first = max(dt.date.fromisoformat(last), today - dt.timedelta(days=MAX_CATCHUP_DAYS))
-    return [first + dt.timedelta(days=i) for i in range((today - first).days + 1)]
+    return first, today
 
 
-def print_report(report):
-    print(f"\n{report['date']}: ticked {len(report['ticked'])}"
-          + (", written" if report.get("written") else ", not written"))
-    for key, label in (("ticked", "new tick"), ("already_ticked", "already ticked"),
-                       ("deleted_before", "skipped, someone deleted the tick"),
-                       ("other_area", "other person's area, note only"),
-                       ("unmatched", "not in calendar AOP list, note only")):
-        for name in report[key]:
-            print(f"  {label}: {name}")
-    if report.get("note"):
-        print("\n" + report["note"])
+def print_result(result, full=True):
+    for report in result["reports"]:
+        line = f"{report['date']}{' (weekend, note only)' if report['weekend'] else ''}: "
+        line += f"{len(report['ticked'])} new tick(s)" + (", day log" if report["note"] else "")
+        if not report["ticked"] and not report["note"]:
+            line += " - nothing new"
+        print(line)
+        for key, label in (("ticked", "new tick"), ("already_ticked", "already ticked"),
+                           ("deleted_before", "skipped, someone deleted the tick"),
+                           ("other_area", "other person's area, note only"),
+                           ("unmatched", "not in calendar AOP list, note only")):
+            for name in report[key]:
+                print(f"    {label}: {name}")
+        if full and report["note"]:
+            print("\n" + report["note"] + "\n")
+    if result["added"]:
+        print(f"\nSprint outcomes ({sum(len(a['lines']) for a in result['added'])} line(s)):")
+        for a in result["added"]:
+            print(f"  {a['aop']} · {a['month']}")
+            for line in a["lines"]:
+                print(f"    {line}")
+    print("\nSaved to the calendar." if result.get("written") else "\nNot saved (dry run or nothing new).")
+    if result.get("written") and not result.get("verified"):
+        print("warning: the save went through but a re-read did not show it; the next run tries again")
 
 
 def cmd_setup(args):
@@ -641,49 +872,70 @@ def cmd_setup(args):
     print(f"Signed in and can read workspace {cfg['workspace_id']!r}. Config: {CONFIG_FILE}")
 
 
+def _config_for(args):
+    cfg = read_json(args.config) if getattr(args, "config", None) else load_config()
+    if getattr(args, "area", None):
+        cfg["area"] = args.area
+    return cfg
+
+
+def _range_args(args):
+    first = dt.date.fromisoformat(args.date or args.__dict__.get("from") or dt.date.today().isoformat())
+    last = dt.date.fromisoformat(args.date or args.to or dt.date.today().isoformat())
+    if last < first:
+        sys.exit("--to is before --from.")
+    return first, last
+
+
 def cmd_collect(args):
-    cfg = load_config() if not args.config else read_json(args.config)
-    day = dt.date.fromisoformat(args.date) if args.date else dt.date.today()
-    print(json.dumps(collect(cfg, day, fetch=not args.no_fetch), ensure_ascii=False, indent=2))
+    cfg = _config_for(args)
+    first, last = _range_args(args)
+    print(json.dumps(collect(cfg, first, last, fetch=not args.no_fetch), ensure_ascii=False, indent=2))
 
 
 def cmd_preview(args):
     """Apply to a state file (an Export JSON from the app) without any network write."""
-    cfg = read_json(args.config) if args.config else load_config()
-    if args.area:
-        cfg["area"] = args.area
-    day = dt.date.fromisoformat(args.date) if args.date else dt.date.today()
-    activity = read_json(args.activity) if args.activity else collect(cfg, day, fetch=not args.no_fetch)
+    cfg = _config_for(args)
+    collected = read_json(args.activity) if args.activity else collect(cfg, *_range_args(args), fetch=not args.no_fetch)
     raw = read_json(args.state)
     old = raw.get("state", raw)
-    new, report = apply_day(old, activity, cfg["area"], cfg)
-    check_only_additions(old, new, cfg["area"], activity["date"])
-    print_report(report)
-    print("\nGuard: only additions - OK")
+    ledger = set(read_json(args.ledger, []) or []) if args.ledger else set()
+    new, reports, added, keys = apply_all(old, collected, cfg["area"], cfg, ledger)
+    check_only_additions(old, new, cfg["area"], [d["date"] for d in collected["days"]])
+    print_result({"reports": reports, "added": added}, full=not args.brief)
+    print("Guard: only additions - OK")
     if args.out:
         write_json(args.out, {**raw, "state": new} if "state" in raw else new)
         print(f"Wrote {args.out}")
 
 
-def cmd_run(args):
+def _live(args, first, last):
     cfg = load_config()
     ws = Workspace(cfg)
     try:
         ws.login_refresh()
     except RuntimeError as e:
         raise RuntimeError(f"sign-in expired or was replaced ({e}). Run `setup` again.") from None
-    days = days_to_run(args.date)
-    for i, day in enumerate(days):
-        activity = collect(cfg, day, fetch=(i == 0))
-        for w in activity["warnings"]:
-            print(f"warning: {w}")
-        report = sync_day_live(ws, cfg, activity, args.dry_run)
-        print_report(report)
-        if report.get("written") and not report.get("verified"):
-            print("warning: the write went through but a re-read did not show it; it will be retried next run")
+    collected = collect(cfg, first, last)
+    for w in collected["warnings"]:
+        print(f"warning: {w}")
+    result = sync_live(ws, cfg, collected, args.dry_run)
+    print_result(result, full=getattr(args, "full", True))
+    return result
+
+
+def cmd_run(args):
+    first, last = days_to_run(args.date)
+    _live(args, first, last)
     if not args.dry_run and not args.date:
         # Today stays open: the next run starts from today, so late work is picked up.
         write_json(LAST_RUN_FILE, {"last_complete_day": dt.date.today().isoformat(), "at": now_iso()})
+
+
+def cmd_backfill(args):
+    first, last = _range_args(args)
+    print(f"Backfilling {first} to {last} ({(last - first).days + 1} days) in one save.")
+    _live(args, first, last)
 
 
 class _Tee:
@@ -717,29 +969,46 @@ def main():
     for stream in (sys.stdout, sys.stderr):
         if stream is not None and hasattr(stream, "reconfigure"):
             stream.reconfigure(encoding="utf-8")
-    if len(sys.argv) > 1 and sys.argv[1] == "run":
+    if len(sys.argv) > 1 and sys.argv[1] in ("run", "backfill"):
         open_log()
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("setup", help="one-time: workspace, area, git emails, sign in").set_defaults(fn=cmd_setup)
-    c = sub.add_parser("collect", help="print a day's activity as JSON (no calendar access)")
-    c.add_argument("--date")
+
+    c = sub.add_parser("collect", help="print what was found, as JSON (no calendar access)")
+    c.add_argument("--date", help="one day")
+    c.add_argument("--from", help="first day of a range")
+    c.add_argument("--to", help="last day of a range (default today)")
     c.add_argument("--config", help="config file to use instead of the saved one")
     c.add_argument("--no-fetch", action="store_true")
     c.set_defaults(fn=cmd_collect)
-    v = sub.add_parser("preview", help="apply a day to an exported state file, offline")
+
+    v = sub.add_parser("preview", help="apply to an exported state file, offline")
     v.add_argument("--state", required=True, help="Export JSON from the calendar")
     v.add_argument("--date")
+    v.add_argument("--from")
+    v.add_argument("--to")
     v.add_argument("--area")
     v.add_argument("--config")
-    v.add_argument("--activity", help="activity JSON from `collect` instead of collecting now")
+    v.add_argument("--activity", help="output of `collect` instead of collecting now")
+    v.add_argument("--ledger", help="achieved.json to respect")
     v.add_argument("--out")
+    v.add_argument("--brief", action="store_true", help="one line per day instead of the full day log")
     v.add_argument("--no-fetch", action="store_true")
     v.set_defaults(fn=cmd_preview)
+
     r = sub.add_parser("run", help="sync today (and missed days) into the shared calendar")
     r.add_argument("--date", help="only this day")
     r.add_argument("--dry-run", action="store_true", help="read the live calendar, write nothing")
     r.set_defaults(fn=cmd_run)
+
+    b = sub.add_parser("backfill", help="fill in a range of past days in one save")
+    b.add_argument("--from", required=True, help="first day, e.g. 2026-08-01")
+    b.add_argument("--to", help="last day (default today)")
+    b.add_argument("--dry-run", action="store_true", help="read the live calendar, write nothing")
+    b.add_argument("--full", action="store_true", help="print each day's full day log")
+    b.set_defaults(fn=cmd_backfill, date=None)
+
     args = p.parse_args()
     try:
         args.fn(args)
