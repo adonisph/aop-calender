@@ -2317,6 +2317,7 @@
         <option value="delivery">Emma</option>
         <option value="aftersales">Saana</option>
         <option value="others_some">Christel</option>
+        <option value="adonis">Adonis</option>
         <option value="special_events">Special Events</option>
       </select></div>
       <div class="tb-item" data-tb-key="customize">
@@ -2719,6 +2720,7 @@
               <option value="delivery">Emma</option>
               <option value="aftersales">Saana</option>
               <option value="others_some">Christel</option>
+              <option value="adonis">Adonis</option>
               <option value="special_events">Special Events</option>
             </select>
           </div>
@@ -2928,7 +2930,7 @@
  * - settings: {
  *     sectionVisibility:{dashboard:boolean,calendars:boolean,aopNotes:boolean,tools:boolean},
  *     aopPane:"catalog"|"notation",
- *     areaView:"master"|"pool"|"sales"|"delivery"|"aftersales"|"others_some"|"special_events",
+ *     areaView:"master"|"pool"|"sales"|"delivery"|"aftersales"|"others_some"|"adonis"|"special_events",
  *     colorTheme:string,
  *     uiPrefs:{density:"compact"|"comfortable",textScale:"normal"|"large"|"xlarge",corner:"tight"|"normal"|"round",topbarSide:"right"|"left",customColorsEnabled:boolean,customColors:{power,bg0,bg1,surface,surfaceSoft,line,text,muted,rain},highContrast:boolean,showTips:boolean,layoutPreset:"custom"|"focus"|"review"|"sync"|"dashboard",topbarOrder:string[]},
  *     masterNotationSort:"achievements_desc"|"updated_desc"|"area_asc"|"name_asc",
@@ -2963,11 +2965,12 @@ const AREA_VIEWS = [
   { id:"delivery", label:"Emma" },
   { id:"aftersales", label:"Saana" },
   { id:"others_some", label:"Christel" },
+  { id:"adonis", label:"Adonis" },
   { id:"special_events", label:"Special Events" }
 ];
 const AREA_VIEW_COLORS = {
   pool:"#22c55e", sales:"#38bdf8", delivery:"#f59e0b",
-  aftersales:"#fb7185", others_some:"#a78bfa", special_events:"#facc15"
+  aftersales:"#fb7185", others_some:"#a78bfa", adonis:"#2dd4bf", special_events:"#facc15"
 };
 const MASTER_VIEW_ID = "master";
 const DEFAULT_AREA_VIEW = "pool";
