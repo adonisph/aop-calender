@@ -1920,6 +1920,26 @@
       opacity: 1;
       pointer-events: auto;
     }
+    .version-banner{
+      position: fixed;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 120;
+      display:flex;
+      flex-wrap: wrap;
+      align-items:center;
+      gap:10px 12px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1px solid var(--power);
+      background: #141414;
+      color: var(--text);
+      box-shadow: var(--shadow);
+      width: max-content;
+      max-width: min(720px, calc(100vw - 24px));
+    }
+    .version-banner[hidden]{ display:none; }
     .section-pad{ padding: 12px; border-top: 1px solid var(--line); }
 
     /* Day notes drawer */
@@ -2870,6 +2890,10 @@
     <span id="undoToastText">Updated.</span>
     <button id="undoToastBtn" class="btn-ghost" type="button">Undo</button>
   </div>
+  <div id="versionBanner" class="version-banner" role="alert" hidden>
+    <span>A newer version of the AI Calender is out. This tab has stopped saving so it can't overwrite newer data. Reload to keep working.</span>
+    <button id="versionReloadBtn" class="btn-primary" type="button">Reload</button>
+  </div>
 </main>
 <div id="syncLoginBackdrop" class="sync-login-backdrop" aria-hidden="true"></div>
 <section id="syncLoginModal" class="sync-login-modal" role="dialog" aria-modal="true" aria-labelledby="syncLoginTitle" aria-hidden="true">
@@ -3058,6 +3082,14 @@ let commandPaletteIndex = 0;
 const MAX_MARK_BARS = 4;
 const TEAM_SYNC_TABLE = "planner_workspaces";
 const TEAM_SYNC_SAVE_DEBOUNCE_MS = 450;
+// Bump APP_VERSION whenever a change alters what the shared state may hold (a new area, a
+// new field). A page that sees a higher appVersion in the shared state stops saving, so an
+// old open tab can't fold data it doesn't understand back into the workspace.
+const APP_VERSION = 1;
+const VERSION_CHECK_MS = 2 * 60 * 1000;
+let appOutdated = false;
+let pageFingerprint = "";
+let lastVersionCheckAt = 0;
 let teamSyncSaveTimer = null;
 let teamSyncChannel = null;
 let teamSyncBusy = false;
@@ -4739,6 +4771,7 @@ function loadState(){
   }
 }
 function saveStateLocal(){
+  if(appOutdated) return false;
   try{
     persistLocalAppearanceProfile();
   }catch(err){
@@ -5312,6 +5345,8 @@ function flushPendingEditorsBeforeRemoteApply(){
 
 function applyIncomingSharedState(nextState){
   if(!nextState || typeof nextState !== "object") return false;
+  if(appOutdated) return false;
+  if(remoteNeedsNewerApp(nextState)){ markAppOutdated(); return false; }
   flushPendingEditorsBeforeRemoteApply();
   const migrated = mergeIncomingSharedState(view.state, nextState);
   const recoveredHistoricalNotes = migrated.__recoveredHistoricalNotes === true;
@@ -5326,6 +5361,52 @@ function applyIncomingSharedState(nextState){
     scheduleTeamSyncSave("recover-historical-notes");
   }
   return true;
+}
+
+function remoteNeedsNewerApp(state){
+  return Number(state?.appVersion || 0) > APP_VERSION;
+}
+function markAppOutdated(){
+  if(appOutdated) return;
+  appOutdated = true;
+  if(teamSyncSaveTimer){ clearTimeout(teamSyncSaveTimer); teamSyncSaveTimer = null; }
+  unsubscribeTeamSync();
+  const banner = document.getElementById("versionBanner");
+  if(banner){
+    document.body.appendChild(banner); // outside <main>, whose stacking would put it under the top bar
+    banner.hidden = false;
+  }
+  setTeamSyncStatus("New version out - reload to keep saving", true);
+}
+function textFingerprint(text){
+  let h = 5381;
+  for(let i = 0; i < text.length; i++) h = ((h << 5) + h + text.charCodeAt(i)) | 0;
+  return `${text.length}:${h}`;
+}
+async function checkForNewVersion(){
+  if(appOutdated || !/^https?:$/.test(location.protocol)) return;
+  lastVersionCheckAt = Date.now();
+  try{
+    const res = await fetch(`${location.origin}${location.pathname}?version-check=${Date.now()}`, { cache:"no-store" });
+    if(!res.ok) return;
+    const text = await res.text();
+    const published = Number((text.match(/const APP_VERSION = (\d+);/) || [])[1] || 0);
+    const fingerprint = textFingerprint(text);
+    // A higher published APP_VERSION also catches a tab that loaded a stale cached copy.
+    if(published > APP_VERSION) markAppOutdated();
+    else if(!pageFingerprint) pageFingerprint = fingerprint;
+    else if(fingerprint !== pageFingerprint) markAppOutdated();
+  }catch(err){
+    // Offline or blocked: the next check tries again.
+  }
+}
+function startVersionWatch(){
+  document.getElementById("versionReloadBtn")?.addEventListener("click", () => location.reload());
+  checkForNewVersion();
+  setInterval(checkForNewVersion, VERSION_CHECK_MS);
+  document.addEventListener("visibilitychange", () => {
+    if(document.visibilityState === "visible" && Date.now() - lastVersionCheckAt > 30000) checkForNewVersion();
+  });
 }
 
 function unsubscribeTeamSync(){
@@ -5378,7 +5459,7 @@ async function ensureTeamWorkspaceExists(){
   }
   const payload = {
     id: workspaceId,
-    state: buildSharedSyncState(),
+    state: { ...buildSharedSyncState(), appVersion: APP_VERSION },
     updated_by: teamSync.userId || null
   };
   const inserted = await teamSync.supabase
@@ -5421,6 +5502,11 @@ async function pushRemoteState(opts){
     if(options.manual) setTeamSyncStatus("Not connected", true);
     return;
   }
+  if(!appOutdated && Date.now() - lastVersionCheckAt > 60000) await checkForNewVersion();
+  if(appOutdated){
+    if(options.manual) setTeamSyncStatus("New version out - reload to keep saving", true);
+    return;
+  }
   if(teamSyncBusy){
     if(options.manual) setTeamSyncStatus("Sync in progress");
     return;
@@ -5438,11 +5524,13 @@ async function pushRemoteState(opts){
       .eq("id", workspaceId)
       .maybeSingle();
     if(remoteRow.error && remoteRow.status !== 406) throw remoteRow.error;
+    if(remoteNeedsNewerApp(remoteRow.data?.state)){ markAppOutdated(); return; }
     const mergedSharedState = remoteRow.data?.state
       ? mergeIncomingSharedState(localSharedState, remoteRow.data.state)
       : localSharedState;
     applyAppearanceSettingsSnapshot(mergedSharedState, defaultState().settings);
     mergedSharedState.activeAopId = null;
+    mergedSharedState.appVersion = Math.max(Number(remoteRow.data?.state?.appVersion || 0), APP_VERSION);
     const payload = {
       id: workspaceId,
       state: mergedSharedState,
@@ -5471,6 +5559,7 @@ async function pushRemoteState(opts){
 
 function scheduleTeamSyncSave(reason){
   if(teamSyncSuppressPush) return;
+  if(appOutdated) return;
   if(!teamSync.connected || !teamSync.supabase) return;
   if(!isTeamAutoSyncEnabled()) return;
   if(teamSyncSaveTimer) clearTimeout(teamSyncSaveTimer);
@@ -8858,6 +8947,7 @@ function init(){
   renderDashboard();
   showTestAreaView(view.state.settings.testAreaView || "toggleCalendars");
   maybeAutoConnectTeamSync();
+  startVersionWatch();
 }
 
 init();

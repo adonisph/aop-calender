@@ -257,10 +257,25 @@ Run Step 1 again. Your settings and sign-in are kept.
 
 1. Add the area in `index.html` in four places: both area dropdowns,
    `AREA_VIEWS` and `AREA_VIEW_COLORS`.
-2. Add it to `AREAS` at the top of `claude_day_sync.py`.
-3. Push, then have **everyone reload the calendar** before the new person runs
-   the sync.
+2. **Raise `APP_VERSION` by one** in `index.html`.
+3. Add it to `AREAS` at the top of `claude_day_sync.py`.
+4. Push.
 
-Step 3 matters because an older copy of the page that is still open treats an
-area it doesn't know as Erik's. When that person saves, it moves the new area's
-AOPs to Erik and replaces Erik's day note with the new person's.
+Raising `APP_VERSION` matters. An older copy of the page that is still open
+treats an area it doesn't know as Erik's: when that person saves, it moves the
+new area's AOPs to Erik and replaces Erik's day note with the new person's.
+
+Since 27 Oct 2026 the page protects itself against this:
+
+- Every 2 minutes, and before each save, it checks whether a new version has
+  been published.
+- Before it applies data from the shared calendar, it checks whether that data
+  was saved by a page with a higher `APP_VERSION`.
+- If either is true, the tab stops saving and shows a **Reload** banner.
+
+Without the raised number, an old tab only notices on its next check. That
+leaves a gap of up to 2 minutes. Raise it for any change to what the calendar
+stores: a new area or a new field.
+
+Tabs opened before 27 Oct 2026 don't have this check. Ask everyone to reload
+once after that update is pushed.
