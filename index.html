@@ -2068,6 +2068,11 @@
       gap: 4px 8px;
       margin-top: 6px;
     }
+    #allDayNotesList .note-text{
+      white-space: pre-wrap;
+      line-height: 1.5;
+      overflow-wrap: anywhere;
+    }
 
     /* AOP panel */
     .aop-box{
@@ -2882,7 +2887,7 @@
       <div class="filters" style="margin-top:8px;">
         <button id="filterThisMonthBtn" class="btn-ghost btn-toggle" type="button" aria-pressed="false">This Month</button>
       </div>
-      <div id="allDayNotesList" class="compact-list" style="margin-top:10px; display:grid; gap:8px; max-height:320px; overflow:auto;"></div>
+      <div id="allDayNotesList" class="compact-list" style="margin-top:10px; display:grid; gap:8px; max-height:72vh; overflow:auto;"></div>
     </div>
   </section>
   <div id="dayNotesBackdrop" aria-hidden="true"></div>
@@ -5752,6 +5757,16 @@ function maybeAutoConnectTeamSync(){
   connectTeamSync({ manual:false });
 }
 
+// The day sync's marker lines are for the sync, not for reading.
+const DAY_LOG_START = "── Claude day log (auto) ──";
+const DAY_LOG_END = "── end of Claude day log ──";
+function readableNoteText(text){
+  return String(text || "")
+    .replace(DAY_LOG_START, "Claude day log")
+    .replace(DAY_LOG_END, "")
+    .trim();
+}
+
 function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, (c)=>({
     "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
@@ -6993,7 +7008,7 @@ function renderAllDayNotes(){
         </div>
         <button type="button" class="btn-ghost" data-open-note-day="${escapeHtml(r.dateKey)}" ${r.inMonth ? "" : "disabled"}>${r.inMonth ? "Open" : "Locked"}</button>
       </div>
-      ${r.scopedNotes.map(n=>`<div class="kv"><div>${escapeHtml(n.label)}</div><div>${escapeHtml(n.text)}</div></div>`).join("")}
+      ${r.scopedNotes.map(n=>`<div class="kv"><div>${escapeHtml(n.label)}</div><div class="note-text">${escapeHtml(readableNoteText(n.text))}</div></div>`).join("")}
     </div>
   `).join("");
 
@@ -7206,7 +7221,8 @@ function renderCalendar(container, type){
         titleParts.push(`Areas: ${masterAreaGroups.map(group => `${group.label} (${group.count})`).join(", ")}`);
       }
       if(type === "actual"){
-        const noteText = dayNoteForArea(view.state.dayNotes?.[dateKey], currentAreaViewId()).text.trim();
+        const noteText = readableNoteText(dayNoteForArea(view.state.dayNotes?.[dateKey], currentAreaViewId()).text)
+          .replace(/^Claude day log\s*/, "").replace(/\s+/g, " ");
         if(noteText){
           titleParts.push(`Note: ${noteText.slice(0, 90)}${noteText.length > 90 ? "..." : ""}`);
         }

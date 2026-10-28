@@ -489,50 +489,101 @@ def is_weekend(day_iso):
     return dt.date.fromisoformat(day_iso).weekday() >= 5
 
 
+def commit_state(where):
+    """done / branch / local, from a commit's location."""
+    if where.startswith(LANDED):
+        return "done"
+    return "branch" if where.startswith("branch ") else "local"
+
+
+def short_branch(where, cfg):
+    """"branch change/adonis-error-fixes-28-oct +1 (not merged)" -> "error-fixes-28-oct +1"."""
+    if not where.startswith("branch "):
+        return "not pushed"
+    name = where[len("branch "):].replace(" (not merged)", "")
+    name = re.sub(r"^change/", "", name)
+    me = (cfg.get("name") or "").strip().lower()
+    if me and name.lower().startswith(me + "-"):
+        name = name[len(me) + 1:]
+    return name
+
+
+def _more(names, limit):
+    rest = len(names) - limit
+    return ", ".join(names[:limit]) + (f" +{rest} more" if rest > 0 else "")
+
+
 def render_block(activity, matches, area, cfg):
+    """The day log, grouped by where the work is: done, on a branch, or only edited."""
+    sections = {"done": [], "branch": [], "edited": []}
+    looked = []
+    for a in activity["aops"]:
+        if not is_real_work(a):
+            looked.append(a["name"])
+            continue
+        owner = matches.get(a["name"])
+        tag = "" if owner == area else " (not in the calendar)" if owner is None else f" ({AREAS.get(owner, owner)}'s area)"
+        by_state = {}
+        for c in a["commits"]:
+            by_state.setdefault(commit_state(c["where"]), []).append(c)
+        if not a["commits"]:
+            sections["edited"].append(f"• {a['name']}{tag}")
+        for state in ("done", "branch", "local"):
+            commits = by_state.get(state)
+            if not commits:
+                continue
+            subjects = list(dict.fromkeys(clean_subject(c["subject"], 90) for c in commits))
+            subjects = [s for s in subjects if s] or ["(no description)"]
+            where = ""
+            if state != "done":
+                where = "  ⟶ " + ", ".join(sorted({short_branch(c["where"], cfg) for c in commits}))
+            key = "done" if state == "done" else "branch"
+            sections[key].append(f"• {a['name']}{tag}: {subjects[0]}{where}")
+            for s in subjects[1:MAX_SUBJECTS_PER_AOP]:
+                sections[key].append(f"   – {s}")
+            if len(subjects) > MAX_SUBJECTS_PER_AOP:
+                sections[key].append(f"   – +{len(subjects) - MAX_SUBJECTS_PER_AOP} more")
+
     lines = [BLOCK_START]
-    worked = [a for a in activity["aops"] if is_real_work(a)]
-    looked = [a["name"] for a in activity["aops"] if not is_real_work(a)]
-    if worked:
-        lines.append(f"AOPs worked on ({len(worked)}):")
-        for a in worked:
-            bits = []
-            if a["commits"]:
-                n = len(a["commits"])
-                hows = sorted({c["how"] for c in a["commits"]})
-                wheres = sorted({c["where"] for c in a["commits"]})
-                bits.append(f"{n} commit{'s' if n > 1 else ''} ({', '.join(hows)}), {'; '.join(wheres)}")
-            if a["claude"]:
-                bits.append(f"{a['claude']} in Claude" + ("" if a["commits"] else ", no commit yet"))
-            owner = matches.get(a["name"])
-            if owner is None:
-                bits.append("not in the calendar's AOP list")
-            elif owner != area:
-                bits.append(f"{AREAS.get(owner, owner)}'s area")
-            lines.append(f"• {a['name']}: {'; '.join(bits)}")
-            for c in a["commits"][:MAX_SUBJECTS_PER_AOP]:
-                lines.append(f"   – {clean_subject(c['subject'], 110)}")
-            if len(a["commits"]) > MAX_SUBJECTS_PER_AOP:
-                lines.append(f"   – +{len(a['commits']) - MAX_SUBJECTS_PER_AOP} more")
+
+    def section(title, items):
+        if items:
+            if len(lines) > 1:
+                lines.append("")
+            lines.append(title)
+            lines.extend(items)
+
+    section(f"✅ Done, on main or live ({sum(1 for l in sections['done'] if l.startswith('•'))})", sections["done"])
+    section(f"🔧 On a branch, not live yet ({sum(1 for l in sections['branch'] if l.startswith('•'))})", sections["branch"])
+    section(f"✏️ Edited in Claude, not committed yet ({len(sections['edited'])})", sections["edited"])
+
+    bulk = []
     for b in activity.get("bulk", []):
-        lines.append(f"Bulk change across {b['aops']} AOPs: {b['subject'][:110]} ({'; '.join(b['where'])})")
-    if looked:
-        rest = len(looked) - MAX_SESSION_TITLES
-        lines.append("Looked at in Claude: " + ", ".join(looked[:MAX_SESSION_TITLES]) + (f" +{rest} more" if rest > 0 else ""))
+        states = {commit_state(w) for w in b["where"]}
+        status = "done" if states == {"done"} else "not live yet" if "done" not in states else "partly live"
+        bulk.append(f"• {clean_subject(b['subject'], 90)} ({b['aops']} AOPs, {status})")
+    section("🔁 Changes across many AOPs", bulk)
+
+    extra = []
     by_kind = {}
     for o in activity["other"]:
         by_kind.setdefault(o["kind"], []).append(o["name"])
-    for kind, names in by_kind.items():
-        rest = len(names) - 4
-        lines.append(f"{kind}s ({len(names)}): " + ", ".join(names[:4]) + (f" +{rest} more" if rest > 0 else ""))
+    if by_kind:
+        parts = []
+        for kind, names in by_kind.items():
+            label = f"{len(names)} {kind}{'s' if len(names) > 1 else ''}"
+            parts.append(label if kind == "test" else f"{label} ({_more(names, 3)})")
+        extra.append("Also changed: " + "; ".join(parts))
+    if looked:
+        extra.append("Only opened in Claude: " + _more(looked, 3))
     titles = activity["sessions"]["power_titles"]
-    if cfg.get("include_session_titles", True) and titles:
-        shown = ", ".join(f'"{t}"' for t in titles[:MAX_SESSION_TITLES])
-        rest = len(titles) - MAX_SESSION_TITLES
-        lines.append(f"Claude sessions: {shown}" + (f" +{rest} more" if rest > 0 else ""))
     other_n = activity["sessions"]["other_count"]
+    if cfg.get("include_session_titles", True) and titles:
+        extra.append(f"Claude sessions ({len(titles)}): " + _more([f'"{t}"' for t in titles], 4))
     if other_n:
-        lines.append(f"+{other_n} other Claude session{'s' if other_n > 1 else ''} outside the power repo")
+        extra.append(f"+{other_n} Claude session{'s' if other_n > 1 else ''} outside the power repo")
+    section("Other", extra)
+
     lines.append(BLOCK_END)
     return "\n".join(lines)
 

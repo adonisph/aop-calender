@@ -197,16 +197,24 @@ For example:
 
 ```
 ── Claude day log (auto) ──
-AOPs worked on (2):
-• Insurance & Extended Warranty V4: 3 commits (dashboard, with Claude), branch saana/insurance-v4 (not merged)
-   – Insurance V4: an insurance doesn't cover a fault
-• Small Product Warranty Handling & Troubleshooting: 1 commit (dashboard), live in Decagon (production)
-Looked at in Claude: Customer wants to return an order V3
-tools (1): check_insurance
-Claude sessions: "Insurance V4 for chat"
+✅ Done, on main or live (1)
+• Small Product Warranty Handling & Troubleshooting: Updated handling
+
+🔧 On a branch, not live yet (1)
+• Insurance & Extended Warranty V4: Insurance V4: an insurance doesn't cover a fault  ⟶ saana/insurance-v4
+
+Other
+Also changed: 1 tool (check_insurance)
+Only opened in Claude: Customer wants to return an order V3
+Claude sessions (1): "Insurance V4 for chat"
 ── end of Claude day log ──
 ```
 
+- The work is grouped by where it is: done (on main or live in Decagon), on a
+  branch that isn't live yet, or edited in Claude without a commit. AOPs from
+  someone else's area say whose area they are in.
+- On the Notes page the marker lines are hidden and the log keeps its line
+  breaks.
 - Write your own text above or below the markers. A new run only replaces the
   part between them.
 - AOPs from someone else's area, or not in the calendar, are listed in the
