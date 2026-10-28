@@ -77,8 +77,8 @@ Add **all** of them. Commits made from GitHub's website can use an address like
 python "$HOME\aop-calendar-sync\claude_day_sync.py" setup
 ```
 
-Answer the questions, then type your calendar password when asked. The
-password isn't shown while you type and isn't saved. Only a sign-in token is
+Answer the questions, then type your calendar password when asked. It shows
+as `*` while you type and isn't saved. Only a sign-in token is
 kept, in `C:\Users\<you>\.aop-calendar-sync\`. When setup works, it ends with
 *"Signed in and can read workspace 'nordics-team'"*.
 
@@ -182,6 +182,11 @@ Sprint":
 - Only for AOPs in your area.
 - Only for changes that are on main or live in Decagon. A branch counts once it
   is merged, if that happens within two weeks.
+- A branch change that went live in another commit, such as a `[Dashboard]`
+  re-commit or a squash merge, counts too. The day log then says *"on main,
+  carried over in another commit"*. It's recognised when at least 80% of the
+  text the change added is on main. A change that only moves or deletes text
+  can't be recognised this way and stays *"not merged"*.
 - At most 3 lines per AOP per day, plus a "+N more changes" line.
 - The goal, comments, blockers and any outcomes you wrote yourself are kept as
   they are.

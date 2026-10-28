@@ -66,7 +66,10 @@ MAX_SUBJECTS_PER_AOP = 3
 MAX_ACHIEVED_PER_AOP_DAY = 3
 MAX_SESSION_TITLES = 8
 BULK_AOP_LIMIT = 5  # a commit touching more AOPs than this is a sweep (typo pass, voice-test pruning), not AOP work
-LANDED =("on main", "live in Decagon (production)")
+# A location starting with one of these counts as landed (a sprint outcome).
+LANDED = ("on main", "live in Decagon")
+CARRIED_MIN_SHARE = 0.8  # share of a commit's added lines that must be on main for "carried over"
+CARRIED_MIN_LINE = 8     # shorter added lines ("},", "]") say nothing about where a change is
 
 OTHER_KINDS = {
     "tools": "tool",
@@ -181,11 +184,51 @@ def classify_path(path):
     return None
 
 
+_FILE_LINES = {}
+
+
+def _file_lines(repo, ref, path):
+    key = (str(repo), ref, path)
+    if key not in _FILE_LINES:
+        r = git(repo, "show", f"{ref}:{path}", check=False)
+        _FILE_LINES[key] = {l.strip().rstrip(",") for l in r.stdout.splitlines()} if r.returncode == 0 else None
+    return _FILE_LINES[key]
+
+
+def carried_into(repo, sha, ref):
+    """True when the lines this commit added are in ref's files even though the commit itself is not:
+    the change went live in another commit, such as a [Dashboard] re-commit or a squash merge."""
+    added = {}
+    path = None
+    diff = git(repo, "-c", "core.quotePath=false", "show", "--format=", "--unified=0", "--no-renames", sha, check=False)
+    for line in diff.stdout.splitlines():
+        if line.startswith("+++ "):
+            path = line[6:].rstrip("\t") if line.startswith("+++ b/") else None
+        elif path and line.startswith("+") and len(line.strip()) > CARRIED_MIN_LINE:
+            added.setdefault(path, []).append(line[1:].strip().rstrip(","))
+    # Lines already in the parent's file were only moved or re-indented; they say nothing.
+    added = {p: [l for l in lines if l not in (_file_lines(repo, f"{sha}^", p) or set())]
+             for p, lines in added.items()}
+    total = sum(len(v) for v in added.values())
+    if not total:
+        return False  # only deletions or tiny edits: can't tell
+    found = 0
+    for path, lines in added.items():
+        have = _file_lines(repo, ref, path)
+        if have:
+            found += sum(1 for l in lines if l in have)
+    return found / total >= CARRIED_MIN_SHARE
+
+
 def commit_location(repo, sha, main_ref, live_ref):
     if git(repo, "merge-base", "--is-ancestor", sha, main_ref, check=False).returncode == 0:
         return "on main"
     if live_ref and git(repo, "merge-base", "--is-ancestor", sha, live_ref, check=False).returncode == 0:
         return "live in Decagon (production)"
+    if carried_into(repo, sha, main_ref):
+        return "on main, carried over in another commit"
+    if live_ref and carried_into(repo, sha, live_ref):
+        return "live in Decagon (production), carried over in another commit"
     remote = [b for b in git(repo, "branch", "-r", "--contains", sha, "--format=%(refname:short)").stdout.split()
               if not b.endswith("/HEAD")]
     if remote:
@@ -372,7 +415,7 @@ def build_achievements(commits):
     """Sprint-outcome lines for AOP changes that are on main or live in Decagon."""
     grouped = {}
     for c in commits:
-        if c["where"] not in LANDED or is_bulk(c):
+        if not c["where"].startswith(LANDED) or is_bulk(c):
             continue
         for kind, name in c["items"]:
             if kind == "aop":
@@ -841,6 +884,35 @@ def print_result(result, full=True):
         print("warning: the save went through but a re-read did not show it; the next run tries again")
 
 
+def read_password(prompt):
+    """Like getpass, but shows * for each character so people can see their typing lands."""
+    if os.name != "nt" or not sys.stdin.isatty():
+        return getpass.getpass(prompt)
+    import msvcrt
+    sys.stdout.write(prompt)
+    sys.stdout.flush()
+    chars = []
+    while True:
+        ch = msvcrt.getwch()
+        if ch in ("\r", "\n"):
+            break
+        if ch == "\x03":
+            raise KeyboardInterrupt
+        if ch in ("\x00", "\xe0"):  # arrow and function keys come as two characters
+            msvcrt.getwch()
+            continue
+        if ch == "\b":
+            if chars:
+                chars.pop()
+                sys.stdout.write("\b \b")
+        else:
+            chars.append(ch)
+            sys.stdout.write("*")
+        sys.stdout.flush()
+    sys.stdout.write("\n")
+    return "".join(chars)
+
+
 def cmd_setup(args):
     cfg = read_json(CONFIG_FILE, {}) or {}
 
@@ -867,7 +939,7 @@ def cmd_setup(args):
     cfg.setdefault("aliases", {})
     write_json(CONFIG_FILE, cfg)
     ws = Workspace(cfg)
-    ws.login_password(cfg["email"], getpass.getpass("Calendar password (not stored): "))
+    ws.login_password(cfg["email"], read_password("Calendar password (not stored): "))
     ws.fetch()
     print(f"Signed in and can read workspace {cfg['workspace_id']!r}. Config: {CONFIG_FILE}")
 
