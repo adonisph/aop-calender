@@ -163,9 +163,13 @@ def load_config():
 
 # ------------------------------------------------------------ git activity
 
+# Under pythonw (the scheduled task) every console program would otherwise flash its own window.
+NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
+
 def git(repo, *args, check=True):
     r = subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True,
-                       encoding="utf-8", errors="replace")
+                       encoding="utf-8", errors="replace", creationflags=NO_WINDOW)
     if check and r.returncode:
         raise RuntimeError(f"git {' '.join(args[:2])} failed: {r.stderr.strip()[:300]}")
     return r
@@ -1031,7 +1035,7 @@ def open_log():
     log_path = HOME_DIR / "sync.log"
     if log_path.exists() and log_path.stat().st_size > 512_000:
         os.replace(log_path, log_path.with_suffix(".old.log"))
-    log = open(log_path, "a", encoding="utf-8")
+    log = open(log_path, "a", encoding="utf-8", buffering=1)  # line by line, so a stopped run still logs
     log.write(f"\n=== {dt.datetime.now().isoformat(timespec='seconds')} {' '.join(sys.argv[1:])}\n")
     sys.stdout = _Tee(sys.stdout, log)
     sys.stderr = _Tee(sys.stderr, log)
