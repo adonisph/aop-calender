@@ -17,6 +17,13 @@ What it writes, and nothing else:
     month's notation of each AOP of their own area, once a change of theirs
     is on main or live in Decagon (never re-added once someone removes it)
 
+Monthly plan (`plan-facts`, then `plan --file`), only when the person runs it:
+  - `plan-facts` prints what a month's plan can build on: last month's goals
+    and outcomes, commits, branches not live yet, days off. It writes nothing.
+  - `plan` adds the plan the person agreed to: a "Goal:" section (and the
+    one-line goal field, if empty) in each AOP's monthly notation, and planned
+    ticks on working days from today on. Existing goals, ticks and notes stay.
+
 Every write is a compare-and-swap on the shared workspace row, and is refused
 unless the new state equals the old one apart from those additions.
 
@@ -59,7 +66,9 @@ AREAS = {
 BLOCK_START = "── Claude day log (auto) ──"
 BLOCK_END = "── end of Claude day log ──"
 ENTRY_SOURCE = "claude-sync"
+PLAN_SOURCE = "claude-plan"
 ACHIEVED_HEADER = "Achieved during Sprint:"
+GOAL_HEADER = "Goal:"  # the app's own notation template starts with this
 MAX_CATCHUP_DAYS = 7
 ACHIEVED_LOOKBACK_DAYS = 14  # a branch merged within two weeks still becomes a sprint outcome
 MAX_SUBJECTS_PER_AOP = 3
@@ -93,6 +102,9 @@ DASHBOARD_EDITOR_RE = re.compile(
 AOP_PATH_RE = re.compile(r"aops[\\/]+(?:generated[\\/]+)?([^\"\\/\n]+?)\.(?:json|py)\b")
 ACHIEVED_LINE_RE = re.compile(r"^✅ .+ \(\d{1,2} [A-Z][a-z]{2}\)$|^✅ \+\d+ more changes \(\d{1,2} [A-Z][a-z]{2}\)$")
 NOTATION_SECTION_RE = re.compile(r"^(goal|achieved\s*during\s*sprint|existing\s*blockers?)\b", re.I)
+GOAL_SECTION_RE = re.compile(r"^goals?\s*:", re.I)
+# AOPs that mark a day off, not work. A day planned with one of these gets no planned ticks.
+ABSENCE_NAMES = {"vacation", "days off", "day off", "sickleave", "sick leave", "time off"}
 
 
 # ---------------------------------------------------------------- utilities
@@ -683,18 +695,23 @@ def apply_achievements(state, items, area, cfg, ledger, stamp=None):
         keys += [i["key"] for i in group]
         if not lines:
             continue
-        if record is None:  # same starting values ensureMonthly gives a new month in the app
-            prev = monthly.get(shift_month(month, -1)) or {}
-            record = {"goal": "", "comments": "", "required": False,
-                      "deflection_start": prev.get("deflection_end", ""), "deflection_end": "",
-                      "conversation_start": prev.get("conversation_end", ""), "conversation_end": "",
-                      "notation": "", "notation_updated_at": "", "created_at": stamp, "updated_at": stamp,
-                      "goal_created_at": "", "goal_updated_at": "", "comments_created_at": "",
-                      "comments_updated_at": "", "required_created_at": "", "required_updated_at": ""}
+        if record is None:
+            record = new_monthly_record(monthly, month, stamp)
         record = {**record, "notation": insert_achieved(notation, lines), "notation_updated_at": stamp}
         monthly[month] = record
         added.append({"aop": aops[aop_id].get("name"), "month": month, "lines": lines})
     return st, added, keys
+
+
+def new_monthly_record(monthly, month, stamp):
+    """Same starting values ensureMonthly gives a new month in the app."""
+    prev = monthly.get(shift_month(month, -1)) or {}
+    return {"goal": "", "comments": "", "required": False,
+            "deflection_start": prev.get("deflection_end", ""), "deflection_end": "",
+            "conversation_start": prev.get("conversation_end", ""), "conversation_end": "",
+            "notation": "", "notation_updated_at": "", "created_at": stamp, "updated_at": stamp,
+            "goal_created_at": "", "goal_updated_at": "", "comments_created_at": "",
+            "comments_updated_at": "", "required_created_at": "", "required_updated_at": ""}
 
 
 def shift_month(month, delta):
@@ -804,6 +821,288 @@ def check_only_additions(old, new, area, dks):
         raise RuntimeError("Guard: the new state differs from the stored one beyond this tool's additions. Nothing written.")
 
 
+# ------------------------------------------------------------ monthly plan
+
+def parse_notation(text):
+    """Goals and outcomes of an AOP's monthly notation, read like the app's parseAopNotationModel,
+    except that a bare "Achieved:" heading also starts the outcomes (people write it that way)."""
+    goals, achieved, section = [], [], "achieved"
+    for line in (text or "").replace("\r\n", "\n").split("\n"):
+        line = line.strip()
+        if not line:
+            continue
+        m = re.match(r"^goals?\s*:?\s*(.*)$", line, re.I)
+        if m:
+            section = "goal"
+            rest = re.sub(r"^[-*•]\s*", "", m.group(1)).strip()
+            if rest:
+                goals.append(rest)
+            continue
+        m = re.match(r"^achieved(?:\s*during\s*sprint)?\s*:\s*(.*)$", line, re.I)
+        if m:
+            section = "achieved"
+            line = m.group(1).strip()
+            if not line:
+                continue
+        elif re.match(r"^existing\s*blockers?", line, re.I):
+            section = "ignore"
+            continue
+        cleaned = re.sub(r"^[-*•]\s*", "", re.sub(r"^[✅✔☑]\s*", "", line)).strip()
+        if cleaned and section in ("goal", "achieved"):
+            (goals if section == "goal" else achieved).append(cleaned)
+    return {"goals": goals, "achieved": achieved}
+
+
+def insert_goals(notation, new_goals):
+    """Add "- goal" lines at the end of the notation's Goal section, or start the notation with one."""
+    lines = (notation or "").replace("\r\n", "\n").split("\n")
+    bullets = [f"- {g}" for g in new_goals]
+    header = next((i for i, l in enumerate(lines) if GOAL_SECTION_RE.match(l.strip())), None)
+    if header is None:
+        body = (notation or "").strip()
+        block = "\n".join([GOAL_HEADER] + bullets)
+        return f"{block}\n\n{body}" if body else block
+    # People also write a bare "Achieved:" heading; new goals go above it too.
+    end = next((i for i in range(header + 1, len(lines))
+                if re.match(r"^(achieved|existing\s*blockers?)\b", lines[i].strip(), re.I)), len(lines))
+    while end > header + 1 and not lines[end - 1].strip():
+        end -= 1
+    return "\n".join(lines[:end] + bullets + lines[end:]).rstrip()
+
+
+def is_absence(name):
+    return norm_name(name) in ABSENCE_NAMES
+
+
+def area_items(state, area):
+    """Everything an area can plan: its AOPs and its own items such as "Cleanup day" or "Days off"."""
+    return {i: a for i, a in (state.get("aops") or {}).items() if isinstance(a, dict) and a.get("area") == area}
+
+
+def month_days(month):
+    first = dt.date.fromisoformat(f"{month}-01")
+    last = dt.date.fromisoformat(f"{shift_month(month, 1)}-01") - dt.timedelta(days=1)
+    return day_range(first, last)
+
+
+def _names(bucket, aops):
+    return sorted({aops[e["aopId"]]["name"] for e in bucket or [] if isinstance(e, dict) and e.get("aopId") in aops})
+
+
+def plan_facts(state, cfg, area, month, commits):
+    """What a month's plan can build on, for one area. Reads only."""
+    aops = area_items(state, area)
+    aliases = cfg.get("aliases") or {}
+    prev = shift_month(month, -1)
+    entries = state.get("entries") or {}
+    days, days_off = [], []
+    for day in month_days(month):
+        dk = day.isoformat()
+        if day.weekday() >= 5:
+            continue
+        bucket = entries.get(dk) or {}
+        planned, actual = _names(bucket.get("planned"), aops), _names(bucket.get("actual"), aops)
+        if any(is_absence(n) for n in planned + actual):
+            days_off.append(dk)
+        days.append({"date": dk, "planned": planned, "actual": actual})
+
+    per_aop = {}
+    for aop_id, a in sorted(aops.items(), key=lambda x: x[1]["name"].lower()):
+        if is_absence(a["name"]):
+            continue
+        monthly = (state.get("aopMonthly") or {}).get(aop_id) or {}
+        info = {"kind": a.get("kind", "aop"), "required": bool((monthly.get(month) or {}).get("required"))}
+        for key, m in (("last_month", prev), ("this_month", month)):
+            rec = monthly.get(m) or {}
+            notes = parse_notation(rec.get("notation"))
+            info[key] = {"goal_field": rec.get("goal", ""), "goals": notes["goals"], "achieved": notes["achieved"],
+                         "planned_days": 0, "actual_days": 0}
+            for dk, bucket in entries.items():
+                if dk.startswith(m):
+                    for kind in ("planned", "actual"):
+                        if any(isinstance(e, dict) and e.get("aopId") == aop_id for e in bucket.get(kind) or []):
+                            info[key][f"{kind}_days"] += 1
+        per_aop[a["name"]] = {**info, "commit_days": [], "landed": [], "not_live": []}
+
+    elsewhere = {}
+    for c in commits:
+        if is_bulk(c):
+            continue
+        for kind, name in c["items"]:
+            if kind != "aop":
+                continue
+            aop_id = match_aop(name, aops, aliases)
+            if not aop_id:
+                elsewhere.setdefault(name, set()).add(c["day"])
+                continue
+            info = per_aop.get(aops[aop_id]["name"])
+            if info is None:
+                continue
+            if c["day"] not in info["commit_days"]:
+                info["commit_days"].append(c["day"])
+            line = f"{c['day']}: {clean_subject(c['subject'], 100)}"
+            if commit_state(c["where"]) == "done":
+                info["landed"].append(line)
+            else:
+                info["not_live"].append(f"{line}  ⟶ {short_branch(c['where'], cfg)}")
+    for info in per_aop.values():
+        info["commit_days"] = len(info["commit_days"])
+        info["landed"] = list(dict.fromkeys(info["landed"]))[-8:]
+        info["not_live"] = list(dict.fromkeys(info["not_live"]))[-8:]
+    today = dt.date.today().isoformat()
+    return {
+        "area": area, "person": AREAS.get(area, area), "month": month, "today": today,
+        "workdays": len(days), "workdays_from_today": sum(1 for d in days if d["date"] >= today),
+        "days_off": days_off,
+        "already_planned": {d["date"]: d["planned"] for d in days if d["planned"]},
+        "aops": per_aop,
+        "other_aops_committed": {n: len(d) for n, d in sorted(elsewhere.items())},
+    }
+
+
+def apply_plan(state, plan, area, cfg, today=None, stamp=None):
+    """Goals and planned ticks from an agreed plan, own area only. Returns (new_state, report)."""
+    stamp = stamp or now_iso()
+    today = today or dt.date.today()
+    month = str(plan.get("month") or "")
+    if not re.fullmatch(r"\d{4}-\d{2}", month):
+        raise RuntimeError("The plan file needs \"month\": \"YYYY-MM\".")
+    st = copy.deepcopy(state)
+    aops = area_items(st, area)
+    aliases = cfg.get("aliases") or {}
+    tombstones = st.get("entryTombstones") or {}
+    report = {"month": month, "goals": [], "goal_field": [], "ticked": [], "skipped": []}
+
+    for name, spec in (plan.get("aops") or {}).items():
+        aop_id = match_aop(name, aops, aliases)
+        if not aop_id:
+            report["skipped"].append(f"{name}: not an AOP in {AREAS.get(area, area)}'s area")
+            continue
+        label = aops[aop_id]["name"]
+        monthly = (st.get("aopMonthly") or {}).get(aop_id) or {}
+        record = dict(monthly.get(month) or new_monthly_record(monthly, month, stamp))
+        before = dict(record)
+        goal = " ".join(str(spec.get("goal") or "").split())
+        if goal and not (record.get("goal") or "").strip():
+            record.update(goal=goal, goal_updated_at=stamp, goal_created_at=record.get("goal_created_at") or stamp)
+            report["goal_field"].append(f"{label}: {goal}")
+        elif goal and record.get("goal", "").strip() != goal:
+            report["skipped"].append(f"{label}: goal field already says {record['goal'][:60]!r}, left as it is")
+        have = {norm_name(g) for g in parse_notation(record.get("notation"))["goals"]}
+        new = []
+        for g in spec.get("goals") or []:
+            g = re.sub(r"^[-*•]\s*", "", " ".join(str(g).split()))
+            if g and norm_name(g) not in have:
+                have.add(norm_name(g))
+                new.append(g)
+        if new:
+            record.update(notation=insert_goals(record.get("notation"), new), notation_updated_at=stamp)
+            report["goals"].append({"aop": label, "lines": new})
+        if record != before:
+            st.setdefault("aopMonthly", {}).setdefault(aop_id, {})[month] = record
+
+    entries = st.setdefault("entries", {})
+    for dk, names in sorted((plan.get("days") or {}).items()):
+        try:
+            day = dt.date.fromisoformat(dk)
+        except ValueError:
+            report["skipped"].append(f"{dk}: not a date")
+            continue
+        if not dk.startswith(month) or day.weekday() >= 5 or day < today:
+            why = "outside the month" if not dk.startswith(month) else "weekend" if day.weekday() >= 5 else "in the past"
+            report["skipped"].append(f"{dk}: {why}")
+            continue
+        bucket = entries.get(dk) or {"planned": [], "actual": []}
+        planned = list(bucket.get("planned") or [])
+        if any(is_absence(n) for n in _names(planned, aops)):
+            report["skipped"].append(f"{dk}: planned as a day off")
+            continue
+        added = False
+        for name in names or []:
+            aop_id = match_aop(name, aops, aliases)
+            if not aop_id:
+                report["skipped"].append(f"{dk} {name}: not an AOP in {AREAS.get(area, area)}'s area")
+                continue
+            label = aops[aop_id]["name"]
+            entry_id = f"{PLAN_SOURCE}:{dk}:{aop_id}"
+            if entry_id in tombstones:
+                report["skipped"].append(f"{dk} {label}: someone deleted this planned tick before")
+            elif any(isinstance(e, dict) and e.get("aopId") == aop_id for e in planned):
+                report["skipped"].append(f"{dk} {label}: already planned")
+            else:
+                planned.append({"id": entry_id, "aopId": aop_id, "ts": stamp, "source": PLAN_SOURCE})
+                report["ticked"].append(f"{dk} {label}")
+                added = True
+        if added:
+            entries[dk] = {**bucket, "planned": planned, "actual": list(bucket.get("actual") or [])}
+    if not entries and "entries" not in state:
+        del st["entries"]
+    return st, report
+
+
+def check_plan_additions(old, new, area, month):
+    """Raise unless `new` equals `old` apart from this plan's goals and planned ticks in `month`."""
+    expected = copy.deepcopy(new)
+    old_entries = old.get("entries") or {}
+    own = {i for i, a in (old.get("aops") or {}).items() if isinstance(a, dict) and a.get("area") == area}
+    for dk, bucket in list((expected.get("entries") or {}).items()):
+        before = old_entries.get(dk)
+        if bucket == before:
+            continue
+        if not dk.startswith(month):
+            raise RuntimeError("Guard: a day outside the planned month would change. Nothing written.")
+        before = before or {"planned": [], "actual": []}
+        if (bucket.get("actual") or []) != (before.get("actual") or []):
+            raise RuntimeError("Guard: an Actual tick would change. Nothing written.")
+        old_planned = before.get("planned") or []
+        for e in bucket.get("planned") or []:
+            if e not in old_planned and not (str(e.get("id", "")).startswith(PLAN_SOURCE + ":")
+                                             and e.get("aopId") in own):
+                raise RuntimeError("Guard: an unexpected planned tick would be added. Nothing written.")
+        bucket["planned"] = [e for e in bucket.get("planned") or [] if e in old_planned]
+        if dk not in old_entries:
+            if bucket["planned"] or bucket.get("actual"):
+                raise RuntimeError("Guard: unexpected calendar entries would be added. Nothing written.")
+            del expected["entries"][dk]
+    old_monthly = old.get("aopMonthly") or {}
+    for aop_id, months in list((expected.get("aopMonthly") or {}).items()):
+        for m, record in list(months.items()):
+            before = (old_monthly.get(aop_id) or {}).get(m)
+            if record == before:
+                continue
+            if aop_id not in own or m != month:
+                raise RuntimeError("Guard: another AOP's or month's record would change. Nothing written.")
+            old_lines = [l.rstrip() for l in ((before or {}).get("notation") or "").replace("\r\n", "\n").split("\n") if l.strip()]
+            new_lines = [l.rstrip() for l in (record.get("notation") or "").replace("\r\n", "\n").split("\n") if l.strip()]
+            it = iter(new_lines)
+            if not all(any(o == n for n in it) for o in old_lines):
+                raise RuntimeError("Guard: an AOP's notation would lose or change text. Nothing written.")
+            extra = list(new_lines)
+            for o in old_lines:
+                extra.remove(o)
+            if any(l.strip() != GOAL_HEADER and not l.startswith("- ") for l in extra):
+                raise RuntimeError("Guard: an unexpected notation line would be added. Nothing written.")
+            if (before or {}).get("goal", "").strip() and record.get("goal") != before.get("goal"):
+                raise RuntimeError("Guard: an existing goal would change. Nothing written.")
+            plan_fields = ("notation", "notation_updated_at", "goal", "goal_created_at", "goal_updated_at")
+            rest = {k: v for k, v in record.items() if k not in plan_fields}
+            if before is None:
+                if rest.get("comments") or rest.get("required"):
+                    raise RuntimeError("Guard: a new monthly record would hold more than a plan. Nothing written.")
+                del months[m]
+            else:
+                if rest != {k: v for k, v in before.items() if k not in plan_fields}:
+                    raise RuntimeError("Guard: a monthly field other than goals would change. Nothing written.")
+                months[m] = before
+        if aop_id not in old_monthly and not months:
+            del expected["aopMonthly"][aop_id]
+    for key in ("entries", "aopMonthly"):
+        if key not in old and expected.get(key) == {}:
+            expected.pop(key)
+    if expected != old:
+        raise RuntimeError("Guard: the new state differs from the stored one beyond the plan. Nothing written.")
+
+
 # ---------------------------------------------------------------- Supabase
 
 class Workspace:
@@ -897,6 +1196,52 @@ def _contains_additions(after, new, area, dks):
         if BLOCK_START in want_note.get("text", "") and BLOCK_START not in have_note.get("text", ""):
             return False
     return True
+
+
+def sync_plan_live(ws, cfg, plan, dry_run):
+    """One compare-and-swap write for an agreed monthly plan."""
+    area = cfg["area"]
+    for _ in range(5):
+        row = ws.fetch()
+        old = row["state"]
+        new, report = apply_plan(old, plan, area, cfg)
+        check_plan_additions(old, new, area, report["month"])
+        report["written"] = False
+        if dry_run or new == old:
+            return report
+        if not ws.write_if_unchanged(new, row["updated_at"]):
+            continue  # someone saved in between: re-read and apply again
+        report["written"] = True
+        after = ws.fetch()["state"]
+        _, again = apply_plan(after, plan, area, cfg)
+        report["verified"] = not again["ticked"] and not again["goals"] and not again["goal_field"]
+        return report
+    raise RuntimeError("The workspace kept changing while writing; gave up after 5 tries. Nothing lost - run again.")
+
+
+def print_plan_report(report):
+    print(f"Plan for {report['month']}:")
+    for g in report["goal_field"]:
+        print(f"  goal field: {g}")
+    for g in report["goals"]:
+        print(f"  {g['aop']}")
+        for line in g["lines"]:
+            print(f"    - {line}")
+    by_day = {}
+    for t in report["ticked"]:
+        dk, label = t.split(" ", 1)
+        by_day.setdefault(dk, []).append(label)
+    if by_day:
+        print(f"  planned ticks ({len(report['ticked'])}):")
+        for dk, labels in by_day.items():
+            print(f"    {dk}: {', '.join(labels)}")
+    for s in report["skipped"]:
+        print(f"  skipped: {s}")
+    if not (report["goal_field"] or report["goals"] or report["ticked"]):
+        print("  nothing new to add")
+    print("\nSaved to the calendar." if report.get("written") else "\nNot saved (dry run or nothing new).")
+    if report.get("written") and not report.get("verified"):
+        print("warning: the save went through but a re-read did not show all of it; run `plan` again")
 
 
 # ----------------------------------------------------------------- commands
@@ -1065,6 +1410,54 @@ def cmd_backfill(args):
     _live(args, first, last)
 
 
+def _signed_in(cfg):
+    ws = Workspace(cfg)
+    try:
+        ws.login_refresh()
+    except RuntimeError as e:
+        raise RuntimeError(f"sign-in expired or was replaced ({e}). Run `setup` again.") from None
+    return ws
+
+
+def cmd_plan_facts(args):
+    cfg = load_config()
+    area = args.area or cfg["area"]
+    if area not in AREAS:
+        sys.exit(f"Unknown area {area!r}. Areas: {', '.join(AREAS)}")
+    month = args.month or dt.date.today().strftime("%Y-%m")
+    source = dict(cfg)
+    if area != cfg["area"]:  # a look at someone else's area: their commits only if their emails are given
+        source.update(area=area, name=AREAS[area], author_emails=args.author_email or [])
+    elif args.author_email:
+        source["author_emails"] = args.author_email
+    state = _signed_in(cfg).fetch()["state"]
+    commits = []
+    if source["author_emails"]:
+        if not args.no_fetch:
+            for w in fetch_repo(source):
+                print(f"warning: {w}", file=sys.stderr)
+        first = dt.date.fromisoformat(f"{shift_month(month, -1)}-01")
+        last = min(dt.date.today(), month_days(month)[-1])
+        commits = collect_commits(source, first, last)
+    facts = plan_facts(state, source, area, month, commits)
+    facts["commits_by"] = source["author_emails"]
+    text = json.dumps(facts, ensure_ascii=False, indent=2)
+    if args.out:
+        Path(args.out).write_text(text, encoding="utf-8")
+        print(f"Wrote {args.out}")
+    else:
+        print(text)
+
+
+def cmd_plan(args):
+    cfg = load_config()
+    plan = read_json(args.file)
+    if not isinstance(plan, dict):
+        sys.exit(f"Could not read a plan from {args.file}.")
+    print(f"{AREAS[cfg['area']]}'s area, {'dry run' if args.dry_run else 'saving'}.")
+    print_plan_report(sync_plan_live(_signed_in(cfg), cfg, plan, args.dry_run))
+
+
 class _Tee:
     """Writes to the console (absent under pythonw) and to the log file."""
     def __init__(self, *streams):
@@ -1096,7 +1489,7 @@ def main():
     for stream in (sys.stdout, sys.stderr):
         if stream is not None and hasattr(stream, "reconfigure"):
             stream.reconfigure(encoding="utf-8")
-    if len(sys.argv) > 1 and sys.argv[1] in ("run", "backfill"):
+    if len(sys.argv) > 1 and sys.argv[1] in ("run", "backfill", "plan"):
         open_log()
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -1135,6 +1528,19 @@ def main():
     b.add_argument("--dry-run", action="store_true", help="read the live calendar, write nothing")
     b.add_argument("--full", action="store_true", help="print each day's full day log")
     b.set_defaults(fn=cmd_backfill, date=None)
+
+    f = sub.add_parser("plan-facts", help="what a month's plan can build on, as JSON (reads only)")
+    f.add_argument("--month", help="YYYY-MM (default this month)")
+    f.add_argument("--area", help="look at another area (reads only)")
+    f.add_argument("--author-email", action="append", help="git author email for the commits (repeatable)")
+    f.add_argument("--out", help="write the JSON to this file")
+    f.add_argument("--no-fetch", action="store_true")
+    f.set_defaults(fn=cmd_plan_facts)
+
+    n = sub.add_parser("plan", help="add an agreed monthly plan (goals, planned ticks) to your own area")
+    n.add_argument("--file", required=True, help="plan JSON: month, aops{name: goal, goals[]}, days{date: [AOP names]}")
+    n.add_argument("--dry-run", action="store_true", help="read the live calendar, write nothing")
+    n.set_defaults(fn=cmd_plan)
 
     args = p.parse_args()
     try:

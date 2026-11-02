@@ -12,6 +12,10 @@ with what you worked on that day:
   `✅ <change> (<date>)` line is added under "Achieved during Sprint" in that
   AOP's notation for the month. These lines show up in the Achieved view.
 
+Once a month it can also help you **plan the month** (goals and planned
+ticks), but only when you ask for it. See
+[Plan your month](#plan-your-month-once-a-month-with-claude).
+
 It reads two things on your own laptop:
 
 - **Your commits in the power repo**, on every branch: main, Decagon dashboard
@@ -224,6 +228,61 @@ Claude sessions (1): "Insurance V4 for chat"
 - To leave session titles out, set `"include_session_titles": false` in your
   `config.json`.
 
+## Plan your month (once a month, with Claude)
+
+At the start of a month, Claude can help you write your plan. Open Claude Code
+in the power repo and say *"plan my month in the AI Calender"*. It goes like
+this:
+
+1. **Claude reads your facts** with `plan-facts`. This only reads; nothing is
+   saved:
+   - last month's goals and outcomes per AOP, and how many days you planned
+     and actually worked on each;
+   - your commits since the start of last month, and what is still on a branch;
+   - days you already marked off this month, and days you already planned.
+2. **You agree on the plan together.** Claude suggests 2–4 goals for the month
+   and a focus per week. You change it until it's yours.
+3. **Dry run.** Claude shows exactly what would be added.
+4. **Saved on your yes.**
+
+```powershell
+& $py $s plan-facts --month 2026-11 --out "$HOME\.aop-calendar-sync\facts-2026-11.json"
+& $py $s plan --file "$HOME\.aop-calendar-sync\plan-2026-11.json" --dry-run
+& $py $s plan --file "$HOME\.aop-calendar-sync\plan-2026-11.json"
+```
+
+**What `plan` adds**, only in your own area:
+
+- A **Goal:** section with your goals in each AOP's monthly notation, above
+  "Achieved during Sprint", so the outcomes the daily sync adds land below
+  your goals.
+- The AOP's one-line **goal** field, but only if it's empty.
+- **Planned ticks** for working days from today until the end of the month.
+  Days you marked off (Days off, Vacation, Sick leave) get none.
+
+It never changes a goal, note or tick you already have, never touches the
+Actual calendar, and a planned tick you delete isn't added again. Run it again
+later in the month and it only adds what's new.
+
+**The plan file** Claude writes for you looks like this (names as they are in
+the calendar):
+
+```json
+{
+  "month": "2026-11",
+  "aops": {
+    "Large Product Warranty Handling & Troubleshooting": {
+      "goal": "Warranty V4 live in all four markets",
+      "goals": ["Merge the troubleshooting-V4 branch", "TVs stay in Large when the size check says small"]
+    }
+  },
+  "days": {
+    "2026-11-03": ["Large Product Warranty Handling & Troubleshooting"],
+    "2026-11-04": ["Cleanup day"]
+  }
+}
+```
+
 ## Good to know
 
 - **Work done in Codex** shows up only through its commits. Codex sessions
@@ -240,9 +299,10 @@ Claude sessions (1): "Insurance V4 for chat"
   - `last_run.json`: where catch-up starts from.
   - `achieved.json`: outcome lines already added once, so a line you removed
     isn't added again.
-- **What it leaves alone:** the planned calendar, monthly goals, comments,
-  "required", deflection and conversation numbers, and custom statuses. Those
-  stay yours to fill in.
+- **What the daily run leaves alone:** the planned calendar, monthly goals,
+  comments, "required", deflection and conversation numbers, and custom
+  statuses. Only `plan` adds goals and planned ticks, and only when you run it
+  yourself.
 
 ## If something goes wrong
 
