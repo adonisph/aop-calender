@@ -11,8 +11,9 @@ What it writes, and nothing else:
   - a new AOP in their own area, in a color no other AOP has, for each AOP
     they committed or edited that no area of the calendar has yet (never
     re-added once someone deletes it)
-  - an "actual" tick per AOP of their own area they committed or edited that
-    weekday (fixed id, never re-added once someone deletes it)
+  - an "actual" tick per AOP they committed or edited that weekday, marked as
+    theirs (`by`), on their own AOPs and on other people's alike (fixed id,
+    never re-added once someone deletes it)
   - a "Claude day log" block in their own area's day note; any text the
     person wrote stays as it is, only the block between the markers is
     replaced on a re-run
@@ -74,6 +75,12 @@ BLOCK_START = "── Claude day log (auto) ──"
 BLOCK_END = "── end of Claude day log ──"
 ENTRY_SOURCE = "claude-sync"
 PLAN_SOURCE = "claude-plan"
+# The app's APP_VERSION this script knows. A workspace saved by a newer page is refused, so an
+# old copy of this script never writes into a data shape it doesn't understand.
+KNOWN_APP_VERSION = 2
+# From this APP_VERSION on, a tick's `by` says whose work it is; before it, the AOP's area did.
+# Ticks on another person's AOP wait until a page this new has saved the workspace.
+BY_APP_VERSION = 2
 ACHIEVED_HEADER = "Achieved during Sprint:"
 GOAL_HEADER = "Goal:"  # the app's own notation template starts with this
 MAX_CATCHUP_DAYS = 7
@@ -207,31 +214,84 @@ def classify_path(path):
     return None
 
 
-_FILE_LINES = {}
+# Each git process costs ~0.1 s on Windows, so the per-commit questions below are answered from a
+# few whole-repo calls, cached per run: ancestry sets, one batched diff, one cat-file reader and
+# the graph of branch-only commits.
+_CACHE = {}
+
+
+def _repo_cache(repo):
+    return _CACHE.setdefault(str(repo), {"ancestors": {}, "diffs": {}, "files": {}, "branches": None, "cat": None})
+
+
+def is_ancestor(repo, sha, ref):
+    """Same answer as `git merge-base --is-ancestor sha ref`."""
+    sets = _repo_cache(repo)["ancestors"]
+    if ref not in sets:
+        r = git(repo, "rev-list", ref, check=False)
+        sets[ref] = set(r.stdout.split()) if r.returncode == 0 else set()
+    return sha in sets[ref]
+
+
+def _parse_added(diff_text):
+    added, path = {}, None
+    for line in diff_text.splitlines():
+        if line.startswith("+++ "):
+            path = line[6:].rstrip("\t") if line.startswith("+++ b/") else None
+        elif path and line.startswith("+") and len(line.strip()) > CARRIED_MIN_LINE:
+            added.setdefault(path, []).append(line[1:].strip().rstrip(","))
+    return added
+
+
+def prefetch_diffs(repo, shas):
+    """Every commit's added lines from one `git show` call per 100 commits, instead of one call each."""
+    diffs = _repo_cache(repo)["diffs"]
+    todo = [s for s in dict.fromkeys(shas) if s not in diffs]
+    for i in range(0, len(todo), 100):
+        chunk = todo[i:i + 100]
+        r = git(repo, "-c", "core.quotePath=false", "show", "--format=%x1e%H", "--unified=0", "--no-renames",
+                *chunk, check=False)
+        for record in r.stdout.split("\x1e")[1:]:
+            sha, _, body = record.partition("\n")
+            diffs[sha.strip()] = _parse_added(body)
+
+
+def _added_lines(repo, sha):
+    diffs = _repo_cache(repo)["diffs"]
+    if sha not in diffs:
+        prefetch_diffs(repo, [sha])
+    return diffs.get(sha, {})
 
 
 def _file_lines(repo, ref, path):
-    key = (str(repo), ref, path)
-    if key not in _FILE_LINES:
-        r = git(repo, "show", f"{ref}:{path}", check=False)
-        _FILE_LINES[key] = {l.strip().rstrip(",") for l in r.stdout.splitlines()} if r.returncode == 0 else None
-    return _FILE_LINES[key]
+    """The stripped lines of ref:path, or None if it isn't there. Read through one `git cat-file --batch`."""
+    cache = _repo_cache(repo)
+    files = cache["files"]
+    key = (ref, path)
+    if key not in files:
+        cat = cache["cat"]
+        if cat is None or cat.poll() is not None:
+            cat = cache["cat"] = subprocess.Popen(["git", "-C", str(repo), "cat-file", "--batch"], stdin=subprocess.PIPE,
+                                                  stdout=subprocess.PIPE, creationflags=NO_WINDOW)
+        cat.stdin.write(f"{ref}:{path}\n".encode("utf-8"))
+        cat.stdin.flush()
+        # "<oid> <type> <size>", or "<name> missing" / "<name> ambiguous", where <name> may contain spaces
+        header = cat.stdout.readline().decode("utf-8", "replace").rstrip("\n").rsplit(" ", 2)
+        files[key] = None
+        if len(header) == 3 and header[2].isdigit():
+            body = cat.stdout.read(int(header[2]))
+            cat.stdout.read(1)  # the newline after each object
+            if header[1] == "blob":
+                files[key] = {l.strip().rstrip(",") for l in body.decode("utf-8", "replace").splitlines()}
+    return files[key]
 
 
 def carried_into(repo, sha, ref):
     """True when the lines this commit added are in ref's files even though the commit itself is not:
     the change went live in another commit, such as a [Dashboard] re-commit or a squash merge."""
-    added = {}
-    path = None
-    diff = git(repo, "-c", "core.quotePath=false", "show", "--format=", "--unified=0", "--no-renames", sha, check=False)
-    for line in diff.stdout.splitlines():
-        if line.startswith("+++ "):
-            path = line[6:].rstrip("\t") if line.startswith("+++ b/") else None
-        elif path and line.startswith("+") and len(line.strip()) > CARRIED_MIN_LINE:
-            added.setdefault(path, []).append(line[1:].strip().rstrip(","))
     # Lines already in the parent's file were only moved or re-indented; they say nothing.
     added = {p: [l for l in lines if l not in (_file_lines(repo, f"{sha}^", p) or set())]
-             for p, lines in added.items()}
+             for p, lines in _added_lines(repo, sha).items()}
     total = sum(len(v) for v in added.values())
     if not total:
         return False  # only deletions or tiny edits: can't tell
@@ -243,22 +303,50 @@ def carried_into(repo, sha, ref):
     return found / total >= CARRIED_MIN_SHARE
 
 
+def _branches_containing(repo, sha, main_ref):
+    """(remote branch names, local branch names) containing sha, sorted like `git branch --contains`.
+    Only valid for a commit that isn't on main_ref: it walks the graph of commits not on main."""
+    cache = _repo_cache(repo)
+    if cache["branches"] is None:
+        parents = {}
+        for line in git(repo, "rev-list", "--parents", "--branches", "--remotes", f"^{main_ref}").stdout.splitlines():
+            ids = line.split()
+            parents[ids[0]] = ids[1:]
+        contains = {}
+        refs = git(repo, "for-each-ref", "--format=%(objectname) %(refname)", "refs/heads", "refs/remotes").stdout
+        for line in sorted(refs.splitlines(), key=lambda l: l.split(" ", 1)[1]):
+            tip, refname = line.split(" ", 1)
+            if refname.endswith("/HEAD"):
+                continue
+            kind = "remote" if refname.startswith("refs/remotes/") else "local"
+            short = refname.split("/", 2)[2]
+            stack, seen = [tip], set()
+            while stack:
+                c = stack.pop()
+                if c in seen or c not in parents:
+                    continue
+                seen.add(c)
+                contains.setdefault(c, {"remote": [], "local": []})[kind].append(short)
+                stack.extend(parents[c])
+        cache["branches"] = contains
+    found = cache["branches"].get(sha) or {"remote": [], "local": []}
+    return found["remote"], found["local"]
+
+
 def commit_location(repo, sha, main_ref, live_ref):
-    if git(repo, "merge-base", "--is-ancestor", sha, main_ref, check=False).returncode == 0:
+    if is_ancestor(repo, sha, main_ref):
         return "on main"
-    if live_ref and git(repo, "merge-base", "--is-ancestor", sha, live_ref, check=False).returncode == 0:
+    if live_ref and is_ancestor(repo, sha, live_ref):
         return "live in Decagon (production)"
     if carried_into(repo, sha, main_ref):
         return "on main, carried over in another commit"
     if live_ref and carried_into(repo, sha, live_ref):
         return "live in Decagon (production), carried over in another commit"
-    remote = [b for b in git(repo, "branch", "-r", "--contains", sha, "--format=%(refname:short)").stdout.split()
-              if not b.endswith("/HEAD")]
+    remote, local = _branches_containing(repo, sha, main_ref)
     if remote:
         name = remote[0].split("/", 1)[-1]
         more = f" +{len(remote) - 1}" if len(remote) > 1 else ""
         return f"branch {name}{more} (not merged)"
-    local = git(repo, "branch", "--contains", sha, "--format=%(refname:short)").stdout.split()
     if local:
         return f"local only, not pushed ({local[0]})"
     return "not on any branch"
@@ -302,15 +390,20 @@ def collect_commits(cfg, first, last):
             continue
         seen.add(key)
         commits.append({
-            "sha": sha[:8],
+            "sha": sha,
             "day": authored.date().isoformat(),
             "time": authored.strftime("%H:%M"),
             "subject": subject.strip(),
             "how": "dashboard" if subject.startswith("[Dashboard]") else
                    "with Claude" if "claude" in trailers.lower() else "by hand",
-            "where": commit_location(repo, sha, main_ref, live_ref),
             "items": [c for c in (classify_path(p) for p in paths) if c],
         })
+    # the diffs of every commit that isn't on main or live, in a few calls, before checking where each one is
+    prefetch_diffs(repo, [c["sha"] for c in commits if not is_ancestor(repo, c["sha"], main_ref)
+                          and not (live_ref and is_ancestor(repo, c["sha"], live_ref))])
+    for c in commits:
+        c["where"] = commit_location(repo, c["sha"], main_ref, live_ref)
+        c["sha"] = c["sha"][:8]
     return commits
 
 
@@ -498,21 +591,66 @@ def word_key(text):
     return " ".join(out)
 
 
-def match_aop(name, aops, aliases):
+def match_aop(name, aops, aliases, area=None):
+    """The calendar item for an AOP file name: an exact name, then without versions, then near spelling.
+    Several matches resolve to the one in `area`, if exactly one is there; otherwise to none."""
     target = aliases.get(name, name)
-    exact = [i for i, a in aops.items() if norm_name(a.get("name")) == norm_name(target)]
-    if len(exact) == 1:
-        return exact[0]
-    loose = [i for i, a in aops.items() if base_name(a.get("name")) == base_name(target)]
-    if loose:
-        return loose[0] if len(loose) == 1 else None
-    words = [i for i, a in aops.items() if word_key(a.get("name")) == word_key(target)]
-    return words[0] if len(words) == 1 else None
+    for key in (norm_name, base_name, word_key):
+        found = [i for i, a in aops.items() if key(a.get("name")) == key(target)]
+        if len(found) > 1 and area:
+            own = [i for i in found if aops[i].get("area") == area]
+            found = own if len(own) == 1 else found
+        if len(found) == 1:
+            return found[0]
+        if found and key is not norm_name:
+            return None  # ambiguous: don't fall through to a looser match
+    return None
+
+
+SEVERAL = "\0several"  # matches[] value: more than one calendar item fits and none is the person's own
+
+
+def has_any_match(name, aops, aliases):
+    """True if some calendar item matches at all, even when several do."""
+    target = aliases.get(name, name)
+    return any(key(a.get("name")) == key(target) for key in (norm_name, base_name, word_key) for a in aops.values())
 
 
 def calendar_aops(state):
-    return {i: a for i, a in (state.get("aops") or {}).items()
-            if isinstance(a, dict) and a.get("kind", "aop") == "aop"}
+    """Every item an AOP can match: AOPs and custom items (some teams keep AOPs as custom items)."""
+    return {i: a for i, a in (state.get("aops") or {}).items() if isinstance(a, dict)}
+
+
+def app_version(state):
+    try:
+        return int((state or {}).get("appVersion") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def check_app_version(state):
+    if app_version(state) > KNOWN_APP_VERSION:
+        raise RuntimeError(f"The calendar was saved by a newer page (version {app_version(state)}); this script "
+                           f"knows version {KNOWN_APP_VERSION}. Update the script (README, 'Updating'). Nothing written.")
+
+
+def entry_owner(entry, aops):
+    """Whose work a tick is, like the app's entryOwner: its `by`, else the area of its AOP."""
+    if entry.get("by") in AREAS:
+        return entry["by"]
+    area = (aops.get(entry.get("aopId")) or {}).get("area")
+    return area if area in AREAS else "pool"  # the app reads an unknown area as Erik's
+
+
+def tick_id(source, dk, aop_id, aop_area, area):
+    """A tick on your own AOP keeps the id it always had (old tombstones still hold); a tick on
+    another person's AOP gets your area on the end, so it never clashes with theirs."""
+    base = f"{source}:{dk}:{aop_id}"
+    return base if aop_area == area else f"{base}:{area}"
+
+
+def has_tick_by(bucket, aop_id, area, aops):
+    return any(isinstance(e, dict) and e.get("aopId") == aop_id and entry_owner(e, aops) == area for e in bucket or [])
 
 
 def strip_block(text):
@@ -570,7 +708,8 @@ def render_block(activity, matches, area, cfg):
             looked.append(a["name"])
             continue
         owner = matches.get(a["name"])
-        tag = "" if owner == area else " (not in the calendar)" if owner is None else f" ({AREAS.get(owner, owner)}'s area)"
+        tag = ("" if owner == area else " (not in the calendar)" if owner is None
+               else " (in the calendar more than once)" if owner == SEVERAL else f" ({AREAS.get(owner, owner)}'s AOP)")
         by_state = {}
         for c in a["commits"]:
             by_state.setdefault(commit_state(c["where"]), []).append(c)
@@ -644,20 +783,23 @@ def apply_day(state, activity, area, cfg, stamp=None):
     aops = calendar_aops(st)
     tombstones = st.get("entryTombstones") or {}
     aliases = cfg.get("aliases") or {}
-    report = {"date": dk, "weekend": is_weekend(dk), "ticked": [], "already_ticked": [], "deleted_before": [],
-              "other_area": [], "unmatched": [], "note": None}
+    report = {"date": dk, "weekend": is_weekend(dk), "ticked": [], "ticked_other_area": [], "already_ticked": [],
+              "deleted_before": [], "other_area": [], "unmatched": [], "ambiguous": [], "note": None}
+    tick_others = cfg.get("tick_other_areas", True) and app_version(st) >= BY_APP_VERSION
 
     matches = {}
     for a in activity["aops"]:
-        aop_id = match_aop(a["name"], aops, aliases)
-        matches[a["name"]] = aops[aop_id].get("area") if aop_id else None
+        aop_id = match_aop(a["name"], aops, aliases, area)
+        several = not aop_id and has_any_match(a["name"], aops, aliases)
+        matches[a["name"]] = aops[aop_id].get("area") if aop_id else SEVERAL if several else None
         if not is_real_work(a):
             continue
         if not aop_id:
-            report["unmatched"].append(a["name"])
+            report["ambiguous" if several else "unmatched"].append(a["name"])
             continue
         label = aops[aop_id].get("name")
-        if aops[aop_id].get("area") != area:
+        own = aops[aop_id].get("area") == area
+        if not own and not tick_others:
             report["other_area"].append(label)
             continue
         if report["weekend"]:  # the calendar itself refuses Actual ticks on weekends
@@ -665,15 +807,15 @@ def apply_day(state, activity, area, cfg, stamp=None):
         entries = st.setdefault("entries", {})
         bucket = entries.get(dk) or {"planned": [], "actual": []}
         actual = list(bucket.get("actual") or [])
-        entry_id = f"{ENTRY_SOURCE}:{dk}:{aop_id}"
+        entry_id = tick_id(ENTRY_SOURCE, dk, aop_id, aops[aop_id].get("area"), area)
         if entry_id in tombstones:
             report["deleted_before"].append(label)
-        elif any(e.get("aopId") == aop_id for e in actual if isinstance(e, dict)):
+        elif has_tick_by(actual, aop_id, area, aops):
             report["already_ticked"].append(label)
         else:
-            actual.append({"id": entry_id, "aopId": aop_id, "ts": stamp, "source": ENTRY_SOURCE})
+            actual.append({"id": entry_id, "aopId": aop_id, "ts": stamp, "source": ENTRY_SOURCE, "by": area})
             entries[dk] = {**bucket, "planned": list(bucket.get("planned") or []), "actual": actual}
-            report["ticked"].append(label)
+            report["ticked" if own else "ticked_other_area"].append(label)
 
     if activity["aops"] or activity["other"] or activity.get("bulk") or activity["sessions"]["power_titles"]:
         notes = st.setdefault("dayNotes", {})
@@ -716,7 +858,7 @@ def apply_achievements(state, items, area, cfg, ledger, stamp=None):
     for item in items:
         if item["key"] in ledger:
             continue
-        aop_id = match_aop(item["aop"], aops, aliases)
+        aop_id = match_aop(item["aop"], aops, aliases, area)
         if not aop_id or aops[aop_id].get("area") != area:
             continue
         pending.setdefault((aop_id, item["month"]), []).append(item)
@@ -863,9 +1005,26 @@ def _check_notation(old_text, new_text):
             raise RuntimeError(f"Guard: unexpected notation line {line[:60]!r}. Nothing written.")
 
 
+NEW_TICK_KEYS = {"id", "aopId", "ts", "source", "by"}
+
+
+def _check_new_tick(e, dk, area, aops, old):
+    """A tick this tool adds: its fields, its owner and its id, and on another person's AOP only
+    once the calendar knows `by` (an older page would count it for the AOP's area)."""
+    aop = aops.get(e.get("aopId")) if isinstance(e, dict) else None
+    if not (aop and set(e) == NEW_TICK_KEYS and e["source"] == ENTRY_SOURCE and e["by"] == area
+            and e["id"] == tick_id(ENTRY_SOURCE, dk, e["aopId"], aop.get("area"), area)):
+        raise RuntimeError("Guard: an unexpected tick would be added. Nothing written.")
+    if aop.get("area") != area and app_version(old) < BY_APP_VERSION:
+        raise RuntimeError("Guard: a tick on another person's AOP needs the calendar on version "
+                           f"{BY_APP_VERSION}. Nothing written.")
+
+
 def check_only_additions(old, new, area, dks):
     """Raise unless `new` equals `old` apart from this tool's new AOPs, ticks, note blocks and sprint-outcome lines."""
+    check_app_version(old)
     expected = copy.deepcopy(new)
+    new_aops = calendar_aops(new)
     old_aops = old.get("aops") or {}
     new_ids = [i for i in (expected.get("aops") or {}) if i not in old_aops]
     for i in new_ids:
@@ -888,8 +1047,13 @@ def check_only_additions(old, new, area, dks):
         if isinstance(new_entries, dict) and dk in new_entries:
             old_actual = (old_entries.get(dk) or {}).get("actual") or []
             bucket = new_entries[dk]
-            bucket["actual"] = [e for e in bucket.get("actual") or []
-                                if e in old_actual or not str((e or {}).get("id", "")).startswith(ours)]
+            kept = []
+            for e in bucket.get("actual") or []:
+                if e in old_actual or not str((e or {}).get("id", "")).startswith(ours):
+                    kept.append(e)
+                else:
+                    _check_new_tick(e, dk, area, new_aops, old)
+            bucket["actual"] = kept
             if dk not in old_entries:
                 if bucket["actual"] or bucket.get("planned"):
                     raise RuntimeError("Guard: unexpected calendar entries would be added. Nothing written.")
@@ -1021,16 +1185,21 @@ def _names(bucket, aops):
 def plan_facts(state, cfg, area, month, commits):
     """What a month's plan can build on, for one area. Reads only."""
     aops = area_items(state, area)
+    all_aops = calendar_aops(state)
     aliases = cfg.get("aliases") or {}
     prev = shift_month(month, -1)
     entries = state.get("entries") or {}
+
+    def mine(bucket):  # this person's ticks only, not another person's tick on one of their AOPs
+        return [e for e in bucket or [] if isinstance(e, dict) and entry_owner(e, all_aops) == area]
+
     days, days_off = [], []
     for day in month_days(month):
         dk = day.isoformat()
         if day.weekday() >= 5:
             continue
         bucket = entries.get(dk) or {}
-        planned, actual = _names(bucket.get("planned"), aops), _names(bucket.get("actual"), aops)
+        planned, actual = _names(mine(bucket.get("planned")), aops), _names(mine(bucket.get("actual")), aops)
         if any(is_absence(n) for n in planned + actual):
             days_off.append(dk)
         days.append({"date": dk, "planned": planned, "actual": actual})
@@ -1049,7 +1218,7 @@ def plan_facts(state, cfg, area, month, commits):
             for dk, bucket in entries.items():
                 if dk.startswith(m):
                     for kind in ("planned", "actual"):
-                        if any(isinstance(e, dict) and e.get("aopId") == aop_id for e in bucket.get(kind) or []):
+                        if any(e.get("aopId") == aop_id for e in mine(bucket.get(kind))):
                             info[key][f"{kind}_days"] += 1
         per_aop[a["name"]] = {**info, "commit_days": [], "landed": [], "not_live": []}
 
@@ -1156,10 +1325,10 @@ def apply_plan(state, plan, area, cfg, today=None, stamp=None):
             entry_id = f"{PLAN_SOURCE}:{dk}:{aop_id}"
             if entry_id in tombstones:
                 report["skipped"].append(f"{dk} {label}: someone deleted this planned tick before")
-            elif any(isinstance(e, dict) and e.get("aopId") == aop_id for e in planned):
+            elif has_tick_by(planned, aop_id, area, calendar_aops(st)):
                 report["skipped"].append(f"{dk} {label}: already planned")
             else:
-                planned.append({"id": entry_id, "aopId": aop_id, "ts": stamp, "source": PLAN_SOURCE})
+                planned.append({"id": entry_id, "aopId": aop_id, "ts": stamp, "source": PLAN_SOURCE, "by": area})
                 report["ticked"].append(f"{dk} {label}")
                 added = True
         if added:
@@ -1171,6 +1340,7 @@ def apply_plan(state, plan, area, cfg, today=None, stamp=None):
 
 def check_plan_additions(old, new, area, month):
     """Raise unless `new` equals `old` apart from this plan's goals and planned ticks in `month`."""
+    check_app_version(old)
     expected = copy.deepcopy(new)
     old_entries = old.get("entries") or {}
     own = {i for i, a in (old.get("aops") or {}).items() if isinstance(a, dict) and a.get("area") == area}
@@ -1186,7 +1356,7 @@ def check_plan_additions(old, new, area, month):
         old_planned = before.get("planned") or []
         for e in bucket.get("planned") or []:
             if e not in old_planned and not (str(e.get("id", "")).startswith(PLAN_SOURCE + ":")
-                                             and e.get("aopId") in own):
+                                             and e.get("aopId") in own and e.get("by") == area):
                 raise RuntimeError("Guard: an unexpected planned tick would be added. Nothing written.")
         bucket["planned"] = [e for e in bucket.get("planned") or [] if e in old_planned]
         if dk not in old_entries:
@@ -1230,6 +1400,181 @@ def check_plan_additions(old, new, area, month):
             expected.pop(key)
     if expected != old:
         raise RuntimeError("Guard: the new state differs from the stored one beyond the plan. Nothing written.")
+
+
+# ------------------------------------------------------ copy migration
+
+COPY_NOTE_HEADER = "From {person}'s copy:"
+
+
+def find_copies(state, suffix, area):
+    """{copy id: original id} for each "<name> <suffix>" item in `area` whose original, the same
+    name without the suffix, is exactly one item in another area. Also returns the copies left alone."""
+    aops = calendar_aops(state)
+    suffix_re = re.compile(r"\s*" + re.escape(suffix.strip()) + r"\s*$", re.I)
+    copies = [i for i in (state.get("aopOrder") or []) + sorted(aops) if i in aops
+              and aops[i].get("area") == area and suffix_re.search(aops[i].get("name") or "")]
+    others = {i: a for i, a in aops.items() if a.get("area") != area}
+    mapping, left = {}, []
+    for cid in dict.fromkeys(copies):
+        orig = match_aop(suffix_re.sub("", aops[cid]["name"]), others, {})
+        if orig:
+            mapping[cid] = orig
+        else:
+            left.append(aops[cid]["name"])
+    return mapping, left
+
+
+def _copy_note_lines(record):
+    """Everything a person wrote in a copy's month: notation, and goal/comments fields as text."""
+    lines = [l.rstrip() for l in (record.get("notation") or "").replace("\r\n", "\n").split("\n") if l.strip()]
+    for key, label in (("goal", "Goal field"), ("comments", "Comments")):
+        text = " ".join(str(record.get(key) or "").split())
+        if text and not any(text in l for l in lines):
+            lines.append(f"{label}: {text}")
+    return lines
+
+
+def migrate_copies(state, suffix, area, stamp=None):
+    """Moves each copy's ticks onto its original as ticks by `area`, its month notes into the
+    original's notation, and deletes the copy the way the app does. Returns (new_state, report)."""
+    stamp = stamp or now_iso()
+    st = copy.deepcopy(state)
+    mapping, left = find_copies(st, suffix, area)
+    aops = calendar_aops(st)
+    tombstones = st.setdefault("entryTombstones", {})
+    person = AREAS.get(area, area)
+    report = {"copies": [], "left": left}
+    for cid, orig in mapping.items():
+        row = {"copy": aops[cid]["name"], "original": aops[orig]["name"], "owner": AREAS.get(aops[orig].get("area"), "?"),
+               "moved": 0, "dropped": 0, "notes": []}
+        for dk, bucket in sorted((st.get("entries") or {}).items()):
+            for kind in ("planned", "actual"):
+                out = []
+                for e in bucket.get(kind) or []:
+                    if not (isinstance(e, dict) and e.get("aopId") == cid):
+                        out.append(e)
+                        continue
+                    tombstones[e["id"]] = {"deleted_at": stamp, "dateKey": dk, "type": kind}
+                    if has_tick_by(out + (bucket.get(kind) or []), orig, area, aops):
+                        row["dropped"] += 1  # the original already has this person's tick that day
+                        continue
+                    source = e.get("source")
+                    new_id = (tick_id(source, dk, orig, aops[orig].get("area"), area)
+                              if source in (ENTRY_SOURCE, PLAN_SOURCE) else str(uuid.uuid4()))
+                    if new_id in tombstones:
+                        new_id = str(uuid.uuid4())
+                    out.append({**e, "id": new_id, "aopId": orig, "by": area})
+                    row["moved"] += 1
+                bucket[kind] = out
+        monthly = st.get("aopMonthly") or {}
+        for month, record in sorted((monthly.get(cid) or {}).items()):
+            lines = _copy_note_lines(record or {})
+            if not lines:
+                continue
+            target_months = monthly.setdefault(orig, {})
+            target = dict(target_months.get(month) or new_monthly_record(target_months, month, stamp))
+            block = [COPY_NOTE_HEADER.format(person=person)] + lines
+            target["notation"] = "\n".join(l for l in [(target.get("notation") or "").rstrip()] + block if l)
+            target["notation_updated_at"] = stamp
+            target_months[month] = target
+            row["notes"].append({"month": month, "lines": lines})
+        monthly.pop(cid, None)
+        st["aops"].pop(cid)
+        st["aopOrder"] = [i for i in st.get("aopOrder") or [] if i != cid]
+        st.setdefault("aopTombstones", {})[cid] = {"deleted_at": stamp}
+        report["copies"].append(row)
+    return st, report
+
+
+def check_migration(old, new, suffix, area):
+    """Raise unless `new` is `old` with only the copies moved onto their originals."""
+    check_app_version(old)
+    mapping, _ = find_copies(old, suffix, area)
+    copies = set(mapping)
+    old_aops = calendar_aops(old)
+    exp = copy.deepcopy(new)
+    if {i: a for i, a in old_aops.items() if i not in copies} != exp.get("aops"):
+        raise RuntimeError("Guard: AOPs other than the copies would change. Nothing written.")
+    if [i for i in old.get("aopOrder") or [] if i not in copies] != (exp.get("aopOrder") or []):
+        raise RuntimeError("Guard: the AOP order would change beyond the copies. Nothing written.")
+    for key in ("aops", "aopOrder"):
+        if key in old:
+            exp[key] = copy.deepcopy(old[key])
+    new_aop_tomb = exp.get("aopTombstones") or {}
+    if set(new_aop_tomb) - set(old.get("aopTombstones") or {}) - copies:
+        raise RuntimeError("Guard: an AOP other than a copy would be deleted. Nothing written.")
+    exp["aopTombstones"] = {i: t for i, t in new_aop_tomb.items() if i not in copies or i in (old.get("aopTombstones") or {})}
+    old_tomb = old.get("entryTombstones") or {}
+    copy_ids = {e["id"] for b in (old.get("entries") or {}).values() for k in ("planned", "actual")
+                for e in b.get(k) or [] if isinstance(e, dict) and e.get("aopId") in copies}
+    added_tomb = set(exp.get("entryTombstones") or {}) - set(old_tomb)
+    if added_tomb - copy_ids:
+        raise RuntimeError("Guard: a tick other than a copy's would be deleted. Nothing written.")
+    exp["entryTombstones"] = {i: t for i, t in (exp.get("entryTombstones") or {}).items() if i not in added_tomb}
+    if not old_tomb and "entryTombstones" not in old and not exp["entryTombstones"]:
+        exp.pop("entryTombstones")
+    originals = set(mapping.values())
+    moved = 0
+    for dk, bucket in (exp.get("entries") or {}).items():
+        before = (old.get("entries") or {}).get(dk) or {}
+        for kind in ("planned", "actual"):
+            fresh = [e for e in bucket.get(kind) or [] if e not in (before.get(kind) or [])]
+            for e in fresh:
+                if not (e.get("aopId") in originals and e.get("by") == area):
+                    raise RuntimeError("Guard: an unexpected tick would be added. Nothing written.")
+            moved += len(fresh)
+            # Without the moved ticks, the day must be the old day without the copy's ticks.
+            rest = [e for e in before.get(kind) or [] if not (isinstance(e, dict) and e.get("aopId") in copies)]
+            if [e for e in bucket.get(kind) or [] if e not in fresh] != rest:
+                raise RuntimeError("Guard: another tick would change. Nothing written.")
+            if kind in bucket or kind in before:
+                bucket[kind] = copy.deepcopy(before.get(kind) or [])
+    if moved > len(copy_ids):
+        raise RuntimeError("Guard: more ticks would be added than the copies had. Nothing written.")
+    old_monthly = old.get("aopMonthly") or {}
+    new_monthly = exp.get("aopMonthly") or {}
+    for cid in copies:
+        if cid in new_monthly:
+            raise RuntimeError("Guard: a copy's month records would stay. Nothing written.")
+        if cid in old_monthly:
+            new_monthly[cid] = old_monthly[cid]
+    for aop_id, months in new_monthly.items():
+        for month, record in list(months.items()):
+            before = (old_monthly.get(aop_id) or {}).get(month)
+            if record == before:
+                continue
+            if aop_id not in originals:
+                raise RuntimeError("Guard: another AOP's month record would change. Nothing written.")
+            old_lines = [l.rstrip() for l in ((before or {}).get("notation") or "").replace("\r\n", "\n").split("\n") if l.strip()]
+            new_lines = [l.rstrip() for l in (record.get("notation") or "").replace("\r\n", "\n").split("\n") if l.strip()]
+            if new_lines[:len(old_lines)] != old_lines:
+                raise RuntimeError("Guard: an original's notation would lose or change text. Nothing written.")
+            rest = {k: v for k, v in record.items() if k not in ("notation", "notation_updated_at")}
+            if before is None:
+                del months[month]
+            elif rest != {k: v for k, v in before.items() if k not in ("notation", "notation_updated_at")}:
+                raise RuntimeError("Guard: a month field other than the notation would change. Nothing written.")
+            else:
+                months[month] = before
+        if aop_id not in old_monthly and not months:
+            new_monthly.pop(aop_id)
+    if exp != old:
+        raise RuntimeError("Guard: the new state differs from the stored one beyond the migration. Nothing written.")
+
+
+def print_migration(report):
+    for row in report["copies"]:
+        print(f"{row['copy']}  ->  {row['original']} ({row['owner']}'s AOP): "
+              f"{row['moved']} tick(s) moved, {row['dropped']} already there")
+        for n in row["notes"]:
+            print(f"    notes for {n['month']}, added to the original under its own heading:")
+            for line in n["lines"]:
+                print(f"      {line}")
+    for name in report["left"]:
+        print(f"left alone, no single original in another area: {name}")
+    if not report["copies"] and not report["left"]:
+        print("No copies found.")
 
 
 # ---------------------------------------------------------------- Supabase
@@ -1404,16 +1749,20 @@ def print_result(result, full=True):
     for name in new_aops.get("removed_before") or []:
         print(f"    not added again, someone deleted or renamed it: {name}")
     for report in result["reports"]:
+        ticked = len(report["ticked"]) + len(report.get("ticked_other_area", []))
         line = f"{report['date']}{' (weekend, note only)' if report['weekend'] else ''}: "
-        line += f"{len(report['ticked'])} new tick(s)" + (", day log" if report["note"] else "")
-        if not report["ticked"] and not report["note"]:
+        line += f"{ticked} new tick(s)" + (", day log" if report["note"] else "")
+        if not ticked and not report["note"]:
             line += " - nothing new"
         print(line)
-        for key, label in (("ticked", "new tick"), ("already_ticked", "already ticked"),
+        for key, label in (("ticked", "new tick"), ("ticked_other_area", "new tick, on another person's AOP"),
+                           ("already_ticked", "already ticked"),
                            ("deleted_before", "skipped, someone deleted the tick"),
-                           ("other_area", "other person's area, note only"),
-                           ("unmatched", "not in calendar AOP list, note only")):
-            for name in report[key]:
+                           ("other_area", "another person's AOP, note only (tick_other_areas is off, "
+                                          f"or the calendar isn't on version {BY_APP_VERSION} yet)"),
+                           ("unmatched", "not in calendar AOP list, note only"),
+                           ("ambiguous", "in the calendar more than once, none in your area: add an alias")):
+            for name in report.get(key, []):
                 print(f"    {label}: {name}")
         if full and report["note"]:
             print("\n" + report["note"] + "\n")
@@ -1460,20 +1809,26 @@ def read_password(prompt):
 def cmd_setup(args):
     cfg = read_json(CONFIG_FILE, {}) or {}
 
-    def ask(key, prompt, default=""):
+    def ask(key, prompt, default="", check=None):
+        """Ask until the answer passes `check` (a function returning an error text, or None)."""
         current = cfg.get(key, default)
-        value = input(f"{prompt}{f' [{current}]' if current else ''}: ").strip()
-        cfg[key] = value or current
+        if check and current and check(current):
+            current = ""  # a saved value that is wrong isn't offered again
+        while True:
+            value = input(f"{prompt}{f' [{current}]' if current else ''}: ").strip() or current
+            problem = check(value) if check else None
+            if not problem:
+                cfg[key] = value
+                return
+            print(f"  {problem} Try again.")
 
     print("AI Calender daily sync setup. The first three values are in the calendar's Login dialog.")
-    ask("supabase_url", "Supabase URL")
-    ask("supabase_anon_key", "Supabase anon key")
-    ask("workspace_id", "Workspace ID", "nordics-team")
-    ask("email", "Your calendar login email")
+    ask("supabase_url", "Supabase URL (starts with https://)", check=check_supabase_url)
+    ask("supabase_anon_key", "Supabase anon key (starts with sb_publishable_)", check=check_anon_key)
+    ask("workspace_id", "Workspace ID", "nordics-team", check=lambda v: None if v else "It can't be empty.")
+    ask("email", "Your calendar login email", check=lambda v: None if re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", v) else "That isn't an email address.")
     print("Areas: " + ", ".join(f"{k} = {v}" for k, v in AREAS.items()))
-    ask("area", "Your area id")
-    if cfg["area"] not in AREAS:
-        sys.exit("Unknown area id.")
+    ask("area", "Your area id", check=lambda v: None if v in AREAS else "That isn't one of the area ids above.")
     ask("name", "Your first name, as dashboard commits write it", AREAS[cfg["area"]])
     ask("power_repo", "Path to your power repo clone", str(Path.home() / "NCS AI" / "power"))
     emails = cfg.get("author_emails") or [cfg["email"]]
@@ -1481,11 +1836,46 @@ def cmd_setup(args):
     cfg["author_emails"] = [e.strip() for e in raw.split(",") if e.strip()] if raw else emails
     cfg.setdefault("include_session_titles", True)
     cfg.setdefault("aliases", {})
-    write_json(CONFIG_FILE, cfg)
     ws = Workspace(cfg)
-    ws.login_password(cfg["email"], read_password("Calendar password (not stored): "))
-    ws.fetch()
+    for attempt in range(3):
+        try:
+            ws.login_password(cfg["email"], read_password("Calendar password (not stored): "))
+            ws.fetch()
+            break
+        except RuntimeError as e:
+            text = str(e).lower()
+            if "invalid api key" in text or "http 401" in text or "no api key" in text:
+                sys.exit("The calendar refused the anon key. Copy it again from the Login dialog "
+                         "(it starts with sb_publishable_) and run setup again. Nothing was saved.")
+            if "invalid login credentials" in text or "http 400" in text:
+                print("  Wrong email or password." + (" Try again." if attempt < 2 else ""))
+                continue
+            sys.exit(f"Could not sign in: {e}. Check the Supabase URL and run setup again. Nothing was saved.")
+        except (urllib.error.URLError, OSError) as e:
+            sys.exit(f"Could not reach {cfg['supabase_url']} ({e}). Check the Supabase URL and your internet, "
+                     "then run setup again. Nothing was saved.")
+    else:
+        sys.exit("Three wrong passwords. Nothing was saved; run setup again.")
+    write_json(CONFIG_FILE, cfg)  # only once the sign-in works, so a typo never ends up saved
     print(f"Signed in and can read workspace {cfg['workspace_id']!r}. Config: {CONFIG_FILE}")
+
+
+def check_supabase_url(value):
+    if value.startswith(("sb_", "eyJ")):
+        return "That's the anon key, not the URL. The URL starts with https://."
+    if not re.fullmatch(r"https://[\w.-]+\.[a-z]{2,}/?", value):
+        return "The URL looks like https://<project>.supabase.co."
+    return None
+
+
+def check_anon_key(value):
+    if value.startswith("http"):
+        return "That's the URL, not the anon key. The key starts with sb_publishable_."
+    if value.startswith("sb_secret_"):
+        return "That's a secret key; never use it here. Use the publishable key from the Login dialog."
+    if not value.startswith(("sb_publishable_", "eyJ")) or " " in value:
+        return "The anon key starts with sb_publishable_."
+    return None
 
 
 def _config_for(args):
@@ -1593,6 +1983,44 @@ def cmd_plan_facts(args):
         print(text)
 
 
+def cmd_migrate_copies(args):
+    """Dry run unless --write. With --state it works on an exported file and never touches the calendar."""
+    if args.area not in AREAS:
+        sys.exit(f"Unknown area {args.area!r}. Areas: {', '.join(AREAS)}")
+    if args.state:
+        raw = read_json(args.state)
+        old = raw.get("state", raw)
+        new, report = migrate_copies(old, args.suffix, args.area)
+        check_migration(old, new, args.suffix, args.area)
+        print_migration(report)
+        print("Guard: only the copies moved - OK")
+        if args.out:
+            write_json(args.out, {**raw, "state": new} if "state" in raw else new)
+            print(f"Wrote {args.out}")
+        return
+    cfg = load_config()
+    ws = _signed_in(cfg)
+    for _ in range(5):
+        row = ws.fetch()
+        old = row["state"]
+        if app_version(old) < BY_APP_VERSION:
+            raise RuntimeError(f"The calendar isn't on version {BY_APP_VERSION} yet: open the new page once, then run this again.")
+        new, report = migrate_copies(old, args.suffix, args.area)
+        check_migration(old, new, args.suffix, args.area)
+        print_migration(report)
+        if not args.write or new == old:
+            print("\nDry run, nothing saved. Add --write to save." if not args.write else "\nNothing to move.")
+            return
+        if not ws.write_if_unchanged(new, row["updated_at"]):
+            print("Someone saved in between; reading again.\n")
+            continue
+        after = calendar_aops(ws.fetch()["state"])
+        print("\nSaved." if not any(c in after for c in find_copies(old, args.suffix, args.area)[0])
+              else "\nwarning: saved, but a re-read still shows a copy")
+        return
+    raise RuntimeError("The workspace kept changing while writing; gave up after 5 tries. Nothing lost - run again.")
+
+
 def cmd_plan(args):
     cfg = load_config()
     plan = read_json(args.file)
@@ -1685,6 +2113,14 @@ def main():
     n.add_argument("--file", required=True, help="plan JSON: month, aops{name: goal, goals[]}, days{date: [AOP names]}")
     n.add_argument("--dry-run", action="store_true", help="read the live calendar, write nothing")
     n.set_defaults(fn=cmd_plan)
+
+    m = sub.add_parser("migrate-copies", help="one-off: move '<AOP> (Name)' copies onto the originals as ticks by that person")
+    m.add_argument("--suffix", required=True, help='the copies\' name ending, e.g. "(Erik)"')
+    m.add_argument("--area", required=True, help="the area the copies are in, e.g. pool")
+    m.add_argument("--write", action="store_true", help="save to the live calendar (default: dry run)")
+    m.add_argument("--state", help="work on an exported state file instead of the live calendar")
+    m.add_argument("--out", help="with --state: write the migrated state here")
+    m.set_defaults(fn=cmd_migrate_copies)
 
     args = p.parse_args()
     try:

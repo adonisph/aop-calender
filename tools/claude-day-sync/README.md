@@ -3,8 +3,9 @@
 Every workday afternoon this fills in **your own area** of the AI Calender
 with what you worked on that day:
 
-- **Ticks in the "Actual" calendar** for the AOPs in your area that you
-  committed or edited.
+- **Ticks in the "Actual" calendar** for the AOPs you committed or edited:
+  your own AOPs and other people's alike. Every tick is marked as yours, so
+  work on a colleague's AOP counts for you, not for them.
 - **A "Claude day log" in your day note**: which AOPs you worked on and where
   that work is now (on main, live in Decagon, on a branch, or not pushed yet),
   plus tools, tests and the Claude sessions you used.
@@ -28,6 +29,14 @@ never changed. It checks this before every save and stops if anything else
 would change.
 
 Setup takes about 10 minutes, once.
+
+**Easiest: let Claude do it.** Open Claude Code in your power repo and type
+**setup AOP Calender**. Claude asks you everything and sets it all up. The
+phrase only works when your power checkout has the skill: switch to `main`,
+pull, and run `python -m harness sync-skills` once. If Claude still doesn't
+know the phrase, tell it: *"Read skills/ai-calender-day-sync/SKILL.md from
+origin/main in the power repo and follow its Guided setup."* The steps below
+are the same setup by hand.
 
 ---
 
@@ -59,7 +68,7 @@ Get these ready. Setup asks for them one at a time.
 
 | Setup asks for | Where to find it |
 |---|---|
-| Supabase URL, anon key, workspace ID | Open the AI Calender, click **Login** (top right). The dialog shows all three. The workspace is usually `nordics-team`. |
+| Supabase URL, anon key, workspace ID | Open the AI Calender, click **Login** (top right). The dialog shows all three. The URL starts with `https://`, the anon key with `sb_publishable_`. The workspace is usually `nordics-team`. |
 | Your login email | The email you sign in to the calendar with. |
 | Your area id | `pool` = Erik · `sales` = Joona · `delivery` = Emma · `aftersales` = Saana · `others_some` = Christel · `adonis` = Adonis |
 | Your first name | As it appears in dashboard commits, e.g. `Saana`. |
@@ -85,6 +94,11 @@ Answer the questions, then type your calendar password when asked. It shows
 as `*` while you type and isn't saved. Only a sign-in token is
 kept, in `C:\Users\<you>\.aop-calendar-sync\`. When setup works, it ends with
 *"Signed in and can read workspace 'nordics-team'"*.
+
+Setup checks each answer: a URL pasted into the key field, or the other way
+round, is caught and asked again. Your answers are only saved once the sign-in
+works, so if it stops (wrong key, three wrong passwords), nothing is saved and
+you just run setup again.
 
 ## Step 4 – Try it (nothing is saved)
 
@@ -178,8 +192,8 @@ Unregister-ScheduledTask -TaskName "AI Calender day sync" -Confirm:$false
 - Each new AOP gets its own color, one that no other AOP or status in the
   calendar has, picked to stand out from the colors already there. Change it
   in the calendar whenever you like.
-- An AOP that is already in someone else's area stays there. Your work on it
-  goes in your day note only.
+- An AOP that is already in someone else's area stays there. No copy is made;
+  your work on it is a tick of yours on their AOP (see Ticks).
 - Versions count as one AOP: *"Returns V3"* and *"Returns V3 Voice"* both
   belong to a calendar AOP called *"Returns"*, so no new one is added. Small
   spelling differences count as the same name too: *"Handling Installation
@@ -189,7 +203,20 @@ Unregister-ScheduledTask -TaskName "AI Calender day sync" -Confirm:$false
 
 **Ticks:**
 
-- One per AOP per day, only for AOPs in **your** area.
+- One per AOP per day, for every AOP you worked on, in **any** area. The tick
+  is yours: it counts in your area and your dashboard, never in the AOP
+  owner's. Your area's dashboard lists other people's AOPs under *"Worked on
+  in other areas"*.
+- Don't make copies such as *"Price match AOP (Erik)"* in your own area any
+  more. Work on the original; the tick already counts for you.
+- Two people can tick the same AOP on the same day. Each tick counts for the
+  person who made it.
+- An AOP you keep as a custom item (such as *"CSAT Survey V2"*) counts too.
+- If the same AOP is in the calendar more than once, the copy in your area
+  gets the tick. If none of the copies is yours, the day log says *"in the
+  calendar more than once"*; add an alias to pick the right one.
+- To tick only your own area's AOPs, set `"tick_other_areas": false` in your
+  `config.json`. Work on other people's AOPs then goes in the note only.
 - Only for AOPs you committed or edited. Just opening an AOP goes in the note,
   not the calendar.
 - Weekdays only, the same as the calendar allows. Weekend work goes in the
@@ -203,7 +230,8 @@ Unregister-ScheduledTask -TaskName "AI Calender day sync" -Confirm:$false
 **Sprint outcomes**, in each AOP's monthly notation under "Achieved during
 Sprint":
 
-- Only for AOPs in your area.
+- Only for AOPs in your area. Work on another person's AOP gets a tick, but
+  its notation belongs to that person, so no outcome line goes there.
 - Only for changes that are on main or live in Decagon. A branch counts once it
   is merged, if that happens within two weeks.
 - A branch change that went live in another commit, such as a `[Dashboard]`
@@ -235,13 +263,12 @@ Claude sessions (1): "Insurance V4 for chat"
 ```
 
 - The work is grouped by where it is: done (on main or live in Decagon), on a
-  branch that isn't live yet, or edited in Claude without a commit. AOPs from
-  someone else's area say whose area they are in.
+  branch that isn't live yet, or edited in Claude without a commit. Another
+  person's AOP says whose it is: *"Price match AOP (Joona's AOP)"*.
 - On the Notes page the marker lines are hidden and the log keeps its line
   breaks.
 - Write your own text above or below the markers. A new run only replaces the
   part between them.
-- AOPs from someone else's area are listed in the note only.
 - Session titles are listed only for Claude sessions that worked in the power
   repo. Other sessions are just counted.
 - To leave session titles out, set `"include_session_titles": false` in your
@@ -333,6 +360,8 @@ the calendar):
 | `could not reach the calendar` | No internet at that moment. Nothing was saved; the next run catches up. |
 | `Guard: …  Nothing written` | Something other than the day log would have changed, so it stopped. Send the last lines of `sync.log` to Adonis. |
 | `Config area '…' is not one of …` | Your area id is mistyped. Run `setup` again. |
+| `The calendar was saved by a newer page` | The calendar changed what it stores. Update the script (see [Updating the script](#updating-the-script)). |
+| `another person's AOP, note only (… isn't on version 2 yet)` | The new calendar page hasn't saved the workspace yet. It sorts itself out once someone opens the new page. |
 | Nothing shows up for a day | Run `collect --date 2026-10-23` (with that day's date) to see what it found. If your commits are missing, add the email you committed with to `author_emails` in `config.json`. |
 
 Other commands:
@@ -373,3 +402,44 @@ stores: a new area or a new field.
 
 Tabs opened before 27 Oct 2026 don't have this check. Ask everyone to reload
 once after that update is pushed.
+
+The script has the same check the other way round: `KNOWN_APP_VERSION` at the
+top of `claude_day_sync.py` is the highest `APP_VERSION` it understands. When a
+change to what the calendar stores also changes the script, raise both and ask
+everyone to update their script.
+
+## Ticks for a person, not an area (APP_VERSION 2, for Adonis)
+
+Since version 2 a tick can carry `by`: the area id of the person who did the
+work. A tick without `by` belongs to the AOP's area, which is what every tick
+meant before. Area views, the dashboards and the day sync count a tick for its
+`by`. Master view sums people: a day two people worked counts as two days.
+
+Rollout, in this order:
+
+1. Push `index.html`. Open it once, signed in, so the workspace is saved with
+   `appVersion: 2`. Until then the script keeps other people's AOPs in the
+   note only, because an older page would count the tick for the AOP's owner.
+2. Everyone updates the script ([Updating the script](#updating-the-script)).
+   An old script still writes correct ticks on its own AOPs. But it sees a
+   colleague's tick on one of them as "already ticked" and skips its own.
+3. Move the old copies, such as *"Price match AOP (Erik)"*, onto the originals:
+
+```powershell
+& $py $s migrate-copies --suffix "(Erik)" --area pool            # dry run: shows every copy, its original and what moves
+& $py $s migrate-copies --suffix "(Erik)" --area pool --write    # saves
+```
+
+For each copy in that area whose name without the suffix is exactly one AOP
+in another area:
+
+- Its ticks (planned and actual) move to the original as ticks by that
+  person. They keep their date and time, and the copy's ticks get a tombstone.
+- Its month notes are appended to the original's notation for that month,
+  under *"From Erik's copy:"*.
+- The copy is deleted, the way the calendar deletes an AOP.
+
+A copy with no single original is left alone and listed. Running it again
+changes nothing. To try it offline first, export the state from the calendar
+and pass `--state export.json --out migrated.json`. Also remove any `aliases`
+in that person's `config.json` that point at a copy's name.

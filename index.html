@@ -2535,7 +2535,7 @@
               </div>
               <div>
                 <label for="syncSupabaseAnonKey">Supabase Anon Key</label>
-                <input id="syncSupabaseAnonKey" placeholder="eyJ..." autocomplete="off" spellcheck="false" />
+                <input id="syncSupabaseAnonKey" placeholder="sb_publishable_..." autocomplete="off" spellcheck="false" />
               </div>
               <div>
                 <label for="syncWorkspaceId">Workspace ID</label>
@@ -2917,7 +2917,7 @@
       </div>
       <div>
         <label for="syncModalSupabaseAnonKey">Supabase Anon Key</label>
-        <input id="syncModalSupabaseAnonKey" placeholder="eyJ..." autocomplete="off" spellcheck="false" />
+        <input id="syncModalSupabaseAnonKey" placeholder="sb_publishable_..." autocomplete="off" spellcheck="false" />
       </div>
       <div>
         <label for="syncModalWorkspaceId">Workspace ID</label>
@@ -3090,7 +3090,7 @@ const TEAM_SYNC_SAVE_DEBOUNCE_MS = 450;
 // Bump APP_VERSION whenever a change alters what the shared state may hold (a new area, a
 // new field). A page that sees a higher appVersion in the shared state stops saving, so an
 // old open tab can't fold data it doesn't understand back into the workspace.
-const APP_VERSION = 1;
+const APP_VERSION = 2;
 const VERSION_CHECK_MS = 2 * 60 * 1000;
 let appOutdated = false;
 let pageFingerprint = "";
@@ -3375,10 +3375,14 @@ function renderDayAddPanel(){
   if(!ui.dayAddSelect) return;
   const kind = dayAddKind === "custom" ? "custom" : "aop";
   const label = kind === "custom" ? "Custom Status" : "AOP";
-  const available = visibleAopOrder().filter(id => libraryItemKind(view.state.aops[id]) === kind);
+  const own = visibleAopOrder().filter(id => libraryItemKind(view.state.aops[id]) === kind);
+  const others = kind === "aop" ? otherAreaAopOrder() : [];
+  const available = [...own, ...others];
   const previous = view.calendarAopId || ui.dayAddSelect.value || view.state.activeAopId;
+  const optionsHtml = ids => ids.map(id => `<option value="${id}">${escapeHtml(aopDisplayLabel(id))}</option>`).join("");
   ui.dayAddSelect.innerHTML = available.length
-    ? `<option value="">Choose ${label}</option>` + available.map(id => `<option value="${id}">${escapeHtml(aopDisplayLabel(id))}</option>`).join("")
+    ? `<option value="">Choose ${label}</option>` + optionsHtml(own)
+      + (others.length ? `<optgroup label="Other areas' AOPs (counts for ${escapeHtml(areaLabel(currentAreaViewId()))})">${optionsHtml(others)}</optgroup>` : "")
     : `<option value="">No ${label.toLowerCase()}s available</option>`;
   view.calendarAopId = available.includes(previous) ? previous : null;
   ui.dayAddSelect.value = view.calendarAopId || "";
@@ -3423,7 +3427,12 @@ function renderSelectedDayItems(){
       const item = view.state.aops?.[entry.aopId] || { name:"Missing item", color:"#777", kind:"aop" };
       const tags = [];
       if(libraryItemKind(item) === "custom") tags.push("Status");
-      if(currentAreaViewId() === MASTER_VIEW_ID) tags.push(areaLabel(aopAreaId(item)));
+      if(currentAreaViewId() === MASTER_VIEW_ID){
+        tags.push(areaLabel(aopAreaId(item)));
+        if(entryOwner(entry) !== aopAreaId(item)) tags.push(`by ${areaLabel(entryOwner(entry))}`);
+      }else if(isGuestAop(entry.aopId)){
+        tags.push(`${areaLabel(aopAreaId(item))}'s AOP`);
+      }
       const status = tags.length ? `<em>${escapeHtml(tags.join(" · "))}</em>` : "";
       return `<div class="selected-day-item"><i style="background:${escapeHtml(item.color || "#777")}"></i><span>${escapeHtml(item.name)}</span>${status}</div>`;
     }).join("") : `<div class="selected-day-empty">None</div>`;
@@ -3431,16 +3440,48 @@ function renderSelectedDayItems(){
   };
   ui.selectedDayItems.innerHTML = group("Planned", planned) + group("Actual", actual);
 }
+// A tick belongs to the person in its `by` (an AREA_VIEWS id). A tick without one, or with an
+// id this page doesn't know, belongs to the AOP's area, which is all a tick meant before `by`.
+function knownAreaId(raw){
+  const id = String(raw || "").trim().toLowerCase();
+  return AREA_VIEWS.some(v => v.id === id) ? id : "";
+}
+function entryOwner(entry){
+  return knownAreaId(entry?.by) || aopAreaId(view.state?.aops?.[entry?.aopId]);
+}
+function isEntryInArea(entry, areaId){
+  if(!entry || !view.state?.aops?.[entry.aopId]) return false;
+  const viewId = normalizeAreaViewId(areaId || currentAreaViewId());
+  if(viewId === MASTER_VIEW_ID) return true;
+  return entryOwner(entry) === viewId;
+}
+// Who a new tick of `aopId` is for: the area being viewed, or in Master view the AOP's area.
+function tickOwnerFor(aopId){
+  const viewId = currentAreaViewId();
+  return viewId === MASTER_VIEW_ID ? aopAreaId(view.state.aops?.[aopId]) : viewId;
+}
+function hasTickBy(entries, aopId, owner){
+  return (entries || []).some(e => e.aopId === aopId && entryOwner(e) === owner);
+}
+// Another area's AOP the viewed person worked on: the dashboard shows it under its own heading.
+function isGuestAop(aopId, areaId){
+  const viewId = normalizeAreaViewId(areaId || currentAreaViewId());
+  return viewId !== MASTER_VIEW_ID && !!view.state.aops?.[aopId] && !isAopInArea(aopId, viewId);
+}
+function otherAreaAopOrder(){
+  if(currentAreaViewId() === MASTER_VIEW_ID) return [];
+  return (view.state.aopOrder || []).filter(id => isGuestAop(id) && libraryItemKind(view.state.aops[id]) === "aop");
+}
 function filterEntriesByArea(entries, areaId){
   const safeArea = normalizeAreaViewId(areaId || currentAreaViewId());
-  return (entries || []).filter(e => isAopInArea(e.aopId, safeArea));
+  return (entries || []).filter(e => isEntryInArea(e, safeArea));
 }
 function calendarAreaMarkGroups(entries){
   const groups = new Map();
   for(const entry of (entries || [])){
     const item = view.state.aops?.[entry.aopId];
     if(!item) continue;
-    const areaId = aopAreaId(item);
+    const areaId = entryOwner(entry);
     if(!groups.has(areaId)) groups.set(areaId, { areaId, label:areaLabel(areaId), ids:new Set() });
     groups.get(areaId).ids.add(entry.aopId);
   }
@@ -4272,13 +4313,17 @@ function renderDayActualLinks(){
   if(!ui.dayActualList || !ui.dayActualCount || !ui.dayActualAopSelect || !ui.addActualSelectedBtn) return;
   const status = dayNoteEditStatus();
   const canEdit = status.canEdit;
-  const allAopIds = visibleAopOrder();
+  const ownAopIds = visibleAopOrder();
+  const otherAopIds = otherAreaAopOrder();
+  const allAopIds = [...ownAopIds, ...otherAopIds];
   const prevSelected = ui.dayActualAopSelect.value || "";
   const fallback = (view.state.activeAopId && view.state.aops[view.state.activeAopId] && isAopInArea(view.state.activeAopId)) ? view.state.activeAopId : "";
   const selectedId = prevSelected === "" ? "" : (allAopIds.includes(prevSelected) ? prevSelected : fallback);
+  const optionHtml = id => `<option value="${escapeHtml(id)}">${escapeHtml(aopDisplayLabel(id))}</option>`;
   ui.dayActualAopSelect.innerHTML = [
     `<option value="">Select AOP...</option>`,
-    ...allAopIds.map(id => `<option value="${escapeHtml(id)}">${escapeHtml(aopDisplayLabel(id))}</option>`)
+    ...ownAopIds.map(optionHtml),
+    otherAopIds.length ? `<optgroup label="Other areas' AOPs">${otherAopIds.map(optionHtml).join("")}</optgroup>` : ""
   ].join("");
   ui.dayActualAopSelect.value = selectedId;
   ui.dayActualAopSelect.disabled = !canEdit || allAopIds.length === 0;
@@ -4304,7 +4349,7 @@ function renderDayActualLinks(){
 
   ui.dayActualList.innerHTML = actual.map(e=>{
     const aop = view.state.aops[e.aopId] || null;
-    const name = aop ? aop.name : "(Missing AOP)";
+    const name = aop ? (isGuestAop(e.aopId) ? `${aop.name} (${areaLabel(aopAreaId(aop))}'s AOP)` : aop.name) : "(Missing AOP)";
     const color = aop ? aop.color : "#6b7280";
     return `
       <div class="actual-link-row">
@@ -4354,7 +4399,7 @@ function addActualFromDayNotes(){
   }
 
   const aopId = ui.dayActualAopSelect?.value || "";
-  if(!aopId || !view.state.aops[aopId] || !isAopInArea(aopId)){
+  if(!aopId || !view.state.aops[aopId] || !(isAopInArea(aopId) || isGuestAop(aopId))){
     setActualLinkState("Select an AOP");
     return;
   }
@@ -4368,12 +4413,13 @@ function addActualFromDayNotes(){
 
   ensureDateKey(dateKey);
   const actualArr = view.state.entries[dateKey].actual;
-  if(actualArr.some(e => e.aopId === aopId)){
+  const owner = tickOwnerFor(aopId);
+  if(hasTickBy(actualArr, aopId, owner)){
     setActualLinkState("Already marked");
     return;
   }
 
-  const entry = { id: uuid(), ts: nowIso(), aopId };
+  const entry = { id: uuid(), ts: nowIso(), aopId, by: owner };
   actualArr.unshift(entry);
   view.selectedCalendar = "actual";
   saveState();
@@ -4761,6 +4807,9 @@ function migrateIfNeeded(st){
   if(recoverHistoricalAreaNotes(st)){
     Object.defineProperty(st, "__recoveredHistoricalNotes", { value:true, enumerable:false });
   }
+  // The old revision history (whole-state snapshots, none since Aug 2026) made every save move
+  // ~6 MB both ways. Its one use, the area-note recovery above, has run; it isn't kept or shared.
+  delete st.syncHistory;
 
   st.version = 7;
   return st;
@@ -7290,7 +7339,7 @@ function markSelectedDay(aopIdOverride){
   if(!view.selectedDate){ alert("Select a day on a calendar first."); return; }
   const type = view.selectedCalendar || "planned";
   const aopId = aopIdOverride || view.calendarAopId;
-  if(!aopId || !view.state.aops[aopId] || !isAopInArea(aopId)){
+  if(!aopId || !view.state.aops[aopId] || !(isAopInArea(aopId) || isGuestAop(aopId))){
     alert("Select an AOP first.");
     return;
   }
@@ -7308,13 +7357,14 @@ function markSelectedDay(aopIdOverride){
   const targetDateKey = view.selectedDate;
   ensureDateKey(targetDateKey);
   const arr = view.state.entries[targetDateKey][type];
+  const owner = tickOwnerFor(aopId);
 
-  if(arr.some(e => e.aopId === aopId)){
+  if(hasTickBy(arr, aopId, owner)){
     alert("This AOP is already marked on this day for that type.");
     return;
   }
 
-  const entry = { id: uuid(), ts: nowIso(), aopId };
+  const entry = { id: uuid(), ts: nowIso(), aopId, by: owner };
   arr.unshift(entry);
   saveState();
 
@@ -7435,6 +7485,7 @@ function renderEntries(){
         <div class="kv">
           <div>Comments</div><div>${escapeHtml(comments || "-")}</div>
           <div>Marked</div><div>${escapeHtml(fmtIsoShort(e.ts))}</div>
+          <div>By</div><div>${escapeHtml(areaLabel(entryOwner(e)))}${aop && entryOwner(e) !== aopAreaId(aop) ? ` (on ${escapeHtml(areaLabel(aopAreaId(aop)))}'s AOP)` : ""}</div>
         </div>
       `;
       ui.entries.appendChild(div);
@@ -7531,51 +7582,75 @@ function formatPercentValue(raw, decimals){
   return `${num.toFixed(places)}%`;
 }
 
+// One day's planned/actual/matched day-shares in the current view. Each person's day is one
+// day, split across the AOPs they ticked; Master view adds the people up (person-days).
+function dayStats(bucket){
+  const plannedArr = filterEntriesByArea(bucket?.planned);
+  const actualArr = filterEntriesByArea(bucket?.actual);
+  const out = { planned:0, actual:0, matched:0, unplanned:0, perAop:new Map(), ticksBy:new Map() };
+  const add = (aopId, key, value) => {
+    if(!out.perAop.has(aopId)) out.perAop.set(aopId, { planned:0, actual:0, matched:0 });
+    out.perAop.get(aopId)[key] += value;
+  };
+  const owners = new Set([...plannedArr, ...actualArr].map(entryOwner));
+  for(const owner of owners){
+    const plannedInfo = dayShareMap(plannedArr.filter(e => entryOwner(e) === owner));
+    const actualInfo = dayShareMap(actualArr.filter(e => entryOwner(e) === owner));
+    out.planned += plannedInfo.total;
+    out.actual += actualInfo.total;
+    for(const aopId of plannedInfo.ids) add(aopId, "planned", plannedInfo.share);
+    for(const aopId of actualInfo.ids){
+      add(aopId, "actual", actualInfo.share);
+      if(!out.ticksBy.has(aopId)) out.ticksBy.set(aopId, new Set());
+      out.ticksBy.get(aopId).add(owner);
+      // unplanned actuals weighted by actual share
+      if(!plannedInfo.map.has(aopId)) out.unplanned += actualInfo.share;
+    }
+    // strict matches (same AOP + same day + same person), weighted by lower share
+    for(const aopId of plannedInfo.ids){
+      if(!actualInfo.map.has(aopId)) continue;
+      const matchedShare = Math.min(plannedInfo.map.get(aopId) || 0, actualInfo.map.get(aopId) || 0);
+      out.matched += matchedShare;
+      add(aopId, "matched", matchedShare);
+    }
+  }
+  return out;
+}
 function calcMonthStats(){
   const mk = currentMonthKey();
   const keys = monthDateKeys(view.year, view.month);
-  const areaOrder = visibleAopOrder();
+  const dayStatsByKey = new Map(keys.map(dateKey => [dateKey, dayStats(view.state.entries[dateKey])]));
+  // Other areas' AOPs the viewed person ticked this month get rows too, after their own.
+  const guestIds = new Set();
+  for(const day of dayStatsByKey.values()){
+    for(const aopId of day.perAop.keys()) if(isGuestAop(aopId)) guestIds.add(aopId);
+  }
+  const areaOrder = [...visibleAopOrder(), ...(view.state.aopOrder || []).filter(id => guestIds.has(id))];
 
   const perAop = {};
   for(const id of areaOrder){
-    perAop[id] = { aopId:id, planned:0, actual:0, matched:0 };
+    perAop[id] = { aopId:id, planned:0, actual:0, matched:0, ticksBy:{} };
   }
 
   let plannedTotal=0, actualTotal=0, matchedTotal=0, unplannedActualTotal=0;
   const plannedByDay = {};
 
   for(const dateKey of keys){
-    const b = view.state.entries[dateKey];
-    const plannedArr = filterEntriesByArea(b?.planned);
-    const actualArr = filterEntriesByArea(b?.actual);
-    const plannedInfo = dayShareMap(plannedArr);
-    const actualInfo = dayShareMap(actualArr);
-
-    plannedByDay[dateKey] = plannedInfo.total;
-
-    plannedTotal += plannedInfo.total;
-    actualTotal += actualInfo.total;
-
-    // per AOP weighted day-shares
-    for(const aopId of plannedInfo.ids){
-      if(perAop[aopId]) perAop[aopId].planned += plannedInfo.share;
+    const day = dayStatsByKey.get(dateKey);
+    plannedByDay[dateKey] = day.planned;
+    plannedTotal += day.planned;
+    actualTotal += day.actual;
+    matchedTotal += day.matched;
+    unplannedActualTotal += day.unplanned;
+    for(const [aopId, s] of day.perAop){
+      if(!perAop[aopId]) continue;
+      perAop[aopId].planned += s.planned;
+      perAop[aopId].actual += s.actual;
+      perAop[aopId].matched += s.matched;
     }
-    for(const aopId of actualInfo.ids){
-      if(perAop[aopId]) perAop[aopId].actual += actualInfo.share;
-    }
-
-    // strict matches (same AOP + same day), weighted by lower share
-    for(const aopId of plannedInfo.ids){
-      if(!actualInfo.map.has(aopId)) continue;
-      const matchedShare = Math.min(plannedInfo.map.get(aopId) || 0, actualInfo.map.get(aopId) || 0);
-      matchedTotal += matchedShare;
-      if(perAop[aopId]) perAop[aopId].matched += matchedShare;
-    }
-
-    // unplanned actuals weighted by actual share
-    for(const aopId of actualInfo.ids){
-      if(plannedInfo.map.has(aopId)) continue;
-      unplannedActualTotal += actualInfo.share;
+    for(const [aopId, owners] of day.ticksBy){
+      if(!perAop[aopId]) continue;
+      for(const owner of owners) perAop[aopId].ticksBy[owner] = (perAop[aopId].ticksBy[owner] || 0) + 1;
     }
   }
 
@@ -7594,27 +7669,15 @@ function calcMonthStats(){
   }
 
   for(const dateKey of mtdKeys){
-    const b = view.state.entries[dateKey];
-    const plannedArr = filterEntriesByArea(b?.planned);
-    const actualArr = filterEntriesByArea(b?.actual);
-    const plannedInfo = dayShareMap(plannedArr);
-    const actualInfo = dayShareMap(actualArr);
-
-    mtdPlannedTotal += plannedInfo.total;
-    mtdActualTotal += actualInfo.total;
-
-    for(const aopId of plannedInfo.ids){
-      if(mtdPerAop[aopId]) mtdPerAop[aopId].planned += plannedInfo.share;
-    }
-    for(const aopId of actualInfo.ids){
-      if(mtdPerAop[aopId]) mtdPerAop[aopId].actual += actualInfo.share;
-    }
-
-    for(const aopId of plannedInfo.ids){
-      if(!actualInfo.map.has(aopId)) continue;
-      const matchedShare = Math.min(plannedInfo.map.get(aopId) || 0, actualInfo.map.get(aopId) || 0);
-      mtdMatchedTotal += matchedShare;
-      if(mtdPerAop[aopId]) mtdPerAop[aopId].matched += matchedShare;
+    const day = dayStatsByKey.get(dateKey);
+    mtdPlannedTotal += day.planned;
+    mtdActualTotal += day.actual;
+    mtdMatchedTotal += day.matched;
+    for(const [aopId, s] of day.perAop){
+      if(!mtdPerAop[aopId]) continue;
+      mtdPerAop[aopId].planned += s.planned;
+      mtdPerAop[aopId].actual += s.actual;
+      mtdPerAop[aopId].matched += s.matched;
     }
   }
 
@@ -7659,6 +7722,7 @@ function renderDashboard(){
     ? `Matched ${formatDayValue(st.mtdMatchedTotal)} of ${formatDayValue(st.mtdPlannedTotal)} (MTD)`
     : "No planned marks in MTD range";
 
+  const singleAreaView = currentAreaViewId() !== MASTER_VIEW_ID;
   const allRows = (st.areaOrder || []).map(id=>{
     const a = view.state.aops[id];
     const sMonth = st.perAop[id];
@@ -7676,11 +7740,20 @@ function renderDashboard(){
     const notationUpdatedAt = monthNotation.notation_updated_at || "";
     const notationUpdatedMs = Date.parse(notationUpdatedAt) || 0;
 
+    const guest = isGuestAop(id);
+    const ticksBy = sMonth?.ticksBy || {};
+    // Master view names who ticked an AOP when someone outside its area did.
+    const showTicksBy = !singleAreaView && Object.keys(ticksBy).some(owner => owner !== aopAreaId(a));
     const row = {
       id,
       name: a?.name || "(Missing AOP)",
       color: a?.color || "#6b7280",
       areaName: a ? areaLabel(aopAreaId(a)) : "Unknown",
+      guest,
+      ownerNote: guest ? `${areaLabel(aopAreaId(a))}'s AOP` : "",
+      ticksText: showTicksBy
+        ? Object.entries(ticksBy).sort((x, y) => y[1] - x[1]).map(([owner, n]) => `${areaLabel(owner)} ${n}`).join(" · ")
+        : "",
       planned,
       actual,
       adhPlanned,
@@ -7698,7 +7771,7 @@ function renderDashboard(){
       achievementCount: parsedNotation.achievements.length,
       goals: parsedNotation.goals,
       achievements: parsedNotation.achievements,
-      canJumpNotation: hasNotation && canOpenSprintOutcomes
+      canJumpNotation: hasNotation && canOpenSprintOutcomes && !guest
     };
     row.attentionScore = dashboardAttentionScore(row);
     return row;
@@ -7740,21 +7813,26 @@ function renderDashboard(){
   }
 
   const singleAreaMode = currentAreaViewId() !== MASTER_VIEW_ID;
+  const guestGroupName = "Worked on in other areas";
   const groups = new Map();
   if(singleAreaMode){
-    groups.set(areaLabel(currentAreaViewId()), rows);
+    groups.set(areaLabel(currentAreaViewId()), rows.filter(row => !row.guest));
+    const guestRows = rows.filter(row => row.guest);
+    if(guestRows.length) groups.set(guestGroupName, guestRows);
   }else{
     for(const row of rows){
       if(!groups.has(row.areaName)) groups.set(row.areaName, []);
       groups.get(row.areaName).push(row);
     }
   }
-  const areaOrder = Array.from(groups.keys()).sort((a, b) => a.localeCompare(b, undefined, { sensitivity:"base", numeric:true }));
+  const areaOrder = singleAreaMode
+    ? Array.from(groups.keys())
+    : Array.from(groups.keys()).sort((a, b) => a.localeCompare(b, undefined, { sensitivity:"base", numeric:true }));
   for(const areaName of areaOrder){
     const groupRows = groups.get(areaName) || [];
     const areaPlanned = groupRows.reduce((sum, row) => sum + row.planned, 0);
     const areaActual = groupRows.reduce((sum, row) => sum + row.actual, 0);
-    if(!singleAreaMode){
+    if(!singleAreaMode || areaName === guestGroupName){
       const collapsed = isDashboardAreaCollapsed(areaName);
       const groupTr = document.createElement("tr");
       groupTr.className = "dash-area-row";
@@ -7787,7 +7865,7 @@ function renderDashboard(){
             ${r.canJumpNotation
               ? `<button type="button" class="dash-aop-link" data-jump-sprint-outcome="${escapeHtml(r.id)}" title="Open Sprint Outcome">${escapeHtml(r.name)}</button>`
               : `<span title="${escapeHtml(r.name)}" style="font-weight:700; color:var(--text);">${escapeHtml(r.name)}</span>`}
-            
+            ${r.ownerNote || r.ticksText ? `<span class="dash-area-meta">${escapeHtml(r.ownerNote || `Ticks: ${r.ticksText}`)}</span>` : ""}
           </div>
         </td>
         <td class="nowrap">${plannedText}</td>
@@ -7941,7 +8019,7 @@ function exportCsvForMonth(){
 
   const lines = [];
   lines.push([
-    "Date","AOP","Type","Goal","Comments","Required","DayNote","MarkedAt"
+    "Date","AOP","Type","Goal","Comments","Required","DayNote","MarkedAt","By"
   ].join(","));
 
   for(const dateKey of keys){
@@ -7963,7 +8041,8 @@ function exportCsvForMonth(){
         csvEscape(mt.comments || ""),
         csvEscape(mt.required ? "TRUE" : "FALSE"),
         csvEscape(dayNote),
-        csvEscape(e.ts || "")
+        csvEscape(e.ts || ""),
+        csvEscape(view.state.aops?.[e.aopId] ? areaLabel(entryOwner(e)) : "")
       ].join(","));
     };
 
@@ -8298,7 +8377,7 @@ function hookUI(){
   if(ui.dayAddCustomBtn) ui.dayAddCustomBtn.addEventListener("click", () => { dayAddKind = "custom"; renderDayAddPanel(); });
   if(ui.dayAddSelect) ui.dayAddSelect.addEventListener("change", () => {
     const id = ui.dayAddSelect.value || "";
-    view.calendarAopId = id && view.state.aops[id] && isAopInArea(id) ? id : null;
+    view.calendarAopId = id && view.state.aops[id] && (isAopInArea(id) || isGuestAop(id)) ? id : null;
     if(view.calendarAopId) view.state.activeAopId = view.calendarAopId;
     saveStateLocal();
     renderDayAddPanel();
