@@ -8,6 +8,9 @@ Sources, per local calendar day:
     edited or opened, and the titles of sessions that touched the power repo
 
 What it writes, and nothing else:
+  - a new AOP in their own area, in a color no other AOP has, for each AOP
+    they committed or edited that no area of the calendar has yet (never
+    re-added once someone deletes it)
   - an "actual" tick per AOP of their own area they committed or edited that
     weekday (fixed id, never re-added once someone deletes it)
   - a "Claude day log" block in their own area's day note; any text the
@@ -30,6 +33,7 @@ unless the new state equals the old one apart from those additions.
 Standard library only. Run `python claude_day_sync.py --help`.
 """
 import argparse
+import colorsys
 import copy
 import datetime as dt
 import getpass
@@ -42,6 +46,7 @@ import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
+import uuid
 from pathlib import Path
 
 HOME_DIR = Path(os.environ.get("AOP_SYNC_HOME") or Path.home() / ".aop-calendar-sync")
@@ -50,6 +55,8 @@ TOKEN_FILE = HOME_DIR / "token.json"
 LAST_RUN_FILE = HOME_DIR / "last_run.json"
 # Sprint-outcome lines already added once; a line someone removed stays removed.
 ACHIEVED_LEDGER_FILE = HOME_DIR / "achieved.json"
+# AOPs this tool added to the calendar, {base name: id}; one someone deleted or renamed is not added again.
+CREATED_AOPS_FILE = HOME_DIR / "created_aops.json"
 
 TABLE = "planner_workspaces"
 # Mirrors AREA_VIEWS in index.html. The app maps any unknown area to "pool"
@@ -309,13 +316,20 @@ def collect_commits(cfg, first, last):
 
 # ------------------------------------------------------ Claude Code sessions
 
-def known_aop_names(cfg, extra=()):
-    """AOP names that really exist: on main, live, or in the working tree."""
+def landed_aop_names(cfg):
+    """AOP names on main or live. Only these become new calendar AOPs, so test and deleted AOPs don't."""
     repo = Path(cfg["power_repo"]).expanduser()
-    names = set(extra)
+    names = set()
     for ref in (cfg.get("main_ref", "origin/main"), cfg.get("live_ref", "origin/production")):
         r = git(repo, "ls-tree", "-r", "--name-only", ref, "aops", check=False)
         names.update(c[1] for c in (classify_path(p) for p in r.stdout.splitlines()) if c and c[0] == "aop")
+    return names
+
+
+def known_aop_names(cfg, extra=()):
+    """AOP names that really exist: on main, live, or in the working tree."""
+    repo = Path(cfg["power_repo"]).expanduser()
+    names = set(extra) | landed_aop_names(cfg)
     for p in (repo / "aops").rglob("*"):
         c = classify_path(p.relative_to(repo).as_posix())
         if c and c[0] == "aop":
@@ -460,10 +474,29 @@ def collect(cfg, first, last, fetch=True):
     for day in day_range(first, last):
         d = day.isoformat()
         days.append(build_activity(d, [c for c in commits if c["day"] == d], sessions.get(d, {})))
-    return {"days": days, "achievements": build_achievements(commits), "warnings": warnings}
+    return {"days": days, "achievements": build_achievements(commits), "landed_aops": sorted(landed_aop_names(cfg)),
+            "warnings": warnings}
 
 
 # ------------------------------------------------------------- calendar state
+
+FILLER_WORDS = {"and", "or", "the", "a", "an", "of", "for", "to", "with"}
+
+
+def word_key(text):
+    """Base name without filler words or endings: 'Handling Misrouted Receipts and SMS' and
+    'Handle Misrouted Receipt & SMS' both give 'handl misrouted receipt sms'."""
+    out = []
+    for w in base_name(text).split():
+        if w in FILLER_WORDS:
+            continue
+        for suffix in ("ing", "es", "s", "e"):
+            if w.endswith(suffix) and len(w) - len(suffix) >= 3:
+                w = w[:-len(suffix)]
+                break
+        out.append(w)
+    return " ".join(out)
+
 
 def match_aop(name, aops, aliases):
     target = aliases.get(name, name)
@@ -471,7 +504,10 @@ def match_aop(name, aops, aliases):
     if len(exact) == 1:
         return exact[0]
     loose = [i for i, a in aops.items() if base_name(a.get("name")) == base_name(target)]
-    return loose[0] if len(loose) == 1 else None
+    if loose:
+        return loose[0] if len(loose) == 1 else None
+    words = [i for i, a in aops.items() if word_key(a.get("name")) == word_key(target)]
+    return words[0] if len(words) == 1 else None
 
 
 def calendar_aops(state):
@@ -721,14 +757,93 @@ def shift_month(month, delta):
     return f"{y:04d}-{m:02d}"
 
 
-def apply_all(state, collected, area, cfg, ledger, stamp=None):
+def _rgb(color):
+    m = re.fullmatch(r"#?([0-9a-fA-F]{6})", str(color or "").strip())
+    return tuple(int(m.group(1)[i:i + 2], 16) for i in (0, 2, 4)) if m else None
+
+
+def _color_distance(a, b):
+    """'Redmean' RGB distance: close enough to how far apart two colors look."""
+    r = (a[0] + b[0]) / 2
+    dr, dg, db = a[0] - b[0], a[1] - b[1], a[2] - b[2]
+    return ((2 + r / 256) * dr * dr + 4 * dg * dg + (2 + (255 - r) / 256) * db * db) ** 0.5
+
+
+def pick_new_color(used):
+    """A color no item in the calendar has, as far as possible from all of them."""
+    used_rgb = [c for c in (_rgb(u) for u in used) if c]
+    best = None
+    for i in range(72):
+        hue = (i * 137.508) % 360 / 360  # golden angle: each step lands far from the ones before
+        for light in (0.62, 0.48):
+            rgb = tuple(round(v * 255) for v in colorsys.hls_to_rgb(hue, light, 0.7))
+            if rgb in used_rgb:
+                continue
+            gap = min((_color_distance(rgb, u) for u in used_rgb), default=1e9)
+            if best is None or gap > best[0]:
+                best = (gap, rgb)
+    return "#%02x%02x%02x" % best[1]
+
+
+NEW_AOP_KEYS = {"id", "name", "color", "area", "kind", "created_at", "updated_at", "source"}
+GENERIC_WORDS = {"assist", "customer", "customers", "handle", "handling", "inquiry", "inquiries", "order",
+                 "orders", "power", "helping", "existing", "product", "products", "request", "questions",
+                 "regarding", "issues", "their", "with", "about"}
+
+
+def similar_aops(name, aops, limit=2):
+    """Calendar AOPs sharing the most distinctive words with `name`: maybe the same AOP under another name."""
+    words = {w for w in base_name(name).split() if len(w) >= 5 and w not in GENERIC_WORDS}
+    scored = {}
+    for a in aops.values():
+        shared = len(words & set(base_name(a.get("name")).split()))
+        label = a.get("name", "").replace("​", "").strip()
+        if shared and label:
+            scored[label] = max(shared, scored.get(label, 0))
+    return [n for n, _ in sorted(scored.items(), key=lambda x: (-x[1], x[0].lower()))[:limit]]
+
+
+def apply_new_aops(state, collected, area, cfg, created, stamp=None):
+    """Add each AOP the person worked on that no area has yet to their own area, in a new color.
+    Only AOPs on main or live count. Returns (new_state, report); never mutates `state`."""
+    report = {"created": [], "removed_before": []}
+    if cfg.get("add_new_aops", True) is False:
+        return state, report
     stamp = stamp or now_iso()
-    st, reports = state, []
+    st = copy.deepcopy(state)
+    aliases = cfg.get("aliases") or {}
+    landed = set(collected["landed_aops"]) if "landed_aops" in collected else None  # None: an --activity file from before
+    worked = dict.fromkeys(aliases.get(a["name"], a["name"]) for day in collected["days"]
+                           for a in day["aops"] if is_real_work(a) and (landed is None or a["name"] in landed))
+    for name in worked:
+        items = st.setdefault("aops", {})
+        # any match at all, even an ambiguous one or a custom status, means it's already in the calendar
+        if any(isinstance(a, dict) and (norm_name(a.get("name")) == norm_name(name) or base_name(a.get("name")) == base_name(name)
+                                        or word_key(a.get("name")) == word_key(name)) for a in items.values()):
+            continue
+        aops = calendar_aops(st)
+        if base_name(name) in created:  # added once, then deleted or renamed by someone
+            if not any(base_name(n) == base_name(name) for n in report["removed_before"]):
+                report["removed_before"].append(name)
+            continue
+        aop_id = str(uuid.uuid4())
+        color = pick_new_color(a.get("color") for a in items.values() if isinstance(a, dict))
+        items[aop_id] = {"id": aop_id, "name": name, "color": color, "area": area, "kind": "aop",
+                         "created_at": stamp, "updated_at": stamp, "source": ENTRY_SOURCE}
+        st["aopOrder"] = list(st.get("aopOrder") or []) + [aop_id]
+        report["created"].append({"name": name, "id": aop_id, "color": color, "similar": similar_aops(name, aops)})
+    return st, report
+
+
+def apply_all(state, collected, area, cfg, ledger, created=None, stamp=None):
+    stamp = stamp or now_iso()
+    st, new_aops = apply_new_aops(state, collected, area, cfg, created or {}, stamp)
+    reports = []
     for activity in collected["days"]:
         st, report = apply_day(st, activity, area, cfg, stamp)
         reports.append(report)
     st, added, keys = apply_achievements(st, collected["achievements"], area, cfg, ledger, stamp)
-    return st, reports, added, keys
+    return st, reports, added, keys, new_aops
 
 
 # ------------------------------------------------------------------- guard
@@ -749,8 +864,22 @@ def _check_notation(old_text, new_text):
 
 
 def check_only_additions(old, new, area, dks):
-    """Raise unless `new` equals `old` apart from this tool's ticks, note blocks and sprint-outcome lines."""
+    """Raise unless `new` equals `old` apart from this tool's new AOPs, ticks, note blocks and sprint-outcome lines."""
     expected = copy.deepcopy(new)
+    old_aops = old.get("aops") or {}
+    new_ids = [i for i in (expected.get("aops") or {}) if i not in old_aops]
+    for i in new_ids:
+        a = expected["aops"].pop(i)
+        if not (isinstance(a, dict) and set(a) == NEW_AOP_KEYS and a["id"] == i and a["source"] == ENTRY_SOURCE
+                and a["area"] == area and a["kind"] == "aop" and _rgb(a["color"])):
+            raise RuntimeError("Guard: an unexpected AOP would be added. Nothing written.")
+    if new_ids:
+        if list(expected.get("aopOrder") or []) != list(old.get("aopOrder") or []) + new_ids:
+            raise RuntimeError("Guard: the AOP order would change beyond the new AOPs. Nothing written.")
+        if "aopOrder" in old:
+            expected["aopOrder"] = copy.deepcopy(old["aopOrder"])
+        else:
+            expected.pop("aopOrder", None)
     old_entries = old.get("entries") or {}
     old_notes = old.get("dayNotes") or {}
     for dk in dks:
@@ -794,7 +923,7 @@ def check_only_additions(old, new, area, dks):
                 new_notes[dk] = note
     old_monthly = old.get("aopMonthly") or {}
     new_monthly = expected.get("aopMonthly") or {}
-    own = {i for i, a in (old.get("aops") or {}).items() if isinstance(a, dict) and a.get("area") == area}
+    own = {i for i, a in old_aops.items() if isinstance(a, dict) and a.get("area") == area} | set(new_ids)
     for aop_id, months in list(new_monthly.items()):
         for month, record in list(months.items()):
             before = (old_monthly.get(aop_id) or {}).get(month)
@@ -814,7 +943,7 @@ def check_only_additions(old, new, area, dks):
                 months[month] = before
         if aop_id not in old_monthly and not months:
             del new_monthly[aop_id]
-    for key in ("entries", "dayNotes", "aopMonthly"):
+    for key in ("entries", "dayNotes", "aopMonthly", "aops"):
         if key not in old and expected.get(key) == {}:
             expected.pop(key)
     if expected != old:
@@ -1166,12 +1295,13 @@ def sync_live(ws, cfg, collected, dry_run):
     area = cfg["area"]
     dks = [d["date"] for d in collected["days"]]
     ledger = set(read_json(ACHIEVED_LEDGER_FILE, []) or [])
+    created = read_json(CREATED_AOPS_FILE, {}) or {}
     for _ in range(5):
         row = ws.fetch()
         old = row["state"]
-        new, reports, added, keys = apply_all(old, collected, area, cfg, ledger)
+        new, reports, added, keys, new_aops = apply_all(old, collected, area, cfg, ledger, created)
         check_only_additions(old, new, area, dks)
-        result = {"reports": reports, "added": added, "written": False}
+        result = {"reports": reports, "added": added, "new_aops": new_aops, "written": False}
         if dry_run:
             return result
         if new != old and not ws.write_if_unchanged(new, row["updated_at"]):
@@ -1180,11 +1310,16 @@ def sync_live(ws, cfg, collected, dry_run):
             result["written"] = True
             result["verified"] = _contains_additions(ws.fetch()["state"], new, area, dks)
         write_json(ACHIEVED_LEDGER_FILE, sorted(ledger | set(keys)))
+        if new_aops["created"]:
+            write_json(CREATED_AOPS_FILE, {**created, **{base_name(a["name"]): a["id"] for a in new_aops["created"]}})
         return result
     raise RuntimeError("The workspace kept changing while writing; gave up after 5 tries. Nothing lost - run again.")
 
 
 def _contains_additions(after, new, area, dks):
+    ours = [i for i, a in (new.get("aops") or {}).items() if isinstance(a, dict) and a.get("source") == ENTRY_SOURCE]
+    if not all(i in (after.get("aops") or {}) for i in ours):
+        return False
     for dk in dks:
         want = [e for e in ((new.get("entries") or {}).get(dk) or {}).get("actual", [])
                 if str(e.get("id", "")).startswith(ENTRY_SOURCE)]
@@ -1259,6 +1394,15 @@ def days_to_run(explicit):
 
 
 def print_result(result, full=True):
+    new_aops = result.get("new_aops") or {}
+    if new_aops.get("created"):
+        print(f"New AOPs in your area ({len(new_aops['created'])}):")
+        for a in new_aops["created"]:
+            hint = f"  - maybe the same as: {', '.join(a['similar'][:3])}" if a["similar"] else ""
+            print(f"    {a['color']} {a['name']}{hint}")
+        print()
+    for name in new_aops.get("removed_before") or []:
+        print(f"    not added again, someone deleted or renamed it: {name}")
     for report in result["reports"]:
         line = f"{report['date']}{' (weekend, note only)' if report['weekend'] else ''}: "
         line += f"{len(report['ticked'])} new tick(s)" + (", day log" if report["note"] else "")
@@ -1372,9 +1516,9 @@ def cmd_preview(args):
     raw = read_json(args.state)
     old = raw.get("state", raw)
     ledger = set(read_json(args.ledger, []) or []) if args.ledger else set()
-    new, reports, added, keys = apply_all(old, collected, cfg["area"], cfg, ledger)
+    new, reports, added, keys, new_aops = apply_all(old, collected, cfg["area"], cfg, ledger)
     check_only_additions(old, new, cfg["area"], [d["date"] for d in collected["days"]])
-    print_result({"reports": reports, "added": added}, full=not args.brief)
+    print_result({"reports": reports, "added": added, "new_aops": new_aops}, full=not args.brief)
     print("Guard: only additions - OK")
     if args.out:
         write_json(args.out, {**raw, "state": new} if "state" in raw else new)

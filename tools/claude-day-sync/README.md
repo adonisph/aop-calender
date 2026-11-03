@@ -92,11 +92,13 @@ kept, in `C:\Users\<you>\.aop-calendar-sync\`. When setup works, it ends with
 python "$HOME\aop-calendar-sync\claude_day_sync.py" run --dry-run
 ```
 
-This reads the live calendar and prints what it **would** add for today: the
-ticks, and the day log text. Check that the AOPs look right.
+This reads the live calendar and prints what it **would** add for today: new
+AOPs, the ticks, and the day log text. Check that the AOPs look right.
 
-If an AOP shows as *"not in calendar AOP list"* but it is in the calendar
-under another name, add an alias. Open
+An AOP you worked on that no area of the calendar has yet is added to your
+area, in a color no other AOP has (see *New AOPs* below). If one shows under
+*"New AOPs in your area"* but it is already in the calendar under another
+name (the line says *"maybe the same as: …"*), add an alias instead. Open
 `C:\Users\<you>\.aop-calendar-sync\config.json` and fill in `aliases`:
 
 ```json
@@ -167,6 +169,24 @@ Unregister-ScheduledTask -TaskName "AI Calender day sync" -Confirm:$false
 
 ## What ends up in the calendar
 
+**New AOPs**, in your area:
+
+- One for each AOP you committed or edited that isn't in the calendar yet, in
+  any area. It gets the AOP's file name from the power repo.
+- Only AOPs that are on main or live in Decagon. Test AOPs, deleted AOPs and
+  AOPs that only exist on a branch are left out until they land.
+- Each new AOP gets its own color, one that no other AOP or status in the
+  calendar has, picked to stand out from the colors already there. Change it
+  in the calendar whenever you like.
+- An AOP that is already in someone else's area stays there. Your work on it
+  goes in your day note only.
+- Versions count as one AOP: *"Returns V3"* and *"Returns V3 Voice"* both
+  belong to a calendar AOP called *"Returns"*, so no new one is added. Small
+  spelling differences count as the same name too: *"Handling Installation
+  issues"* is the calendar's *"Handle Installation issues"*.
+- Delete or rename an AOP it added and it isn't added again.
+- To switch this off, set `"add_new_aops": false` in your `config.json`.
+
 **Ticks:**
 
 - One per AOP per day, only for AOPs in **your** area.
@@ -221,8 +241,7 @@ Claude sessions (1): "Insurance V4 for chat"
   breaks.
 - Write your own text above or below the markers. A new run only replaces the
   part between them.
-- AOPs from someone else's area, or not in the calendar, are listed in the
-  note only.
+- AOPs from someone else's area are listed in the note only.
 - Session titles are listed only for Claude sessions that worked in the power
   repo. Other sessions are just counted.
 - To leave session titles out, set `"include_session_titles": false` in your
@@ -290,8 +309,8 @@ the calendar):
 - **Dashboard edits** count for the person named in the commit. A `[Dashboard]`
   commit you pushed that says *"(Martins, …)"* counts for Martins, not for you.
 - **It never deletes anything.** Before saving it checks that the only changes
-  are its own ticks and its own day log. If anything else would change, it
-  stops and saves nothing.
+  are its own new AOPs, ticks, day log and outcome lines. If anything else
+  would change, it stops and saves nothing.
 - **Your files:** all of them live in `C:\Users\<you>\.aop-calendar-sync\`.
   - `config.json`: your settings.
   - `token.json`: your sign-in. Keep it private.
@@ -299,6 +318,8 @@ the calendar):
   - `last_run.json`: where catch-up starts from.
   - `achieved.json`: outcome lines already added once, so a line you removed
     isn't added again.
+  - `created_aops.json`: AOPs it added to the calendar, so one you deleted or
+    renamed isn't added again.
 - **What the daily run leaves alone:** the planned calendar, monthly goals,
   comments, "required", deflection and conversation numbers, and custom
   statuses. Only `plan` adds goals and planned ticks, and only when you run it
