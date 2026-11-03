@@ -1710,6 +1710,16 @@
     .selected-day-item i{ width:7px; height:7px; border-radius:50%; flex:none; }
     .selected-day-item em{ margin-left:auto; color:#b9a4ff; font-size:10px; font-style:normal; }
     .selected-day-empty{ color:var(--muted); font-size:12px; }
+    .selected-day-remove{ margin-left:auto; padding:0 6px; border:none; background:transparent; color:var(--muted); font-size:15px; line-height:1; cursor:pointer; }
+    .selected-day-item em + .selected-day-remove{ margin-left:4px; }
+    .selected-day-remove:hover, .selected-day-remove:focus-visible{ color:var(--text); }
+    .diff-legend{ display:flex; flex-wrap:wrap; gap:6px 14px; margin:8px 0 2px; font-size:12px; color:var(--muted); }
+    .diff-legend[hidden]{ display:none; }
+    .diff-legend span{ display:inline-flex; align-items:center; gap:6px; }
+    .diff-legend i{ width:12px; height:12px; border-radius:3px; flex:none; }
+    .diff-legend i.met{ background:var(--diffGreen); box-shadow:inset 0 0 0 2px var(--diffGreenBorder); }
+    .diff-legend i.missed{ background:var(--diffRed); box-shadow:inset 0 0 0 2px var(--diffRedBorder); }
+    .diff-legend i.unplanned{ background:var(--diffBlue); box-shadow:inset 0 0 0 2px var(--diffBlueBorder); }
     .day .master-area-pill{
       position:absolute; left:6px; right:6px; top:28px; bottom:18px;
       display:flex; flex-wrap:wrap; align-content:flex-start; gap:3px 5px;
@@ -2636,8 +2646,8 @@
               <th>AOP</th>
               <th class="nowrap">Planned</th>
               <th class="nowrap">Actual</th>
-              <th class="nowrap">Delta</th>
-              <th class="nowrap">Adherence (MTD)</th>
+              <th class="nowrap" title="Actual minus Planned, from the 1st up to yesterday">Delta (MTD)</th>
+              <th class="nowrap" title="Planned AOPs that were done, from the 1st up to yesterday">Adherence (MTD)</th>
             </tr>
           </thead>
           <tbody id="dashTbody"></tbody>
@@ -2692,6 +2702,12 @@
           <select id="dayAddSelect" aria-label="Item to add"></select>
         </div>
         <div class="small" id="dayAddSelectionHint">No AOP selected.</div>
+      </div>
+
+      <div class="diff-legend" id="diffLegend" hidden>
+        <span><i class="met"></i>Met: every planned AOP was done</span>
+        <span><i class="missed"></i>Missed: a planned AOP wasn't done (past days only)</span>
+        <span><i class="unplanned"></i>Unplanned: work done without a plan</span>
       </div>
 
       <div class="cal-wrap" id="calWrap">
@@ -3451,7 +3467,7 @@ function renderSelectedDayItems(){
   const total = planned.length + actual.length;
   if(ui.selectedDayTitle) ui.selectedDayTitle.textContent = dateKey;
   if(ui.selectedDayCount) ui.selectedDayCount.textContent = `${total} ${total === 1 ? "item" : "items"}`;
-  const group = (label, entries) => {
+  const group = (label, entries, type) => {
     const content = entries.length ? entries.map(entry => {
       const item = view.state.aops?.[entry.aopId] || { name:"Missing item", color:"#777", kind:"aop" };
       const tags = [];
@@ -3463,11 +3479,15 @@ function renderSelectedDayItems(){
         tags.push(`${areaLabel(aopAreaId(item))}'s AOP`);
       }
       const status = tags.length ? `<em>${escapeHtml(tags.join(" · "))}</em>` : "";
-      return `<div class="selected-day-item"><i style="background:${escapeHtml(item.color || "#777")}"></i><span>${escapeHtml(item.name)}</span>${status}</div>`;
+      const remove = `<button type="button" class="selected-day-remove" data-remove-mark="${escapeHtml(entry.id)}" data-mark-type="${type}" title="Remove this ${label} mark" aria-label="Remove ${escapeHtml(item.name)} from ${label}">&times;</button>`;
+      return `<div class="selected-day-item"><i style="background:${escapeHtml(item.color || "#777")}"></i><span>${escapeHtml(item.name)}</span>${status}${remove}</div>`;
     }).join("") : `<div class="selected-day-empty">None</div>`;
     return `<div class="selected-day-group"><h4>${label}</h4>${content}</div>`;
   };
-  ui.selectedDayItems.innerHTML = group("Planned", planned) + group("Actual", actual);
+  ui.selectedDayItems.innerHTML = group("Planned", planned, "planned") + group("Actual", actual, "actual");
+  ui.selectedDayItems.querySelectorAll("button[data-remove-mark]").forEach(btn => {
+    btn.addEventListener("click", () => deleteMark(dateKey, btn.dataset.markType, btn.dataset.removeMark));
+  });
 }
 // A tick belongs to the person in its `by` (an AREA_VIEWS id). A tick without one, or with an
 // id this page doesn't know, belongs to the AOP's area, which is all a tick meant before `by`.
@@ -6121,8 +6141,10 @@ function plannedCountForDay(dateKey){
 /* --- Diff calculations (per day) --- */
 function setsForDay(dateKey){
   const b = view.state.entries[dateKey] || { planned: [], actual: [] };
-  const planned = new Set(filterEntriesByArea(b.planned).map(x=>x.aopId));
-  const actual = new Set(filterEntriesByArea(b.actual).map(x=>x.aopId));
+  // Same AOP and same person, as on the dashboard.
+  const key = e => `${e.aopId}|${entryOwner(e)}`;
+  const planned = new Set(filterEntriesByArea(b.planned).map(key));
+  const actual = new Set(filterEntriesByArea(b.actual).map(key));
   return { planned, actual };
 }
 function dayDiffClass(dateKey){
@@ -6134,7 +6156,9 @@ function dayDiffClass(dateKey){
   for(const a of planned){
     if(!actual.has(a)){ allPlannedInActual = false; break; }
   }
-  return allPlannedInActual ? "diff-met" : "diff-missed";
+  if(allPlannedInActual) return "diff-met";
+  // Today and later days aren't missed yet.
+  return dateKey >= ymd(new Date()) ? "" : "diff-missed";
 }
 
 /* --- Color math --- */
@@ -7705,10 +7729,11 @@ function dayStats(bucket){
       // unplanned actuals weighted by actual share
       if(!plannedInfo.map.has(aopId)) out.unplanned += actualInfo.share;
     }
-    // strict matches (same AOP + same day + same person), weighted by lower share
+    // strict matches (same AOP + same day + same person). A planned AOP that was done counts
+    // its full planned share, so doing other work that day too doesn't lower adherence.
     for(const aopId of plannedInfo.ids){
       if(!actualInfo.map.has(aopId)) continue;
-      const matchedShare = Math.min(plannedInfo.map.get(aopId) || 0, actualInfo.map.get(aopId) || 0);
+      const matchedShare = plannedInfo.map.get(aopId) || 0;
       out.matched += matchedShare;
       add(aopId, "matched", matchedShare);
     }
@@ -7756,7 +7781,8 @@ function calcMonthStats(){
   const now = new Date();
   const isPastMonth = (view.year < now.getFullYear()) || (view.year === now.getFullYear() && view.month < now.getMonth());
   const isCurrentMonth = (view.year === now.getFullYear() && view.month === now.getMonth());
-  const cutoffDay = isPastMonth ? keys.length : (isCurrentMonth ? Math.min(now.getDate(), keys.length) : 0);
+  // Up to yesterday: today's ticks mostly arrive with the evening sync.
+  const cutoffDay = isPastMonth ? keys.length : (isCurrentMonth ? Math.min(now.getDate() - 1, keys.length) : 0);
   const mtdKeys = cutoffDay > 0 ? keys.slice(0, cutoffDay) : [];
   const mtdStartDateKey = mtdKeys[0] || null;
   const mtdEndDateKey = mtdKeys[mtdKeys.length - 1] || null;
@@ -7805,8 +7831,8 @@ function renderDashboard(){
   if(ui.dashboardSortSelect && ui.dashboardSortSelect.value !== dashboardSort){
     ui.dashboardSortSelect.value = dashboardSort;
   }
-  const mtdRange = (st.mtdStartDateKey && st.mtdEndDateKey) ? `${st.mtdStartDateKey} to ${st.mtdEndDateKey}` : "No MTD days yet";
-  ui.dashSub.textContent = `${monthNames[view.month]} ${view.year} | View: ${areaLabel(currentAreaViewId())} | Weighted day-share by selected AOPs/day | Adherence: MTD (${mtdRange})`;
+  const mtdRange = (st.mtdStartDateKey && st.mtdEndDateKey) ? `${st.mtdStartDateKey} to ${st.mtdEndDateKey}` : "no days yet";
+  ui.dashSub.textContent = `${monthNames[view.month]} ${view.year} | View: ${areaLabel(currentAreaViewId())} | Weighted day-share by selected AOPs/day | Delta + Adherence: up to yesterday (${mtdRange})`;
 
   ui.kpiPlanned.textContent = formatDayValue(st.plannedTotal);
   ui.kpiActual.textContent = formatDayValue(st.actualTotal);
@@ -7834,7 +7860,8 @@ function renderDashboard(){
     const adhPlanned = sMtd.planned || 0;
     const adhMatched = sMtd.matched || 0;
     const adh = adhPlanned ? (adhMatched / adhPlanned) : 0;
-    const delta = actual - planned;
+    // Same window as adherence, so days planned later this month don't count as behind.
+    const delta = (sMtd.actual || 0) - (sMtd.planned || 0);
     const hasNotation = parsedNotation.goals.length > 0 || parsedNotation.achievements.length > 0;
     const notationUpdatedAt = monthNotation.notation_updated_at || "";
     const notationUpdatedMs = Date.parse(notationUpdatedAt) || 0;
@@ -8031,6 +8058,13 @@ function renderDashboard(){
 }
 
 /* --- Render All --- */
+function syncDiffToggle(){
+  if(ui.diffToggle){
+    ui.diffToggle.classList.toggle("on", view.diffMode);
+    ui.diffToggle.textContent = view.diffMode ? "Diff: ON" : "Diff";
+  }
+  if(ui.diffLegend) ui.diffLegend.hidden = !view.diffMode;
+}
 function renderAll(){
   applyColorTheme(currentThemeId(), false);
   applyUiPrefs();
@@ -8044,6 +8078,7 @@ function renderAll(){
 
   renderAopCatalog();
   renderCalendarControls();
+  syncDiffToggle();
   renderCalendar(ui.daysPlanned, "planned");
   renderCalendar(ui.daysActual, "actual");
   renderDayAddPanel();
@@ -9032,6 +9067,7 @@ function init(){
     selectedDayTitle: document.getElementById("selectedDayTitle"),
     selectedDayCount: document.getElementById("selectedDayCount"),
     selectedDayItems: document.getElementById("selectedDayItems"),
+    diffLegend: document.getElementById("diffLegend"),
 
     // aop
     aopNewName: document.getElementById("aopNewName"),
@@ -9118,39 +9154,6 @@ function init(){
   const now = new Date();
   view.selectedDate = ymd(now);
   view.selectedCalendar = view.selectedCalendar || "planned";
-
-  // Seed AOPs if empty (optional starter set)
-  const hasConfiguredTeamWorkspace = !!(
-    teamSync.config?.url &&
-    teamSync.config?.anonKey &&
-    teamSync.config?.workspaceId
-  );
-  if((view.state.aopOrder||[]).length === 0 && !hasConfiguredTeamWorkspace){
-    const seeds = [
-      { name: "Refund Status / Warranty handling", color: "#60a5fa" },
-      { name: "Return an order / Existing Case Status", color: "#86efac" },
-      { name: "Transport Damaged Product", color: "#fde68a" },
-      { name: "Product Recall Inquiry / Escalation", color: "#fca5a5" }
-    ];
-    for(const s of seeds){
-      const id = uuid();
-      const t = nowIso();
-      view.state.aops[id] = {
-        id,
-        name: s.name,
-        color: s.color,
-        area: DEFAULT_AREA_VIEW,
-        kind: "aop",
-        created_at: t,
-        updated_at: t
-      };
-      view.state.aopOrder.push(id);
-      view.state.aopMonthly[id] = view.state.aopMonthly[id] || {};
-      ensureMonthly(id, ymKey(now.getFullYear(), now.getMonth()));
-    }
-    view.state.activeAopId = view.state.aopOrder[0];
-    saveState();
-  }
 
   // Sync AOP select to active
   ensureActiveAopInView();
