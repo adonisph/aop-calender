@@ -3402,7 +3402,8 @@ function renderDayAddPanel(){
   if(ui.dayAddCustomBtn) ui.dayAddCustomBtn.setAttribute("aria-selected", kind === "custom" ? "true" : "false");
 }
 function addSelectedDayItem(){
-  const id = view.calendarAopId || ui.dayAddSelect?.value;
+  // What the chooser shows now: Enter can arrive before the chooser's change event.
+  const id = ui.dayAddSelect?.value || view.calendarAopId;
   if(!view.selectedDate || !id || !view.state.aops[id]) return;
   view.state.activeAopId = id;
   markSelectedDay(id);
@@ -6815,6 +6816,9 @@ function addAop(name, color, areaId, kind = currentLibraryKind()){
 function setActiveAop(id){
   if(!view.state.aops[id] || !isAopInArea(id)) return;
   view.state.activeAopId = id;
+  // The item picked in the library is also what Enter adds to the selected day.
+  view.calendarAopId = id;
+  dayAddKind = libraryItemKind(view.state.aops[id]);
   saveStateLocal();
   renderAll();
   syncAopSelectors(id);
@@ -6914,6 +6918,7 @@ function saveMonthlyTemplate(){
   renderDashboard();
 }
 function clearActiveAop(){
+  if(view.calendarAopId === view.state.activeAopId) view.calendarAopId = null;
   view.state.activeAopId = null;
   saveStateLocal();
   renderAll();
