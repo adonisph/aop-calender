@@ -1697,7 +1697,9 @@
     .day-add-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
     .day-add-head strong{ font-size:12px; font-style:italic; }
     .day-add-controls{ display:flex; gap:8px; margin-top:9px; }
-    .day-add-controls select{ flex:1; min-width:0; }
+    .day-add-controls select{ flex:1.4; min-width:0; }
+    .day-add-controls input[type="search"]{ flex:1; min-width:0; }
+    @media (max-width: 640px){ .day-add-controls{ flex-direction:column; } }
     .selected-day-panel{ margin:0 12px 12px; padding:10px; border:1px solid var(--line); border-radius:12px; background:#111; }
     .selected-day-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
     .selected-day-head strong{ font-size:12px; font-style:italic; }
@@ -1808,6 +1810,14 @@
         inset 0 0 0 1px rgba(255,255,255,.10);
       z-index: 2;
     }
+
+    .day.multi-selected{
+      outline: 2px dashed rgba(var(--power-rgb),.9);
+      outline-offset: -2px;
+      box-shadow: inset 0 0 0 999px rgba(var(--power-rgb),.12);
+      z-index: 1;
+    }
+    .day.multi-selected.selected{ outline-style: solid; }
 
     .day.capacity{
       box-shadow: 0 0 0 3px rgba(245,158,11,.14);
@@ -2474,7 +2484,7 @@
     <div class="workspace-body">
       <div class="workspace-heading">Areas</div>
       <div class="shortcut"><strong>Dashboard</strong><span>Compare planned and actual marks, progress, and adherence for the selected month.</span></div>
-      <div class="shortcut"><strong>Calender</strong><span>Select a day, choose AOPs or Custom Statuses in Add to Day, then add the item.</span></div>
+      <div class="shortcut"><strong>Calender</strong><span>Select a day (Shift+click for a range, Ctrl+click for single days), search or choose an AOP in Add to Day, then press Enter.</span></div>
       <div class="shortcut"><strong>Planned</strong><span>Use this calendar for the work you intend to complete.</span></div>
       <div class="shortcut"><strong>Actual</strong><span>Use this calendar to record the work that was completed.</span></div>
       <div class="shortcut"><strong>AOP Library</strong><span>Create, organise, and select separate AOPs or Custom Statuses for calendar marking.</span></div>
@@ -2488,6 +2498,9 @@
       <div class="shortcut"><strong>Open day notes</strong><span><kbd>N</kbd></span></div>
       <div class="shortcut"><strong>Save day notes</strong><span><kbd>Ctrl</kbd> / <kbd>Cmd</kbd> + <kbd>S</kbd></span></div>
       <div class="shortcut"><strong>Add selected AOP mark</strong><span><kbd>Enter</kbd></span></div>
+      <div class="shortcut"><strong>Select a range of days</strong><span><kbd>Shift</kbd> + click</span></div>
+      <div class="shortcut"><strong>Add or remove one day</strong><span><kbd>Ctrl</kbd> / <kbd>Cmd</kbd> + click</span></div>
+      <div class="shortcut"><strong>Search AOPs to add</strong><span><kbd>/</kbd> then <kbd>Enter</kbd></span></div>
       <div class="shortcut"><strong>Remove selected mark</strong><span><kbd>Delete</kbd></span></div>
       <div class="shortcut"><strong>Close drawer or menu</strong><span><kbd>Esc</kbd></span></div>
       <div class="shortcut"><strong>Palette navigation</strong><span><kbd>Up</kbd> <kbd>Down</kbd> then <kbd>Enter</kbd></span></div>
@@ -2661,7 +2674,7 @@
         </div>
 
         <div class="pillbar">
-          <span class="kbdHint">Enter = add mark | Delete = remove mark | N = open notes (Actual only)</span>
+          <span class="kbdHint">Enter = add mark | Shift+click = range of days, Ctrl+click = pick days | / = search | Delete = remove mark | N = open notes (Actual only)</span>
           <button id="openDayNotesBtn" class="btn-ghost" type="button">Open Notes Drawer</button>
         </div>
       </div>
@@ -2675,6 +2688,7 @@
           </div>
         </div>
         <div class="day-add-controls">
+          <input id="dayAddSearch" type="search" placeholder="Search AOPs... ( / )" autocomplete="off" aria-label="Search items to add" />
           <select id="dayAddSelect" aria-label="Item to add"></select>
         </div>
         <div class="small" id="dayAddSelectionHint">No AOP selected.</div>
@@ -2723,8 +2737,8 @@
         <div class="head">
           <div>
             <strong>AOP Library</strong>
-            <div class="small">Catalog stores reusable playbooks. Calendar marks are always for one selected day at a time.</div>
-            <div class="helper">Quick flow: 1) Add or select an AOP. 2) Pick one day in Planned or Actual. 3) Press Enter to mark that day.</div>
+            <div class="small">Catalog stores reusable playbooks. Shift+click or Ctrl+click calendar days to mark several at once.</div>
+            <div class="helper">Quick flow: 1) Add or select an AOP. 2) Pick a day in Planned or Actual (Shift+click a second day for a range, Ctrl+click for single days). 3) Press Enter to mark them.</div>
           </div>
         </div>
 
@@ -2759,6 +2773,7 @@
           <button id="libraryCustomBtn" class="btn-ghost" type="button" role="tab" aria-selected="false">Custom Statuses</button>
         </div>
 
+        <input id="aopSearch" type="search" placeholder="Search the library..." autocomplete="off" aria-label="Search the library" style="width:100%; margin-top:10px;" />
         <div class="aop-list" id="aopList"></div>
       </div>
 
@@ -3371,29 +3386,42 @@ function setLibraryItemKind(id, kind){
   renderEntries();
   renderDashboard();
 }
+function aopMatchesSearch(aopId, query){
+  const words = String(query || "").toLowerCase().split(" ").filter(Boolean);
+  if(!words.length) return true;
+  const label = aopDisplayLabel(aopId).toLowerCase();
+  return words.every(word => label.includes(word));
+}
 function renderDayAddPanel(){
   if(!ui.dayAddSelect) return;
   const kind = dayAddKind === "custom" ? "custom" : "aop";
   const label = kind === "custom" ? "Custom Status" : "AOP";
-  const own = visibleAopOrder().filter(id => libraryItemKind(view.state.aops[id]) === kind);
-  const others = kind === "aop" ? otherAreaAopOrder() : [];
+  const query = (ui.dayAddSearch?.value || "").trim();
+  const own = visibleAopOrder().filter(id => libraryItemKind(view.state.aops[id]) === kind && aopMatchesSearch(id, query));
+  const others = kind === "aop" ? otherAreaAopOrder().filter(id => aopMatchesSearch(id, query)) : [];
   const available = [...own, ...others];
   const previous = view.calendarAopId || ui.dayAddSelect.value || view.state.activeAopId;
   const optionsHtml = ids => ids.map(id => `<option value="${id}">${escapeHtml(aopDisplayLabel(id))}</option>`).join("");
   ui.dayAddSelect.innerHTML = available.length
     ? `<option value="">Choose ${label}</option>` + optionsHtml(own)
       + (others.length ? `<optgroup label="Other areas' AOPs (counts for ${escapeHtml(areaLabel(currentAreaViewId()))})">${optionsHtml(others)}</optgroup>` : "")
-    : `<option value="">No ${label.toLowerCase()}s available</option>`;
-  view.calendarAopId = available.includes(previous) ? previous : null;
+    : query
+      ? `<option value="">No ${kind === "custom" ? "custom status" : "AOP"} matches "${escapeHtml(query)}"</option>`
+      : `<option value="">No ${label.toLowerCase()}s available</option>`;
+  // While searching, the first match is picked so Enter in the search box adds it.
+  view.calendarAopId = available.includes(previous) ? previous : (query ? available[0] || null : null);
   ui.dayAddSelect.value = view.calendarAopId || "";
+  if(ui.dayAddSearch) ui.dayAddSearch.placeholder = kind === "custom" ? "Search Custom Statuses... ( / )" : "Search AOPs... ( / )";
   if(ui.dayAddSelectionHint){
-    ui.dayAddSelectionHint.textContent = view.calendarAopId
+    const matches = query ? ` | ${available.length} ${available.length === 1 ? "match" : "matches"}` : "";
+    ui.dayAddSelectionHint.textContent = (view.calendarAopId
       ? `Selected: ${aopDisplayLabel(view.calendarAopId)}`
-      : `No ${label.toLowerCase()} selected.`;
+      : `No ${label.toLowerCase()} selected.`) + matches;
   }
   if(ui.dayAddTitle){
+    const days = selectedDateKeys();
     ui.dayAddTitle.textContent = view.selectedDate
-      ? `${label}: ${view.selectedDate} (${(view.selectedCalendar || "planned").toUpperCase()})`
+      ? `${label}: ${days.length > 1 ? `${days.length} days` : view.selectedDate} (${(view.selectedCalendar || "planned").toUpperCase()})`
       : "Select a day to add an item";
   }
   syncToggleBtn(ui.dayAddAopBtn, kind === "aop");
@@ -3404,7 +3432,7 @@ function renderDayAddPanel(){
 function addSelectedDayItem(){
   // What the chooser shows now: Enter can arrive before the chooser's change event.
   const id = ui.dayAddSelect?.value || view.calendarAopId;
-  if(!view.selectedDate || !id || !view.state.aops[id]) return;
+  if(!id || !view.state.aops[id]) return;
   view.state.activeAopId = id;
   markSelectedDay(id);
 }
@@ -6666,7 +6694,9 @@ function renderAopCatalog(){
   if(catalogOrder.length === 0){
     ui.aopList.innerHTML = `<div class="small">No ${libraryLabel.toLowerCase()}s in ${escapeHtml(areaLabel(currentAreaViewId()))} yet. Add one above.</div>`;
   }else{
-    const visibleOrder = catalogOrder;
+    const libraryQuery = (ui.aopSearch?.value || "").trim();
+    const visibleOrder = catalogOrder.filter(id => aopMatchesSearch(id, libraryQuery));
+    if(!visibleOrder.length) ui.aopList.innerHTML = `<div class="small">No ${libraryKind === "custom" ? "custom status" : "AOP"} matches "${escapeHtml(libraryQuery)}".</div>`;
     for(const id of visibleOrder){
       const a = view.state.aops[id];
       if(!a) continue;
@@ -7152,6 +7182,7 @@ function renderCalendar(container, type){
   const start = firstGridDate(view.year, view.month);
   const cfg = normalizedCalendarUI();
   const activeFilterId = (cfg.activeOnly && view.state.activeAopId && isAopInArea(view.state.activeAopId)) ? view.state.activeAopId : null;
+  const multiSelected = view.selectedCalendar === type ? selectedDateKeys() : [];
 
   for(let i=0; i<42; i++){
     const d = new Date(start);
@@ -7214,6 +7245,8 @@ function renderCalendar(container, type){
           `Diff: Unplanned actual (${actual.size} actual)`;
       }
     }
+
+    if(multiSelected.length > 1 && multiSelected.includes(dateKey)) cell.classList.add("multi-selected");
 
     // Selected highlight
     if(view.selectedDate === dateKey && view.selectedCalendar === type){
@@ -7286,10 +7319,18 @@ function renderCalendar(container, type){
       }
     }
 
-    cell.addEventListener("click", () => {
+    cell.addEventListener("mousedown", (event) => {
+      if(event.shiftKey) event.preventDefault(); // keep Shift+click from selecting page text
+    });
+    cell.addEventListener("click", (event) => {
       if(disabled) return;
       clearTimeout(calendarDayClickTimer);
+      if(event.shiftKey || event.ctrlKey || event.metaKey){
+        extendDaySelection(dateKey, type, event.shiftKey ? "range" : "toggle");
+        return;
+      }
       calendarDayClickTimer = setTimeout(() => {
+        view.multiDates = null;
         view.selectedDate = dateKey;
         view.selectedCalendar = type;
         setDayNotesDrawer(false, false);
@@ -7332,14 +7373,51 @@ function syncSelectedInfo(){
     return;
   }
   const [y,m,d] = view.selectedDate.split("-");
-  const pretty = `${Number(d)} ${monthNames[Number(m)-1]} ${y}`;
+  const days = selectedDateKeys();
+  const pretty = days.length > 1
+    ? `${days.length} days, ${Number(days[0].slice(8))}–${Number(days[days.length - 1].slice(8))} ${monthNames[Number(m)-1]} ${y}`
+    : `${Number(d)} ${monthNames[Number(m)-1]} ${y}`;
   const target = view.calendarAopId && view.state.aops[view.calendarAopId]
     ? ` | Add target: ${aopDisplayLabel(view.calendarAopId)}`
     : "";
   ui.selectedInfo.textContent = `Selected: ${pretty} (${view.selectedCalendar.toUpperCase()})${target}`;
 }
 
-/* --- Mark Day (calendar stamp) --- */
+/* --- Several days: Shift+click = range from the selected day, Ctrl/Cmd+click = add or remove one day --- */
+function selectedDateKeys(){
+  if(!view.selectedDate) return [];
+  const multi = view.multiDates;
+  if(multi && multi.type === view.selectedCalendar && multi.dates.includes(view.selectedDate)) return multi.dates.slice().sort();
+  return [view.selectedDate];
+}
+function extendDaySelection(dateKey, type, mode){
+  const anchor = view.selectedCalendar === type && view.selectedDate?.startsWith(`${currentMonthKey()}-`) ? view.selectedDate : null;
+  let dates;
+  if(!anchor){
+    dates = [dateKey];
+    view.selectedDate = dateKey;
+  }else if(mode === "range"){
+    const [from, to] = anchor < dateKey ? [anchor, dateKey] : [dateKey, anchor];
+    dates = [];
+    for(let d = new Date(from + "T00:00:00"); ymd(d) <= to; d.setDate(d.getDate() + 1)){
+      const key = ymd(d);
+      if(key === anchor || key === dateKey || !isWeekend(d)) dates.push(key);
+    }
+  }else{
+    const current = selectedDateKeys();
+    dates = current.includes(dateKey) ? current.filter(k => k !== dateKey) : [...current, dateKey];
+    if(!dates.length) dates = [dateKey];
+    if(!dates.includes(view.selectedDate)) view.selectedDate = dates[0];
+  }
+  view.selectedCalendar = type;
+  view.multiDates = dates.length > 1 ? { type, dates } : null;
+  setDayNotesDrawer(false, false);
+  renderAll();
+  renderEntries();
+  loadDayNoteUI();
+}
+
+/* --- Mark Day (calendar stamp): every selected day --- */
 function markSelectedDay(aopIdOverride){
   if(!view.selectedDate){ alert("Select a day on a calendar first."); return; }
   const type = view.selectedCalendar || "planned";
@@ -7349,35 +7427,49 @@ function markSelectedDay(aopIdOverride){
     return;
   }
 
-  const d = new Date(view.selectedDate + "T00:00:00");
-  const inShownMonth = (d.getFullYear() === view.year && d.getMonth() === view.month);
-
-  if(inShownMonth && isWeekend(d)){
-    alert("Weekends are disabled.");
+  const dates = selectedDateKeys();
+  const owner = tickOwnerFor(aopId);
+  const targets = [];
+  let weekends = 0;
+  let already = 0;
+  for(const dateKey of dates){
+    const d = new Date(dateKey + "T00:00:00");
+    const inShownMonth = (d.getFullYear() === view.year && d.getMonth() === view.month);
+    if(inShownMonth && isWeekend(d)){ weekends += 1; continue; }
+    if(hasTickBy(view.state.entries[dateKey]?.[type] || [], aopId, owner)){ already += 1; continue; }
+    targets.push(dateKey);
+  }
+  if(!targets.length){
+    alert(weekends && !already ? "Weekends are disabled."
+      : dates.length > 1 ? "This AOP is already marked on all the selected days for that type."
+      : "This AOP is already marked on this day for that type.");
     return;
   }
   // Save template edits before mark
   saveMonthlyTemplate();
 
-  const targetDateKey = view.selectedDate;
-  ensureDateKey(targetDateKey);
-  const arr = view.state.entries[targetDateKey][type];
-  const owner = tickOwnerFor(aopId);
-
-  if(hasTickBy(arr, aopId, owner)){
-    alert("This AOP is already marked on this day for that type.");
-    return;
-  }
-
-  const entry = { id: uuid(), ts: nowIso(), aopId, by: owner };
-  arr.unshift(entry);
+  const marks = targets.map(dateKey => {
+    ensureDateKey(dateKey);
+    const entry = { id: uuid(), ts: nowIso(), aopId, by: owner };
+    view.state.entries[dateKey][type].unshift(entry);
+    return { dateKey, id: entry.id };
+  });
   saveState();
 
   renderAll();
   renderDayActualLinks();
   renderEntries();
   renderDashboard();
-  showUndoToast(`${type === "planned" ? "Planned" : "Actual"} mark added.`, () => deleteMark(targetDateKey, type, entry.id, { skipToast:true }));
+  const label = type === "planned" ? "Planned" : "Actual";
+  const skipped = already ? ` ${already} already had it.` : "";
+  showUndoToast(marks.length === 1 ? `${label} mark added.${skipped}` : `${label} marks added on ${marks.length} days.${skipped}`, () => {
+    for(const mark of marks) deleteMark(mark.dateKey, type, mark.id, { skipToast:true, batch:true });
+    saveState();
+    renderAll();
+    renderDayActualLinks();
+    renderEntries();
+    renderDashboard();
+  });
 }
 function removeSelectedDayMark(){
   if(!view.selectedDate) return;
@@ -7521,11 +7613,13 @@ function deleteMark(dateKey, type, id, options){
   if((bucket.planned?.length||0)===0 && (bucket.actual?.length||0)===0){
     delete view.state.entries[dateKey];
   }
-  saveState();
-  renderAll();
-  renderDayActualLinks();
-  renderEntries();
-  renderDashboard();
+  if(!opts.batch){
+    saveState();
+    renderAll();
+    renderDayActualLinks();
+    renderEntries();
+    renderDashboard();
+  }
   if(!opts.skipToast && removed){
     const removedType = type === "planned" ? "Planned" : "Actual";
     showUndoToast(`${removedType} mark removed.`, () => {
@@ -8264,6 +8358,12 @@ function handleGlobalShortcuts(event){
 
   if(isEditableTarget(event.target)) return;
 
+  if(key === "/" && ui.dayAddSearch){
+    event.preventDefault();
+    ui.dayAddSearch.focus();
+    ui.dayAddSearch.select();
+    return;
+  }
   if(key === "enter"){
     event.preventDefault();
     markSelectedDay();
@@ -8393,6 +8493,27 @@ function hookUI(){
     event.preventDefault();
     addSelectedDayItem();
   });
+  if(ui.dayAddSearch){
+    ui.dayAddSearch.addEventListener("input", () => {
+      renderDayAddPanel();
+      syncSelectedInfo();
+    });
+    ui.dayAddSearch.addEventListener("keydown", (event) => {
+      if(event.key === "Enter"){
+        event.preventDefault();
+        addSelectedDayItem();
+      }else if(event.key === "ArrowDown"){
+        event.preventDefault();
+        ui.dayAddSelect?.focus();
+      }else if(event.key === "Escape" && ui.dayAddSearch.value){
+        event.preventDefault();
+        event.stopPropagation();
+        ui.dayAddSearch.value = "";
+        renderDayAddPanel();
+        syncSelectedInfo();
+      }
+    });
+  }
   const aopTabButtons = [ui.paneCatalogBtn, ui.paneNotationBtn].filter(Boolean);
   aopTabButtons.forEach((btn, index) => {
     btn.addEventListener("keydown", (event) => {
@@ -8906,6 +9027,7 @@ function init(){
     dayAddAopBtn: document.getElementById("dayAddAopBtn"),
     dayAddCustomBtn: document.getElementById("dayAddCustomBtn"),
     dayAddSelect: document.getElementById("dayAddSelect"),
+    dayAddSearch: document.getElementById("dayAddSearch"),
     dayAddSelectionHint: document.getElementById("dayAddSelectionHint"),
     selectedDayTitle: document.getElementById("selectedDayTitle"),
     selectedDayCount: document.getElementById("selectedDayCount"),
