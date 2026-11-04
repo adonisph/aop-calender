@@ -21,6 +21,11 @@ What it writes, and nothing else:
     month's notation of each AOP of their own area, once a change of theirs
     is on main or live in Decagon (never re-added once someone removes it)
 
+End-of-day review (`run --dry-run`, then `run --changes FILE`): the person sees
+what would be added and changes it before it is saved - skip or add ticks,
+drop or reword sprint outcomes, skip new AOPs, add their own note to the day
+log. Skips and notes are kept in review.json, so a later run doesn't undo them.
+
 Monthly plan (`plan-facts`, then `plan --file`), only when the person runs it:
   - `plan-facts` prints what a month's plan can build on: last month's goals
     and outcomes, commits, branches not live yet, days off. It writes nothing.
@@ -58,6 +63,9 @@ LAST_RUN_FILE = HOME_DIR / "last_run.json"
 ACHIEVED_LEDGER_FILE = HOME_DIR / "achieved.json"
 # AOPs this tool added to the calendar, {base name: id}; one someone deleted or renamed is not added again.
 CREATED_AOPS_FILE = HOME_DIR / "created_aops.json"
+# What the person changed in an end-of-day review and must hold on a re-run:
+# {"skip_ticks": {date: [aop id]}, "skip_new_aops": [base name], "notes": {date: text}}.
+REVIEW_FILE = HOME_DIR / "review.json"
 
 TABLE = "planner_workspaces"
 # Mirrors AREA_VIEWS in index.html. The app maps any unknown area to "pool"
@@ -699,8 +707,9 @@ def _more(names, limit):
     return ", ".join(names[:limit]) + (f" +{rest} more" if rest > 0 else "")
 
 
-def render_block(activity, matches, area, cfg):
-    """The day log, grouped by where the work is: done, on a branch, or only edited."""
+def render_block(activity, matches, area, cfg, note=None):
+    """The day log, grouped by where the work is: done, on a branch, or only edited.
+    `note` is the person's own text from the end-of-day review, shown last."""
     sections = {"done": [], "branch": [], "edited": []}
     looked = []
     for a in activity["aops"]:
@@ -770,40 +779,36 @@ def render_block(activity, matches, area, cfg):
     if other_n:
         extra.append(f"+{other_n} Claude session{'s' if other_n > 1 else ''} outside the power repo")
     section("Other", extra)
+    section("📝 My note", [l.rstrip() for l in (note or "").replace("\r\n", "\n").split("\n") if l.strip()])
 
     lines.append(BLOCK_END)
     return "\n".join(lines)
 
 
-def apply_day(state, activity, area, cfg, stamp=None):
-    """Ticks and the day-log block for one day. Returns (new_state, report); never mutates `state`."""
+def apply_day(state, activity, area, cfg, stamp=None, review=None):
+    """Ticks and the day-log block for one day. Returns (new_state, report); never mutates `state`.
+    `review` (see resolve_review) skips or adds ticks and adds the person's note."""
     stamp = stamp or now_iso()
+    review = review or empty_review()
     st = copy.deepcopy(state)
     dk = activity["date"]
     aops = calendar_aops(st)
     tombstones = st.get("entryTombstones") or {}
     aliases = cfg.get("aliases") or {}
     report = {"date": dk, "weekend": is_weekend(dk), "ticked": [], "ticked_other_area": [], "already_ticked": [],
-              "deleted_before": [], "other_area": [], "unmatched": [], "ambiguous": [], "note": None}
+              "deleted_before": [], "other_area": [], "unmatched": [], "ambiguous": [], "skipped_in_review": [],
+              "skip_already_saved": [], "added_in_review": [], "note": None}
     tick_others = cfg.get("tick_other_areas", True) and app_version(st) >= BY_APP_VERSION
+    skip = review["skip_ticks"].get(dk, set())
 
-    matches = {}
-    for a in activity["aops"]:
-        aop_id = match_aop(a["name"], aops, aliases, area)
-        several = not aop_id and has_any_match(a["name"], aops, aliases)
-        matches[a["name"]] = aops[aop_id].get("area") if aop_id else SEVERAL if several else None
-        if not is_real_work(a):
-            continue
-        if not aop_id:
-            report["ambiguous" if several else "unmatched"].append(a["name"])
-            continue
+    def tick(aop_id, done_key):
         label = aops[aop_id].get("name")
         own = aops[aop_id].get("area") == area
         if not own and not tick_others:
             report["other_area"].append(label)
-            continue
+            return
         if report["weekend"]:  # the calendar itself refuses Actual ticks on weekends
-            continue
+            return
         entries = st.setdefault("entries", {})
         bucket = entries.get(dk) or {"planned": [], "actual": []}
         actual = list(bucket.get("actual") or [])
@@ -815,9 +820,29 @@ def apply_day(state, activity, area, cfg, stamp=None):
         else:
             actual.append({"id": entry_id, "aopId": aop_id, "ts": stamp, "source": ENTRY_SOURCE, "by": area})
             entries[dk] = {**bucket, "planned": list(bucket.get("planned") or []), "actual": actual}
-            report["ticked" if own else "ticked_other_area"].append(label)
+            report[done_key or ("ticked" if own else "ticked_other_area")].append(label)
 
-    if activity["aops"] or activity["other"] or activity.get("bulk") or activity["sessions"]["power_titles"]:
+    matches = {}
+    for a in activity["aops"]:
+        aop_id = match_aop(a["name"], aops, aliases, area)
+        several = not aop_id and has_any_match(a["name"], aops, aliases)
+        matches[a["name"]] = aops[aop_id].get("area") if aop_id else SEVERAL if several else None
+        if not is_real_work(a):
+            continue
+        if not aop_id:
+            report["ambiguous" if several else "unmatched"].append(a["name"])
+            continue
+        if aop_id in skip:
+            saved = has_tick_by(((st.get("entries") or {}).get(dk) or {}).get("actual"), aop_id, area, aops)
+            report["skip_already_saved" if saved else "skipped_in_review"].append(aops[aop_id].get("name"))
+            continue
+        tick(aop_id, None)
+    for aop_id in review["add_ticks"].get(dk, []):
+        if aop_id in aops:
+            tick(aop_id, "added_in_review")
+
+    note = review["notes"].get(dk)
+    if activity["aops"] or activity["other"] or activity.get("bulk") or activity["sessions"]["power_titles"] or note:
         notes = st.setdefault("dayNotes", {})
         day_note = notes.get(dk)
         if isinstance(day_note, str):  # legacy plain-text note, same shape migrateIfNeeded produces
@@ -825,7 +850,7 @@ def apply_day(state, activity, area, cfg, stamp=None):
         day_note = dict(day_note or {"text": "", "planned_text": "", "actual_text": "", "created_at": stamp, "updated_at": ""})
         area_notes = dict(day_note.get("area_notes") or {})
         current = area_notes.get(area) or {}
-        block = render_block(activity, matches, area, cfg)
+        block = render_block(activity, matches, area, cfg, note)
         new_text = replace_block(current.get("text", ""), block)
         if new_text != (current.get("text") or "").strip():
             area_notes[area] = {"text": new_text, "created_at": current.get("created_at") or stamp, "updated_at": stamp}
@@ -848,9 +873,11 @@ def insert_achieved(notation, new_lines):
     return "\n".join(lines[:end] + new_lines + lines[end:]).rstrip()
 
 
-def apply_achievements(state, items, area, cfg, ledger, stamp=None):
-    """Sprint-outcome lines into each own-area AOP's monthly notation. Returns (new_state, added, keys)."""
+def apply_achievements(state, items, area, cfg, ledger, stamp=None, review=None):
+    """Sprint-outcome lines into each own-area AOP's monthly notation. Returns (new_state, added, keys).
+    `review` drops or rewords lines; a dropped line's key still goes to the ledger, so it never comes back."""
     stamp = stamp or now_iso()
+    review = review or empty_review()
     st = copy.deepcopy(state)
     aops = calendar_aops(st)
     aliases = cfg.get("aliases") or {}
@@ -861,6 +888,11 @@ def apply_achievements(state, items, area, cfg, ledger, stamp=None):
         aop_id = match_aop(item["aop"], aops, aliases, area)
         if not aop_id or aops[aop_id].get("area") != area:
             continue
+        text = outcome_text(item["line"])
+        if text in review["skip_outcomes"]:
+            item = {**item, "line": None, "skipped": item["line"]}
+        elif text in review["reword_outcomes"]:
+            item = {**item, "line": f"✅ {review['reword_outcomes'][text]} ({short_date(item['day'])})", "was": item["line"]}
         pending.setdefault((aop_id, item["month"]), []).append(item)
     added, keys = [], []
     for (aop_id, month), group in sorted(pending.items()):
@@ -869,15 +901,20 @@ def apply_achievements(state, items, area, cfg, ledger, stamp=None):
         notation = (record or {}).get("notation") or ""
         existing = {l.strip() for l in notation.split("\n")}
         # "GDPR Breach" and "GDPR Breach V4" files can both map to one calendar AOP
-        lines = list(dict.fromkeys(i["line"] for i in group if i["line"] not in existing))
+        lines = list(dict.fromkeys(i["line"] for i in group if i["line"] and i["line"] not in existing))
         keys += [i["key"] for i in group]
+        skipped = list(dict.fromkeys(i["skipped"] for i in group if i.get("skipped")))
+        reworded = {i["line"]: i["was"] for i in group if i.get("was") and i["line"] in lines}
         if not lines:
+            if skipped:
+                added.append({"aop": aops[aop_id].get("name"), "month": month, "lines": [], "skipped": skipped})
             continue
         if record is None:
             record = new_monthly_record(monthly, month, stamp)
         record = {**record, "notation": insert_achieved(notation, lines), "notation_updated_at": stamp}
         monthly[month] = record
-        added.append({"aop": aops[aop_id].get("name"), "month": month, "lines": lines})
+        added.append({"aop": aops[aop_id].get("name"), "month": month, "lines": lines,
+                      "skipped": skipped, "reworded": reworded})
     return st, added, keys
 
 
@@ -945,10 +982,11 @@ def similar_aops(name, aops, limit=2):
     return [n for n, _ in sorted(scored.items(), key=lambda x: (-x[1], x[0].lower()))[:limit]]
 
 
-def apply_new_aops(state, collected, area, cfg, created, stamp=None):
+def apply_new_aops(state, collected, area, cfg, created, stamp=None, review=None):
     """Add each AOP the person worked on that no area has yet to their own area, in a new color.
     Only AOPs on main or live count. Returns (new_state, report); never mutates `state`."""
-    report = {"created": [], "removed_before": []}
+    report = {"created": [], "removed_before": [], "skipped_in_review": []}
+    skipped = (review or empty_review())["skip_new_aops"]
     if cfg.get("add_new_aops", True) is False:
         return state, report
     stamp = stamp or now_iso()
@@ -964,6 +1002,9 @@ def apply_new_aops(state, collected, area, cfg, created, stamp=None):
                                         or word_key(a.get("name")) == word_key(name)) for a in items.values()):
             continue
         aops = calendar_aops(st)
+        if base_name(name) in skipped:
+            report["skipped_in_review"].append(name)
+            continue
         if base_name(name) in created:  # added once, then deleted or renamed by someone
             if not any(base_name(n) == base_name(name) for n in report["removed_before"]):
                 report["removed_before"].append(name)
@@ -977,15 +1018,112 @@ def apply_new_aops(state, collected, area, cfg, created, stamp=None):
     return st, report
 
 
-def apply_all(state, collected, area, cfg, ledger, created=None, stamp=None):
+def apply_all(state, collected, area, cfg, ledger, created=None, stamp=None, changes=None, saved_review=None):
+    """Returns (new_state, reports, added, keys, new_aops, review). The review's names are matched after
+    this run's new AOPs are added, so a tick on an AOP that is new today can be skipped too."""
     stamp = stamp or now_iso()
-    st, new_aops = apply_new_aops(state, collected, area, cfg, created or {}, stamp)
+    review = empty_review()
+    review["skip_new_aops"] = new_aop_skips(changes, saved_review)
+    st, new_aops = apply_new_aops(state, collected, area, cfg, created or {}, stamp, review)
+    review = resolve_review(st, changes, saved_review or {}, area, cfg, [d["date"] for d in collected["days"]])
     reports = []
     for activity in collected["days"]:
-        st, report = apply_day(st, activity, area, cfg, stamp)
+        st, report = apply_day(st, activity, area, cfg, stamp, review)
         reports.append(report)
-    st, added, keys = apply_achievements(st, collected["achievements"], area, cfg, ledger, stamp)
-    return st, reports, added, keys, new_aops
+    st, added, keys = apply_achievements(st, collected["achievements"], area, cfg, ledger, stamp, review)
+    return st, reports, added, keys, new_aops, review
+
+
+# ---------------------------------------------------------- end-of-day review
+
+def empty_review():
+    return {"skip_ticks": {}, "add_ticks": {}, "skip_outcomes": set(), "reword_outcomes": {},
+            "skip_new_aops": set(), "notes": {}}
+
+
+def outcome_text(line):
+    """An outcome line as the person refers to it: no ✅, no "(4 Nov)", any case or spacing."""
+    text = re.sub(r"^\s*✅\s*", "", str(line or ""))
+    return norm_name(re.sub(r"\s*\(\d{1,2} [A-Z][a-z]{2}\)\s*$", "", text))
+
+
+def new_aop_skips(changes, saved):
+    return set((saved or {}).get("skip_new_aops") or []) | {base_name(n) for n in (changes or {}).get("skip_new_aops") or []}
+
+
+def read_changes(path):
+    """The changes file the person agreed to in the review. Names, as the dry run prints them:
+    {"skip_ticks": [{"date", "aop"}], "add_ticks": [{"date", "aop"}], "skip_outcomes": [line],
+     "reword_outcomes": {line: new text}, "skip_new_aops": [name], "notes": {date: text}}"""
+    raw = read_json(path)
+    if not isinstance(raw, dict):
+        raise RuntimeError(f"{path} is not a JSON object. Nothing written.")
+    unknown = set(raw) - {"skip_ticks", "add_ticks", "skip_outcomes", "reword_outcomes", "skip_new_aops", "notes"}
+    if unknown:
+        raise RuntimeError(f"{path}: unknown key(s) {', '.join(sorted(unknown))}. Nothing written.")
+    return raw
+
+
+def resolve_review(state, changes, saved, area, cfg, dks):
+    """Changes from the review (names) plus earlier reviews (review.json, ids) -> what apply_* use.
+    A name that matches no calendar AOP, or a date outside this run, stops the run before anything is written."""
+    aops = calendar_aops(state)
+    aliases = cfg.get("aliases") or {}
+    review = empty_review()
+    for dk, ids in (saved.get("skip_ticks") or {}).items():
+        review["skip_ticks"].setdefault(dk, set()).update(ids)
+    review["skip_new_aops"] = new_aop_skips(changes, saved)
+    review["notes"].update(saved.get("notes") or {})
+    changes = changes or {}
+
+    def aop_for(item, what):
+        dk, name = (item or {}).get("date"), (item or {}).get("aop")
+        if dk not in dks:
+            raise RuntimeError(f"{what}: {dk!r} is not one of the days in this run ({', '.join(dks)}). Nothing written.")
+        aop_id = match_aop(name, aops, aliases, area)
+        if not aop_id:
+            if what == "skip_ticks" and base_name(aliases.get(name, name)) in review["skip_new_aops"]:
+                return dk, None  # its new AOP is skipped too, so there is nothing to tick
+            several = has_any_match(name, aops, aliases)
+            raise RuntimeError(f"{what}: {name!r} is {'in the calendar more than once' if several else 'not in the calendar'}"
+                               f". Use the name the calendar shows. Nothing written.")
+        return dk, aop_id
+
+    for item in changes.get("skip_ticks") or []:
+        dk, aop_id = aop_for(item, "skip_ticks")
+        if aop_id:
+            review["skip_ticks"].setdefault(dk, set()).add(aop_id)
+    for item in changes.get("add_ticks") or []:
+        dk, aop_id = aop_for(item, "add_ticks")
+        if aop_id not in review["add_ticks"].setdefault(dk, []):
+            review["add_ticks"][dk].append(aop_id)
+    review["skip_outcomes"].update(outcome_text(l) for l in changes.get("skip_outcomes") or [])
+    for old, new in (changes.get("reword_outcomes") or {}).items():
+        new = " ".join(str(new).split())
+        new = re.sub(r"\s*\(\d{1,2} [A-Z][a-z]{2}\)$", "", re.sub(r"^✅\s*", "", new))
+        if not new:
+            raise RuntimeError(f"reword_outcomes: the new text for {old!r} is empty. Nothing written.")
+        review["reword_outcomes"][outcome_text(old)] = new
+    for dk, text in (changes.get("notes") or {}).items():
+        if dk not in dks:
+            raise RuntimeError(f"notes: {dk!r} is not one of the days in this run ({', '.join(dks)}). Nothing written.")
+        if BLOCK_START in str(text) or BLOCK_END in str(text):
+            raise RuntimeError("notes: a note can't hold the day log's marker lines. Nothing written.")
+        if str(text).strip():
+            review["notes"][dk] = str(text).strip()
+        else:
+            review["notes"].pop(dk, None)  # an empty note removes an earlier one
+    return review
+
+
+def save_review(review):
+    """Keep what a later run of the same days must still respect. Added ticks and outcome changes
+    need no keeping: once saved they are in the calendar and the ledger."""
+    write_json(REVIEW_FILE, {
+        "skip_ticks": {dk: sorted(ids) for dk, ids in sorted(review["skip_ticks"].items()) if ids},
+        "skip_new_aops": sorted(review["skip_new_aops"]),
+        "notes": dict(sorted(review["notes"].items())),
+    })
 
 
 # ------------------------------------------------------------------- guard
@@ -1635,16 +1773,19 @@ class Workspace:
         return bool(rows)
 
 
-def sync_live(ws, cfg, collected, dry_run):
-    """One compare-and-swap write for all collected days and sprint outcomes."""
+def sync_live(ws, cfg, collected, dry_run, changes=None):
+    """One compare-and-swap write for all collected days and sprint outcomes.
+    `changes` is the end-of-day review's changes file, already read."""
     area = cfg["area"]
     dks = [d["date"] for d in collected["days"]]
     ledger = set(read_json(ACHIEVED_LEDGER_FILE, []) or [])
     created = read_json(CREATED_AOPS_FILE, {}) or {}
+    saved_review = read_json(REVIEW_FILE, {}) or {}
     for _ in range(5):
         row = ws.fetch()
         old = row["state"]
-        new, reports, added, keys, new_aops = apply_all(old, collected, area, cfg, ledger, created)
+        new, reports, added, keys, new_aops, review = apply_all(old, collected, area, cfg, ledger, created,
+                                                                changes=changes, saved_review=saved_review)
         check_only_additions(old, new, area, dks)
         result = {"reports": reports, "added": added, "new_aops": new_aops, "written": False}
         if dry_run:
@@ -1655,6 +1796,8 @@ def sync_live(ws, cfg, collected, dry_run):
             result["written"] = True
             result["verified"] = _contains_additions(ws.fetch()["state"], new, area, dks)
         write_json(ACHIEVED_LEDGER_FILE, sorted(ledger | set(keys)))
+        if changes or saved_review:
+            save_review(review)
         if new_aops["created"]:
             write_json(CREATED_AOPS_FILE, {**created, **{base_name(a["name"]): a["id"] for a in new_aops["created"]}})
         return result
@@ -1748,6 +1891,8 @@ def print_result(result, full=True):
         print()
     for name in new_aops.get("removed_before") or []:
         print(f"    not added again, someone deleted or renamed it: {name}")
+    for name in new_aops.get("skipped_in_review") or []:
+        print(f"    not added, you skipped it in a review: {name}")
     for report in result["reports"]:
         ticked = len(report["ticked"]) + len(report.get("ticked_other_area", []))
         line = f"{report['date']}{' (weekend, note only)' if report['weekend'] else ''}: "
@@ -1756,6 +1901,9 @@ def print_result(result, full=True):
             line += " - nothing new"
         print(line)
         for key, label in (("ticked", "new tick"), ("ticked_other_area", "new tick, on another person's AOP"),
+                           ("added_in_review", "new tick, added by you in the review"),
+                           ("skipped_in_review", "no tick, you skipped it in the review"),
+                           ("skip_already_saved", "skipped in the review, but already ticked: remove it in the calendar"),
                            ("already_ticked", "already ticked"),
                            ("deleted_before", "skipped, someone deleted the tick"),
                            ("other_area", "another person's AOP, note only (tick_other_areas is off, "
@@ -1771,7 +1919,10 @@ def print_result(result, full=True):
         for a in result["added"]:
             print(f"  {a['aop']} · {a['month']}")
             for line in a["lines"]:
-                print(f"    {line}")
+                was = (a.get("reworded") or {}).get(line)
+                print(f"    {line}" + (f"   (reworded, was: {was})" if was else ""))
+            for line in a.get("skipped") or []:
+                print(f"    skipped in the review: {line}")
     print("\nSaved to the calendar." if result.get("written") else "\nNot saved (dry run or nothing new).")
     if result.get("written") and not result.get("verified"):
         print("warning: the save went through but a re-read did not show it; the next run tries again")
@@ -1906,7 +2057,8 @@ def cmd_preview(args):
     raw = read_json(args.state)
     old = raw.get("state", raw)
     ledger = set(read_json(args.ledger, []) or []) if args.ledger else set()
-    new, reports, added, keys, new_aops = apply_all(old, collected, cfg["area"], cfg, ledger)
+    changes = read_changes(args.changes) if args.changes else None
+    new, reports, added, keys, new_aops, _ = apply_all(old, collected, cfg["area"], cfg, ledger, changes=changes)
     check_only_additions(old, new, cfg["area"], [d["date"] for d in collected["days"]])
     print_result({"reports": reports, "added": added, "new_aops": new_aops}, full=not args.brief)
     print("Guard: only additions - OK")
@@ -1925,7 +2077,8 @@ def _live(args, first, last):
     collected = collect(cfg, first, last)
     for w in collected["warnings"]:
         print(f"warning: {w}")
-    result = sync_live(ws, cfg, collected, args.dry_run)
+    changes = read_changes(args.changes) if getattr(args, "changes", None) else None
+    result = sync_live(ws, cfg, collected, args.dry_run, changes)
     print_result(result, full=getattr(args, "full", True))
     return result
 
@@ -2086,12 +2239,15 @@ def main():
     v.add_argument("--ledger", help="achieved.json to respect")
     v.add_argument("--out")
     v.add_argument("--brief", action="store_true", help="one line per day instead of the full day log")
+    v.add_argument("--changes", help="end-of-day review changes file (see `run --changes`)")
     v.add_argument("--no-fetch", action="store_true")
     v.set_defaults(fn=cmd_preview)
 
     r = sub.add_parser("run", help="sync today (and missed days) into the shared calendar")
     r.add_argument("--date", help="only this day")
     r.add_argument("--dry-run", action="store_true", help="read the live calendar, write nothing")
+    r.add_argument("--changes", help="end-of-day review: JSON with skip_ticks, add_ticks, skip_outcomes, "
+                                     "reword_outcomes, skip_new_aops, notes (names as the dry run prints them)")
     r.set_defaults(fn=cmd_run)
 
     b = sub.add_parser("backfill", help="fill in a range of past days in one save")

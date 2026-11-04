@@ -13,6 +13,10 @@ with what you worked on that day:
   `✅ <change> (<date>)` line is added under "Achieved during Sprint" in that
   AOP's notation for the month. These lines show up in the Achieved view.
 
+Before it saves, Claude can **show you your day and let you change it**: skip
+a tick, add one, reword or drop a sprint outcome, add a note for tomorrow. See
+[End-of-day review](#end-of-day-review-with-claude).
+
 Once a month it can also help you **plan the month** (goals and planned
 ticks), but only when you ask for it. See
 [Plan your month](#plan-your-month-once-a-month-with-claude).
@@ -150,6 +154,10 @@ on your laptop, usually a few weeks.
 
 ## Step 6 – Run it automatically every workday
 
+Two ways. With **[End-of-day review](#end-of-day-review-with-claude)**, Claude
+shows you the day at a time you pick and saves on your yes; then skip this
+step. Or the silent way below, which saves without asking.
+
 This creates a Windows task that runs it Monday–Friday at 16:30 with no window.
 If your laptop is off or asleep at 16:30, it runs as soon as the laptop is on
 again. Each run also does any days it missed, up to a week back.
@@ -273,6 +281,53 @@ Claude sessions (1): "Insurance V4 for chat"
   repo. Other sessions are just counted.
 - To leave session titles out, set `"include_session_titles": false` in your
   `config.json`.
+
+## End-of-day review (with Claude)
+
+Say **end my day** in Claude Code, or let a Claude Desktop scheduled task
+start it on weekdays at your time (the setup in Claude creates it; it's called
+*AI Calender: review my day*). Claude then:
+
+1. Runs `run --dry-run` (today plus any day not saved yet, up to a week back)
+   and shows you what would be added: new AOPs, ticks, sprint outcomes and the
+   day log. It points out what looks off, such as an outcome that belongs to
+   another AOP or a vague commit subject.
+2. Asks if you want to change anything, and writes your changes to
+   `C:\Users\<you>\.aop-calendar-sync\changes-YYYY-MM-DD.json`:
+
+   ```json
+   {
+     "skip_ticks": [{"date": "2026-11-04", "aop": "DNB Supertilbud"}],
+     "add_ticks": [{"date": "2026-11-04", "aop": "Cleanup"}],
+     "skip_outcomes": ["✅ Removed force (4 Nov)"],
+     "reword_outcomes": {"Moving everything to V4 Branch": "GDPR Breach: V4 is now the only GDPR AOP"},
+     "skip_new_aops": ["Recycling and RePOWER Trade-in V2"],
+     "notes": {"2026-11-04": "Tomorrow: read the GDPR hand-back sims"}
+   }
+   ```
+
+   Names as the dry run shows them; outcome lines with or without `✅` and the
+   date. A note shows in the day log under *📝 My note*.
+3. Runs `run --dry-run --changes <file>` and shows you the result.
+4. Saves with `run --changes <file>` only when you say yes.
+
+By hand:
+
+```powershell
+python "$HOME\aop-calendar-sync\claude_day_sync.py" run --dry-run --changes "$HOME\.aop-calendar-sync\changes-2026-11-04.json"
+python "$HOME\aop-calendar-sync\claude_day_sync.py" run --changes "$HOME\.aop-calendar-sync\changes-2026-11-04.json"
+```
+
+A name, date or key the script doesn't know stops the run with a message, and
+nothing is saved. Skipped ticks, skipped new AOPs and notes are kept in
+`review.json`, so the next run doesn't bring them back; skipped outcome lines
+never come back either. The review can't take back something already saved:
+remove that in the calendar, and the sync won't add it again. If you use the
+review, turn off the silent Windows task from Step 6 so it doesn't save first:
+
+```powershell
+Disable-ScheduledTask -TaskName "AI Calender day sync"
+```
 
 ## Plan your month (once a month, with Claude)
 
