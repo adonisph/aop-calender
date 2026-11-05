@@ -114,10 +114,11 @@ This reads the live calendar and prints what it **would** add for today: new
 AOPs, the ticks, and the day log text. Check that the AOPs look right.
 
 An AOP you worked on that no area of the calendar has yet is added to your
-area, in a color no other AOP has (see *New AOPs* below). If one shows under
-*"New AOPs in your area"* but it is already in the calendar under another
-name (the line says *"maybe the same as: …"*), add an alias instead. Open
-`C:\Users\<you>\.aop-calendar-sync\config.json` and fill in `aliases`:
+area, in a color no other AOP has, when it's clearly yours (see *New AOPs*
+below). One that someone else also works on, or that looks like a calendar
+item under another name, shows under *"New AOPs not added, your call"*
+instead. If it is already in the calendar under another name, add an alias.
+Open `C:\Users\<you>\.aop-calendar-sync\config.json` and fill in `aliases`:
 
 ```json
 "aliases": {
@@ -126,7 +127,9 @@ name (the line says *"maybe the same as: …"*), add an alias instead. Open
 ```
 
 The left side is the AOP file name from the power repo; the right side is the
-name in the calendar.
+name in the calendar. If the calendar name is later renamed or deleted, the
+alias is ignored (the run warns you) and the file name is used instead: an
+alias never brings back an AOP that was removed.
 
 ## Step 5 – Run it once for real
 
@@ -150,7 +153,11 @@ python "$HOME\aop-calendar-sync\claude_day_sync.py" backfill --from 2026-08-01
 
 Everything is saved in a single write. Your commits go back as far as git
 history does. Claude sessions only go back as far as Claude Code has kept them
-on your laptop, usually a few weeks.
+on your laptop, usually a few weeks. A backfill can list many *"New AOPs not
+added, your call"*: alias the ones the calendar already has, and add the ones
+that are yours with a changes file (`"add_new_aops": [...]`, see
+[End-of-day review](#end-of-day-review-with-claude)) and
+`backfill --from 2026-08-01 --changes <file>`.
 
 ## Step 6 – Run it automatically every workday
 
@@ -195,6 +202,25 @@ Unregister-ScheduledTask -TaskName "AI Calender day sync" -Confirm:$false
 
 - One for each AOP you committed or edited that isn't in the calendar yet, in
   any area. It gets the AOP's file name from the power repo.
+- Only when it's clearly yours. It is **not** added, and shows under *"New
+  AOPs not added, your call"*, when:
+  - someone else has also committed to it (the line says who), or
+  - it looks like a calendar item under another name (*"maybe the same as:
+    Product package missing parts / accessories (Name's)"*), often a rebuilt
+    V4 of an AOP that's already there.
+
+  You decide in the end-of-day review: add it to your area (`add_new_aops`),
+  alias it to the calendar item it is, or skip it if it isn't yours. Until
+  then it gets no tick; the day log says *"(not in the calendar)"*. This
+  stops the first person whose sync sees an AOP from taking it into their
+  area.
+- **Renamed AOPs keep their calendar item.** When an AOP file is renamed (in
+  the dashboard or in git), git sees the rename, and the sync also looks for
+  the names the AOP had before (and after). So *"Recycling and RePOWER
+  Trade-in V2"* still finds *"Assist Customer with Recycling via RePOWER
+  Program V2"*, and nothing new is added. The run lists these under
+  *"Renamed in the repo, still the old name in the calendar"*: rename them in
+  the calendar whenever you like.
 - Only AOPs that are on main or live in Decagon. Test AOPs, deleted AOPs and
   AOPs that only exist on a branch are left out until they land.
 - Each new AOP gets its own color, one that no other AOP or status in the
@@ -231,9 +257,17 @@ Unregister-ScheduledTask -TaskName "AI Calender day sync" -Confirm:$false
   note.
 - No tick if you already ticked that AOP yourself that day.
 - Delete a tick and it stays deleted.
-- A commit that changes more than 5 AOPs at once, such as a typo pass or a
-  voice-test cleanup, counts as one "bulk change" line in the note. It gives no
-  ticks or outcomes.
+- A commit that changes more than 5 AOPs at once, such as a typo pass, a
+  rename of many AOPs or a voice-test cleanup, counts as one "bulk change"
+  line in the note. It gives no ticks or outcomes. An AOP's `.py` and `.json`
+  files count as one AOP.
+- **A publish to production** counts as your work only for the AOPs you
+  edited yourself in the two weeks before it; you then get that AOP's tick
+  and its outcome line from your publish description. The rest of a publish
+  is other people's work. A publish whose description is a release note
+  (*"1. Name: …"*, *"Live since the last run …"*) or names a teammate's change
+  (*"(AOP, Name, 06:32 UTC)"*) is never counted as yours. These show as one
+  line under *"🚀 Published to production"* in the day log.
 
 **Sprint outcomes**, in each AOP's monthly notation under "Achieved during
 Sprint":
@@ -294,8 +328,10 @@ called *AI Calender: review my day*). Claude then:
    numbered list of suggested fixes, such as an outcome that belongs to
    another AOP or a vague commit subject.
 2. Asks with buttons, in one go: save with the suggested fixes or as it is,
-   your note on what you did (with a draft), and whether a "maybe the same
-   as" AOP is a duplicate. It writes your answers to
+   your note on what you did (with a draft), whether a "maybe the same as" AOP
+   is a duplicate, and for each *"New AOPs not added, your call"* line whether
+   it's yours (add it), the same as a calendar item (alias), or not yours
+   (skip). It writes your answers to
    `C:\Users\<you>\.aop-calendar-sync\changes-YYYY-MM-DD.json`:
 
    ```json
@@ -305,12 +341,15 @@ called *AI Calender: review my day*). Claude then:
      "skip_outcomes": ["✅ Removed force (4 Nov)"],
      "reword_outcomes": {"Moving everything to V4 Branch": "GDPR Breach: V4 is now the only GDPR AOP"},
      "skip_new_aops": ["Recycling and RePOWER Trade-in V2"],
+     "add_new_aops": ["Silence tagged automatic email replies"],
      "notes": {"2026-11-04": "Tomorrow: read the GDPR hand-back sims"}
    }
    ```
 
    Names as the dry run shows them; outcome lines with or without `✅` and the
-   date. A note shows in the day log under *📝 My note*.
+   date. A note shows in the day log under *📝 My note*. `add_new_aops` adds a
+   held AOP to your area (and ticks it); a held AOP gets no tick until then, so
+   don't put it in `skip_ticks`.
 3. Runs `run --dry-run --changes <file>`. If it shows what you agreed to, it
    saves; if anything differs, it shows you and asks again.
 4. Saves with `run --changes <file>`, never before your answer. If you answer the
@@ -424,6 +463,10 @@ the calendar):
 | `The calendar was saved by a newer page` | The calendar changed what it stores. Update the script (see [Updating the script](#updating-the-script)). |
 | `another person's AOP, note only (… isn't on version 2 yet)` | The new calendar page hasn't saved the workspace yet. It sorts itself out once someone opens the new page. |
 | Nothing shows up for a day | Run `collect --date 2026-10-23` (with that day's date) to see what it found. If your commits are missing, add the email you committed with to `author_emails` in `config.json`. |
+| `New AOPs not added, your call` | Someone else also works on that AOP, or it looks like a calendar item under another name. Decide in the review: add it (`add_new_aops`), alias it, or skip it. |
+| `warning: config.json aliases 'X' -> 'Y', but the calendar has no 'Y' any more` | The calendar item was renamed or deleted. Fix the alias to the new calendar name, or remove it. Until then the file name is used. |
+| `note: '…' (yours, added by the sync) is a rename of …` | An earlier run added a renamed AOP as new. One of the two is a duplicate: move what you need and delete one in the calendar. |
+| A renamed AOP shows as *"not in the calendar"* | Git didn't see it as a rename (deleted and created in separate commits, or changed a lot at the same time). Add an alias from the new file name to the calendar name. |
 
 Other commands:
 
@@ -442,8 +485,13 @@ Run Step 1 again. Your settings and sign-in are kept.
 1. Add the area in `index.html` in four places: both area dropdowns,
    `AREA_VIEWS` and `AREA_VIEW_COLORS`.
 2. **Raise `APP_VERSION` by one** in `index.html`.
-3. Add it to `AREAS` at the top of `claude_day_sync.py`.
-4. Push.
+3. Add it to `AREAS` at the top of `claude_day_sync.py`, and **raise
+   `KNOWN_APP_VERSION` to the same number**. Without that, every copy of the
+   script, old and new, refuses to save (*"saved by a newer page"*) as soon as
+   the new page saves the calendar.
+4. Push, and ask everyone to update their script the same day (see
+   [Updating the script](#updating-the-script)). Until they do, their sync
+   stops with *"The calendar was saved by a newer page"* and saves nothing.
 
 Raising `APP_VERSION` matters. An older copy of the page that is still open
 treats an area it doesn't know as Erik's: when that person saves, it moves the

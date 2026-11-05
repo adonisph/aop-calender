@@ -10,7 +10,9 @@ Sources, per local calendar day:
 What it writes, and nothing else:
   - a new AOP in their own area, in a color no other AOP has, for each AOP
     they committed or edited that no area of the calendar has yet (never
-    re-added once someone deletes it)
+    re-added once someone deletes it). Only when it is clearly theirs: an AOP
+    someone else has also committed to, or one that looks like a calendar item
+    under another name, waits for the person's yes in the review (add_new_aops)
   - an "actual" tick per AOP they committed or edited that weekday, marked as
     theirs (`by`), on their own AOPs and on other people's alike (fixed id,
     never re-added once someone deletes it)
@@ -32,6 +34,12 @@ Monthly plan (`plan-facts`, then `plan --file`), only when the person runs it:
   - `plan` adds the plan the person agreed to: a "Goal:" section (and the
     one-line goal field, if empty) in each AOP's monthly notation, and planned
     ticks on working days from today on. Existing goals, ticks and notes stay.
+
+Who an AOP belongs to is the area it is in. A file is matched to a calendar item
+by its name, an alias, or a name it had before or after a git rename, so a
+renamed AOP keeps its item and owner. A publish to production (a commit only on
+the live branch) counts as the person's work only for the AOPs they edited
+themselves in the two weeks before it; the rest of a release isn't their work.
 
 Every write is a compare-and-swap on the shared workspace row, and is refused
 unless the new state equals the old one apart from those additions.
@@ -97,6 +105,9 @@ MAX_SUBJECTS_PER_AOP = 3
 MAX_ACHIEVED_PER_AOP_DAY = 3
 MAX_SESSION_TITLES = 8
 BULK_AOP_LIMIT = 5  # a commit touching more AOPs than this is a sweep (typo pass, voice-test pruning), not AOP work
+# A publish to production counts as the person's work only for the AOPs they edited themselves this many
+# days before it; the rest of a publish (a release with other people's changes) isn't their work.
+PUBLISH_OWN_DAYS = 14
 # A location starting with one of these counts as landed (a sprint outcome).
 LANDED = ("on main", "live in Decagon")
 CARRIED_MIN_SHARE = 0.8  # share of a commit's added lines that must be on main for "carried over"
@@ -116,12 +127,17 @@ OTHER_KINDS = {
 }
 EDIT_TOOLS = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
 # The editor a [Dashboard] commit names: "(Martins, PR #231, ...)", ": Saana, 22 Oct 12:10, 545eee2",
-# "(Erik Bredenwall, 13:49, 03a2858)". Group 1 is the first name.
+# "(First Last, 13:49, 03a2858)". Group 1 is the first name.
 DASHBOARD_EDITOR_RE = re.compile(
     r"(?:\(|: )([A-ZÅÄÖÆØ][a-zåäöæø]+)(?: [A-ZÅÄÖÆØ][a-zåäöæø]+)?, (?:PR #\d+|(?:\d{1,2} [A-Z][a-z]{2} )?\d{1,2}:\d{2})")
 # Matches aops/X.py and aops/generated/X.json inside JSON-dumped tool input,
 # where a Windows separator shows up as one or more backslashes.
 AOP_PATH_RE = re.compile(r"aops[\\/]+(?:generated[\\/]+)?([^\"\\/\n]+?)\.(?:json|py)\b")
+# Commit authors who aren't calendar people: bots, and Decagon's staff and dashboard app.
+NOT_A_PERSON_RE = re.compile(r"\[bot\]|@decagon\.ai$", re.I)
+# A publish whose description is a release note (a numbered list, "Live since the last run ...") publishes
+# other people's changes, even where the publisher also edited something.
+RELEASE_NOTE_RE = re.compile(r"^(?:\[Dashboard\]\s*)?(?:\d+\.\s+\S|Live since the last run\b)", re.I)
 ACHIEVED_LINE_RE = re.compile(r"^✅ .+ \(\d{1,2} [A-Z][a-z]{2}\)$|^✅ \+\d+ more changes \(\d{1,2} [A-Z][a-z]{2}\)$")
 NOTATION_SECTION_RE = re.compile(r"^(goal|achieved\s*during\s*sprint|existing\s*blockers?)\b", re.I)
 GOAL_SECTION_RE = re.compile(r"^goals?\s*:", re.I)
@@ -365,6 +381,31 @@ def fetch_repo(cfg):
     return [] if r.returncode == 0 else [f"git fetch failed, used what was already fetched: {r.stderr.strip()[:200]}"]
 
 
+def is_publish(repo, sha, main_ref, live_ref):
+    """A commit only on the live branch is a publish to production. Its changes were made in edit
+    commits on main or a branch, often by someone else (a release that publishes everyone's work)."""
+    return bool(live_ref) and is_ancestor(repo, sha, live_ref) and not is_ancestor(repo, sha, main_ref)
+
+
+def publishes_others(subject, my_name):
+    """True for a publish described as a release note, or as a teammate's change ("1. <Name>: ...",
+    "(AOP, <Name>, 06:32 UTC)", "— <Name> <Surname>, 12:26 UTC: ..."): it isn't the publisher's own work."""
+    if RELEASE_NOTE_RE.search(subject):
+        return True
+    for person in AREAS.values():
+        if " " in person or person.lower() == my_name:  # "Special Events" isn't a person
+            continue
+        if re.search(rf"\b{re.escape(person)}\b(?: [A-ZÅÄÖÆØ][a-zåäöæø]+)?\s*[:,]", subject):
+            return True
+    return False
+
+
+def item_key(item, renames):
+    """One key per AOP or other item, the same before and after a git rename."""
+    kind, name = item
+    return kind, min([norm_name(name)] + [norm_name(n) for n in renames.get(norm_name(name), [])])
+
+
 def collect_commits(cfg, first, last):
     """The person's commits authored on local days first..last, on any branch."""
     repo = Path(cfg["power_repo"]).expanduser()
@@ -373,19 +414,21 @@ def collect_commits(cfg, first, last):
     my_name = (cfg.get("name") or "").strip().lower()
     start, _ = local_day_bounds(first)
     _, end = local_day_bounds(last)
-    args = ["log", "--all", "--exclude=refs/stash", "--no-merges", "-F", "--regexp-ignore-case",
-            f"--since={start.isoformat()}", "--date=iso-strict", "--name-only",
+    history = start - dt.timedelta(days=PUBLISH_OWN_DAYS)  # earlier edits decide what a publish counts for
+    # core.quotePath=false: a path with å, ä, ö or "–" comes through as it is, not quoted in octal
+    args = ["-c", "core.quotePath=false", "log", "--all", "--exclude=refs/stash", "--no-merges", "-F",
+            "--regexp-ignore-case", f"--since={history.isoformat()}", "--date=iso-strict", "--name-only",
             "--format=%x1e%H%x1f%ad%x1f%ae%x1f%s%x1f%(trailers:key=Co-Authored-By,valueonly,separator=;)"]
     args += [f"--author={email}" for email in cfg["author_emails"]]
     out = git(repo, *args).stdout
-    commits, seen = [], set()
+    found = []
     for record in out.split("\x1e"):
         if not record.strip():
             continue
         head, _, files = record.partition("\n")
         sha, when, email, subject, trailers = (head.split("\x1f") + [""] * 5)[:5]
         authored = parse_ts(when)
-        if not authored or not (start <= authored < end):
+        if not authored or not (history <= authored < end):
             continue
         # A [Dashboard] commit that names its editor, e.g. "(Martins, PR #231, ...)" or
         # ": Saana, 22 Oct 12:10, 545eee2", carries someone else's dashboard work.
@@ -393,10 +436,34 @@ def collect_commits(cfg, first, last):
         if editor and my_name and editor.group(1).lower() != my_name:
             continue
         paths = [f.strip() for f in files.splitlines() if f.strip()]
+        items = [c for c in (classify_path(p) for p in paths) if c]
+        found.append((is_publish(repo, sha, main_ref, live_ref), len(found), sha, authored, subject, trailers, paths, items))
+    renames = build_rename_map(aop_renames(cfg))
+    edited = {}  # what the person edited themselves (not a publish, not a sweep): item key -> times
+    for publish, _, _, authored, _, _, _, items in found:
+        if not publish and len({norm_name(n) for k, n in items if k == "aop"}) <= BULK_AOP_LIMIT:
+            for item in items:
+                edited.setdefault(item_key(item, renames), []).append(authored)
+
+    def own_edit(item, published_at):
+        window = dt.timedelta(days=PUBLISH_OWN_DAYS)
+        return any(t <= published_at and published_at - t <= window for t in edited.get(item_key(item, renames), []))
+
+    commits, seen = [], set()
+    # Edits first: an edit and its publish can have the same day, subject and files, and the edit is the work.
+    for publish, order, sha, authored, subject, trailers, paths, items in sorted(found, key=lambda f: f[:2]):
+        if authored < start:
+            continue  # only there to show what the person edited before a publish
         key = (authored.date(), subject.strip(), tuple(sorted(paths)))
-        if key in seen:  # the same change rebased or cherry-picked onto another branch
+        if key in seen:  # the same change rebased or cherry-picked onto another branch, or published
             continue
         seen.add(key)
+        others = []
+        if publish and not publishes_others(subject, my_name):
+            own = [i for i in items if own_edit(i, authored)]
+            if own:  # they published their own edits: that part is their work, the rest isn't
+                others = [i for i in items if i not in own]
+                items, publish = own, False
         commits.append({
             "sha": sha,
             "day": authored.date().isoformat(),
@@ -404,8 +471,12 @@ def collect_commits(cfg, first, last):
             "subject": subject.strip(),
             "how": "dashboard" if subject.startswith("[Dashboard]") else
                    "with Claude" if "claude" in trailers.lower() else "by hand",
-            "items": [c for c in (classify_path(p) for p in paths) if c],
+            "items": items,
+            "publish": publish,                # True: a publish of other people's work only
+            "published_others": others,        # a publish of own work: what else it carried
+            "_order": order,
         })
+    commits.sort(key=lambda c: c.pop("_order"))
     # the diffs of every commit that isn't on main or live, in a few calls, before checking where each one is
     prefetch_diffs(repo, [c["sha"] for c in commits if not is_ancestor(repo, c["sha"], main_ref)
                           and not (live_ref and is_ancestor(repo, c["sha"], live_ref))])
@@ -422,7 +493,7 @@ def landed_aop_names(cfg):
     repo = Path(cfg["power_repo"]).expanduser()
     names = set()
     for ref in (cfg.get("main_ref", "origin/main"), cfg.get("live_ref", "origin/production")):
-        r = git(repo, "ls-tree", "-r", "--name-only", ref, "aops", check=False)
+        r = git(repo, "-c", "core.quotePath=false", "ls-tree", "-r", "--name-only", ref, "aops", check=False)
         names.update(c[1] for c in (classify_path(p) for p in r.stdout.splitlines()) if c and c[0] == "aop")
     return names
 
@@ -436,6 +507,87 @@ def known_aop_names(cfg, extra=()):
         if c and c[0] == "aop":
             names.add(c[1])
     return names
+
+
+def aop_renames(cfg):
+    """[[old name, new name]] for every AOP file git saw renamed, on any branch, oldest first.
+    A rename made in the Decagon dashboard shows up the same way (R099 old -> new in one commit)."""
+    repo = Path(cfg["power_repo"]).expanduser()
+    cache = _repo_cache(repo)
+    if "renames" in cache:
+        return cache["renames"]
+    r = git(repo, "-c", "core.quotePath=false", "log", "--all", "--reverse", "-M", "--diff-filter=R",
+            "--name-status", "--format=%x1e", "--", "aops", check=False)
+    pairs = []
+    for line in r.stdout.splitlines():
+        parts = line.split("\t")
+        if len(parts) == 3 and parts[0].startswith("R"):
+            old, new = classify_path(parts[1]), classify_path(parts[2])
+            if old and new and old[0] == new[0] == "aop" and norm_name(old[1]) != norm_name(new[1]):
+                pairs.append((old[1], new[1]))
+    cache["renames"] = [list(p) for p in dict.fromkeys(pairs)]
+    return cache["renames"]
+
+
+def build_rename_map(renames):
+    """{norm name: the names the same AOP had before a rename (nearest first), then after one}."""
+    back, forward = {}, {}
+    for old, new in renames or []:  # oldest first
+        back.setdefault(norm_name(new), []).insert(0, old)
+        forward.setdefault(norm_name(old), []).append(new)
+    out = {}
+    for start in set(back) | set(forward):
+        seen, order = {start}, []
+        for edges in (back, forward):
+            queue = [start]
+            while queue:
+                for name in edges.get(queue.pop(0), []):
+                    key = norm_name(name)
+                    if key not in seen:
+                        seen.add(key)
+                        order.append(name)
+                        queue.append(key)
+        out[start] = order
+    return out
+
+
+def person_label(email):
+    """A first name from a commit address: 'first.last@example.com' -> 'First', '123+name-x@…' -> 'Name'."""
+    local = re.sub(r"^\d+\+", "", str(email).split("@")[0])
+    first = re.split(r"[._+-]", local)[0] or local
+    return first[:1].upper() + first[1:]
+
+
+def aop_coauthors(cfg, names, renames):
+    """{AOP name: first names of the other people who committed to it, under any name it had}.
+    Bots, Decagon staff, publishes to production and sweeps over many AOPs don't count."""
+    if not names:
+        return {}
+    repo = Path(cfg["power_repo"]).expanduser()
+    main_ref = cfg.get("main_ref", "origin/main")
+    live_ref = cfg.get("live_ref", "origin/production")
+    mine = {e.strip().lower() for e in cfg.get("author_emails") or []}
+    wanted = {}
+    for n in names:
+        for m in [n] + list(renames.get(norm_name(n), [])):
+            wanted.setdefault(norm_name(m), set()).add(n)
+    r = git(repo, "-c", "core.quotePath=false", "log", "--all", "--no-merges", "--name-only",
+            "--format=%x1e%H%x1f%ae", "--", "aops", check=False)
+    found = {}
+    for record in r.stdout.split("\x1e")[1:]:
+        head, _, files = record.partition("\n")
+        sha, _, email = head.strip().partition("\x1f")
+        email = email.strip().lower()
+        if not email or email in mine or NOT_A_PERSON_RE.search(email):
+            continue
+        touched = {norm_name(c[1]) for c in (classify_path(f.strip()) for f in files.splitlines() if f.strip())
+                   if c and c[0] == "aop"}
+        if len(touched) > BULK_AOP_LIMIT or is_publish(repo, sha, main_ref, live_ref):
+            continue
+        for key in touched:
+            for n in wanted.get(key, ()):
+                found.setdefault(n, set()).add(person_label(email))
+    return {n: sorted(v) for n, v in sorted(found.items())}
 
 
 def collect_sessions(cfg, first, last, valid_names):
@@ -498,16 +650,31 @@ def collect_sessions(cfg, first, last, valid_names):
 
 # --------------------------------------------------------------- collecting
 
+def aop_count(commit):
+    """How many AOPs a commit touches; aops/X.py and aops/generated/X.json are one AOP."""
+    return len({norm_name(name) for kind, name in commit["items"] if kind == "aop"})
+
+
 def is_bulk(commit):
-    return sum(1 for kind, _ in commit["items"] if kind == "aop") > BULK_AOP_LIMIT
+    return aop_count(commit) > BULK_AOP_LIMIT
 
 
 def build_activity(day_iso, commits, sessions):
-    aops, other, bulk = {}, {}, {}
+    aops, other, bulk, published = {}, {}, {}, {}
     for c in commits:
+        # a publish to production: listed once; what it carried beyond the person's own edits isn't their work
+        carried = c["items"] if c.get("publish") else c.get("published_others") or []
+        n = len({norm_name(name) for kind, name in carried if kind == "aop"})
+        if c.get("publish") or n:
+            p = published.setdefault(clean_subject(c["subject"]),
+                                     {"subject": clean_subject(c["subject"]), "aops": 0, "with_own": False})
+            p["aops"] = max(p["aops"], n)
+            p["with_own"] = p["with_own"] or not c.get("publish")
+        if c.get("publish"):
+            continue
         if is_bulk(c):
             b = bulk.setdefault(clean_subject(c["subject"]), {"subject": clean_subject(c["subject"]), "aops": 0, "where": set()})
-            b["aops"] = max(b["aops"], sum(1 for kind, _ in c["items"] if kind == "aop"))
+            b["aops"] = max(b["aops"], aop_count(c))
             b["where"].add(c["where"])
             continue
         for kind, name in c["items"]:
@@ -526,6 +693,7 @@ def build_activity(day_iso, commits, sessions):
         "other": sorted(({"kind": k.split("|")[0], "name": k.split("|")[1], "commits": len(v)}
                          for k, v in other.items()), key=lambda o: (o["kind"], o["name"].lower())),
         "bulk": [{**b, "where": sorted(b["where"])} for b in bulk.values()],
+        "published": list(published.values()),
         "sessions": {
             "power_titles": [s["title"] or "untitled session" for s in sessions.values() if s["power"]],
             "other_count": sum(1 for s in sessions.values() if not s["power"]),
@@ -546,7 +714,7 @@ def build_achievements(commits):
     """Sprint-outcome lines for AOP changes that are on main or live in Decagon."""
     grouped = {}
     for c in commits:
-        if not c["where"].startswith(LANDED) or is_bulk(c):
+        if c.get("publish") or not c["where"].startswith(LANDED) or is_bulk(c):
             continue
         for kind, name in c["items"]:
             if kind == "aop":
@@ -569,13 +737,16 @@ def collect(cfg, first, last, fetch=True):
     warnings = fetch_repo(cfg) if fetch else []
     since = min(first, dt.date.today() - dt.timedelta(days=ACHIEVED_LOOKBACK_DAYS))
     commits = collect_commits(cfg, since, last)
+    renames = aop_renames(cfg)
     committed = {name for c in commits for kind, name in c["items"] if kind == "aop"}
-    sessions = collect_sessions(cfg, first, last, known_aop_names(cfg, committed))
+    sessions = collect_sessions(cfg, first, last, known_aop_names(cfg, committed | {n for pair in renames for n in pair}))
     days = []
     for day in day_range(first, last):
         d = day.isoformat()
         days.append(build_activity(d, [c for c in commits if c["day"] == d], sessions.get(d, {})))
+    worked = {a["name"] for d in days for a in d["aops"] if is_real_work(a)}
     return {"days": days, "achievements": build_achievements(commits), "landed_aops": sorted(landed_aop_names(cfg)),
+            "renames": renames, "co_authors": aop_coauthors(cfg, worked, build_rename_map(renames)),
             "warnings": warnings}
 
 
@@ -599,18 +770,58 @@ def word_key(text):
     return " ".join(out)
 
 
-def match_aop(name, aops, aliases, area=None):
-    """The calendar item for an AOP file name: an exact name, then without versions, then near spelling.
-    Several matches resolve to the one in `area`, if exactly one is there; otherwise to none."""
-    target = aliases.get(name, name)
-    for key in (norm_name, base_name, word_key):
-        found = [i for i, a in aops.items() if key(a.get("name")) == key(target)]
-        if len(found) > 1 and area:
-            own = [i for i in found if aops[i].get("area") == area]
-            found = own if len(own) == 1 else found
-        if len(found) == 1:
-            return found[0]
-        if found and key is not norm_name:
+MATCH_KEYS = (norm_name, base_name, word_key)
+
+
+def in_calendar(name, aops):
+    """True if some calendar item has this name: exactly, without versions, or near spelling."""
+    return any(key(a.get("name")) == key(name) for key in MATCH_KEYS for a in aops.values())
+
+
+def alias_for(name, aliases):
+    """The person's alias for a file name, matched without case or spacing differences."""
+    if name in aliases:
+        return aliases[name]
+    return next((v for k, v in aliases.items() if norm_name(k) == norm_name(name)), None)
+
+
+def candidate_names(name, aops, aliases, renames=None):
+    """The names to look for, best first: the file's own name, then the names it had before a git
+    rename (nearest first), then after one. An alias replaces a name, unless the alias points at a
+    name the calendar doesn't have (renamed or deleted there): then it is skipped."""
+    out = []
+    for n in [name] + list((renames or {}).get(norm_name(name), [])):
+        target = alias_for(n, aliases)
+        out.append(target if target is not None and in_calendar(target, aops) else n)
+    return list(dict.fromkeys(out))
+
+
+def stale_aliases(names, aops, aliases):
+    """[(file name, alias)] for aliases of these names that point at nothing in the calendar."""
+    out = []
+    for n in names:
+        target = alias_for(n, aliases)
+        if target is not None and not in_calendar(target, aops):
+            out.append((n, target))
+    return out
+
+
+def match_aop(name, aops, aliases, area=None, renames=None):
+    """The calendar item for an AOP file name: an exact name, then without versions, then near spelling,
+    each tried on the file's own name (or alias) first and then on the names it had before or after a
+    rename. Several matches resolve to the one in `area`, if exactly one is there; otherwise to none."""
+    targets = candidate_names(name, aops, aliases, renames)
+    for key in MATCH_KEYS:
+        several = False
+        for target in targets:
+            found = [i for i, a in aops.items() if key(a.get("name")) == key(target)]
+            if len(found) > 1 and area:
+                own = [i for i in found if aops[i].get("area") == area]
+                found = own if len(own) == 1 else found
+            if len(found) == 1:
+                return found[0]
+            several = several or len(found) > 1
+        if several and key is not norm_name:
             return None  # ambiguous: don't fall through to a looser match
     return None
 
@@ -618,10 +829,16 @@ def match_aop(name, aops, aliases, area=None):
 SEVERAL = "\0several"  # matches[] value: more than one calendar item fits and none is the person's own
 
 
-def has_any_match(name, aops, aliases):
+def has_any_match(name, aops, aliases, renames=None):
     """True if some calendar item matches at all, even when several do."""
-    target = aliases.get(name, name)
-    return any(key(a.get("name")) == key(target) for key in (norm_name, base_name, word_key) for a in aops.values())
+    return any(in_calendar(t, aops) for t in candidate_names(name, aops, aliases, renames))
+
+
+def via_rename(name, aop_name, aliases):
+    """True when a file matched its calendar item only through a name it had before or after a rename."""
+    target = alias_for(name, aliases)
+    own = [n for n in (name, target) if n is not None]
+    return not any(key(aop_name) == key(n) for key in MATCH_KEYS for n in own)
 
 
 def calendar_aops(state):
@@ -760,6 +977,16 @@ def render_block(activity, matches, area, cfg, note=None):
         bulk.append(f"• {clean_subject(b['subject'], 90)} ({b['aops']} AOPs, {status})")
     section("🔁 Changes across many AOPs", bulk)
 
+    published = activity.get("published") or []
+    pub_lines = []
+    for p in published[:MAX_SUBJECTS_PER_AOP]:
+        count = f"{p['aops']} AOP{'s' if p['aops'] != 1 else ''}"
+        pub_lines.append(f"• {clean_subject(p['subject'], 90)}" + (
+            "" if not p["aops"] else f" (+{count} you didn't edit)" if p.get("with_own") else f" ({count})"))
+    if len(published) > MAX_SUBJECTS_PER_AOP:
+        pub_lines.append(f"   – +{len(published) - MAX_SUBJECTS_PER_AOP} more")
+    section(f"🚀 Published to production ({len(published)})", pub_lines)
+
     extra = []
     by_kind = {}
     for o in activity["other"]:
@@ -785,9 +1012,10 @@ def render_block(activity, matches, area, cfg, note=None):
     return "\n".join(lines)
 
 
-def apply_day(state, activity, area, cfg, stamp=None, review=None):
+def apply_day(state, activity, area, cfg, stamp=None, review=None, renames=None):
     """Ticks and the day-log block for one day. Returns (new_state, report); never mutates `state`.
-    `review` (see resolve_review) skips or adds ticks and adds the person's note."""
+    `review` (see resolve_review) skips or adds ticks and adds the person's note. `renames` is
+    build_rename_map's map, so a renamed AOP file still finds its calendar item."""
     stamp = stamp or now_iso()
     review = review or empty_review()
     st = copy.deepcopy(state)
@@ -797,7 +1025,7 @@ def apply_day(state, activity, area, cfg, stamp=None, review=None):
     aliases = cfg.get("aliases") or {}
     report = {"date": dk, "weekend": is_weekend(dk), "ticked": [], "ticked_other_area": [], "already_ticked": [],
               "deleted_before": [], "other_area": [], "unmatched": [], "ambiguous": [], "skipped_in_review": [],
-              "skip_already_saved": [], "added_in_review": [], "note": None}
+              "skip_already_saved": [], "added_in_review": [], "renamed": [], "note": None}
     tick_others = cfg.get("tick_other_areas", True) and app_version(st) >= BY_APP_VERSION
     skip = review["skip_ticks"].get(dk, set())
 
@@ -824,9 +1052,11 @@ def apply_day(state, activity, area, cfg, stamp=None, review=None):
 
     matches = {}
     for a in activity["aops"]:
-        aop_id = match_aop(a["name"], aops, aliases, area)
-        several = not aop_id and has_any_match(a["name"], aops, aliases)
+        aop_id = match_aop(a["name"], aops, aliases, area, renames)
+        several = not aop_id and has_any_match(a["name"], aops, aliases, renames)
         matches[a["name"]] = aops[aop_id].get("area") if aop_id else SEVERAL if several else None
+        if aop_id and via_rename(a["name"], aops[aop_id].get("name"), aliases):
+            report["renamed"].append((a["name"], aops[aop_id].get("name")))
         if not is_real_work(a):
             continue
         if not aop_id:
@@ -842,7 +1072,8 @@ def apply_day(state, activity, area, cfg, stamp=None, review=None):
             tick(aop_id, "added_in_review")
 
     note = review["notes"].get(dk)
-    if activity["aops"] or activity["other"] or activity.get("bulk") or activity["sessions"]["power_titles"] or note:
+    if (activity["aops"] or activity["other"] or activity.get("bulk") or activity.get("published")
+            or activity["sessions"]["power_titles"] or note):
         notes = st.setdefault("dayNotes", {})
         day_note = notes.get(dk)
         if isinstance(day_note, str):  # legacy plain-text note, same shape migrateIfNeeded produces
@@ -873,7 +1104,7 @@ def insert_achieved(notation, new_lines):
     return "\n".join(lines[:end] + new_lines + lines[end:]).rstrip()
 
 
-def apply_achievements(state, items, area, cfg, ledger, stamp=None, review=None):
+def apply_achievements(state, items, area, cfg, ledger, stamp=None, review=None, renames=None):
     """Sprint-outcome lines into each own-area AOP's monthly notation. Returns (new_state, added, keys).
     `review` drops or rewords lines; a dropped line's key still goes to the ledger, so it never comes back."""
     stamp = stamp or now_iso()
@@ -885,7 +1116,7 @@ def apply_achievements(state, items, area, cfg, ledger, stamp=None, review=None)
     for item in items:
         if item["key"] in ledger:
             continue
-        aop_id = match_aop(item["aop"], aops, aliases, area)
+        aop_id = match_aop(item["aop"], aops, aliases, area, renames)
         if not aop_id or aops[aop_id].get("area") != area:
             continue
         text = outcome_text(item["line"])
@@ -982,26 +1213,51 @@ def similar_aops(name, aops, limit=2):
     return [n for n, _ in sorted(scored.items(), key=lambda x: (-x[1], x[0].lower()))[:limit]]
 
 
-def apply_new_aops(state, collected, area, cfg, created, stamp=None, review=None):
+def clean_label(name):
+    return str(name or "").replace("​", "").strip()
+
+
+def with_owner(names, aops, area):
+    """'<AOP> (<Name>'s)' for each calendar name, with the owner's first name; 'yours' for the person's own area."""
+    out = []
+    for n in names:
+        owners = sorted({"yours" if a.get("area") == area else f"{AREAS.get(a.get('area'), a.get('area'))}'s"
+                         for a in aops.values() if clean_label(a.get("name")) == clean_label(n)})
+        out.append(f"{n} ({', '.join(owners)})" if owners else n)
+    return out
+
+
+def apply_new_aops(state, collected, area, cfg, created, stamp=None, review=None, renames=None):
     """Add each AOP the person worked on that no area has yet to their own area, in a new color.
-    Only AOPs on main or live count. Returns (new_state, report); never mutates `state`."""
-    report = {"created": [], "removed_before": [], "skipped_in_review": []}
-    skipped = (review or empty_review())["skip_new_aops"]
+    Only AOPs on main or live count, and only when it is clearly theirs. One that someone else has
+    also committed to, or that looks like a calendar item under another name (a renamed or rebuilt
+    AOP), is held: the review asks, and `add_new_aops` in the changes file adds it.
+    Returns (new_state, report); never mutates `state`."""
+    report = {"created": [], "held": [], "removed_before": [], "skipped_in_review": [], "stale_aliases": [],
+              "duplicates": []}
+    review = review or empty_review()
+    skipped, wanted = review["skip_new_aops"], review.get("add_new_aops") or {}  # {base name: name as given}
+    aliases = cfg.get("aliases") or {}
+    landed = set(collected["landed_aops"]) if "landed_aops" in collected else None  # None: an --activity file from before
+    real = list(dict.fromkeys(a["name"] for day in collected["days"] for a in day["aops"] if is_real_work(a)))
+    worked = [n for n in real if landed is None or n in landed]
+    unknown = sorted(wanted[b] for b in set(wanted) - {base_name(n) for n in worked})
+    if unknown:
+        raise RuntimeError(f"add_new_aops: {', '.join(repr(n) for n in unknown)} isn't one of this run's new AOPs. "
+                           "Use the name the dry run shows. Nothing written.")
+    report["stale_aliases"] = stale_aliases(real, calendar_aops(state), aliases)
     if cfg.get("add_new_aops", True) is False:
         return state, report
     stamp = stamp or now_iso()
     st = copy.deepcopy(state)
-    aliases = cfg.get("aliases") or {}
-    landed = set(collected["landed_aops"]) if "landed_aops" in collected else None  # None: an --activity file from before
-    worked = dict.fromkeys(aliases.get(a["name"], a["name"]) for day in collected["days"]
-                           for a in day["aops"] if is_real_work(a) and (landed is None or a["name"] in landed))
+    co_authors = collected.get("co_authors") or {}
     for name in worked:
         items = st.setdefault("aops", {})
-        # any match at all, even an ambiguous one or a custom status, means it's already in the calendar
-        if any(isinstance(a, dict) and (norm_name(a.get("name")) == norm_name(name) or base_name(a.get("name")) == base_name(name)
-                                        or word_key(a.get("name")) == word_key(name)) for a in items.values()):
-            continue
         aops = calendar_aops(st)
+        # any match at all (ambiguous, a custom status, an alias, a name from before or after a rename)
+        # means it's already in the calendar
+        if has_any_match(name, aops, aliases, renames):
+            continue
         if base_name(name) in skipped:
             report["skipped_in_review"].append(name)
             continue
@@ -1009,12 +1265,28 @@ def apply_new_aops(state, collected, area, cfg, created, stamp=None, review=None
             if not any(base_name(n) == base_name(name) for n in report["removed_before"]):
                 report["removed_before"].append(name)
             continue
+        similar = similar_aops(name, aops)
+        others = co_authors.get(name) or []
+        if (others or similar) and base_name(name) not in wanted:
+            report["held"].append({"name": name, "others": others, "similar": with_owner(similar, aops, area)})
+            continue
         aop_id = str(uuid.uuid4())
         color = pick_new_color(a.get("color") for a in items.values() if isinstance(a, dict))
         items[aop_id] = {"id": aop_id, "name": name, "color": color, "area": area, "kind": "aop",
                          "created_at": stamp, "updated_at": stamp, "source": ENTRY_SOURCE}
         st["aopOrder"] = list(st.get("aopOrder") or []) + [aop_id]
-        report["created"].append({"name": name, "id": aop_id, "color": color, "similar": similar_aops(name, aops)})
+        report["created"].append({"name": name, "id": aop_id, "color": color, "similar": similar})
+    # AOPs this tool added to the person's area earlier that git now shows are another item renamed
+    aops = calendar_aops(st)
+    for i, a in aops.items():
+        if a.get("area") != area or a.get("source") != ENTRY_SOURCE:
+            continue
+        for other in (renames or {}).get(norm_name(a.get("name")), []):
+            for j, b in aops.items():
+                if j != i and any(key(b.get("name")) == key(other) for key in MATCH_KEYS):
+                    pair = (clean_label(a.get("name")), with_owner([clean_label(b.get("name"))], aops, area)[0])
+                    if pair not in report["duplicates"]:
+                        report["duplicates"].append(pair)
     return st, report
 
 
@@ -1022,15 +1294,17 @@ def apply_all(state, collected, area, cfg, ledger, created=None, stamp=None, cha
     """Returns (new_state, reports, added, keys, new_aops, review). The review's names are matched after
     this run's new AOPs are added, so a tick on an AOP that is new today can be skipped too."""
     stamp = stamp or now_iso()
+    renames = build_rename_map(collected.get("renames"))
     review = empty_review()
     review["skip_new_aops"] = new_aop_skips(changes, saved_review)
-    st, new_aops = apply_new_aops(state, collected, area, cfg, created or {}, stamp, review)
-    review = resolve_review(st, changes, saved_review or {}, area, cfg, [d["date"] for d in collected["days"]])
+    review["add_new_aops"] = new_aop_adds(changes)
+    st, new_aops = apply_new_aops(state, collected, area, cfg, created or {}, stamp, review, renames)
+    review = resolve_review(st, changes, saved_review or {}, area, cfg, [d["date"] for d in collected["days"]], renames)
     reports = []
     for activity in collected["days"]:
-        st, report = apply_day(st, activity, area, cfg, stamp, review)
+        st, report = apply_day(st, activity, area, cfg, stamp, review, renames)
         reports.append(report)
-    st, added, keys = apply_achievements(st, collected["achievements"], area, cfg, ledger, stamp, review)
+    st, added, keys = apply_achievements(st, collected["achievements"], area, cfg, ledger, stamp, review, renames)
     return st, reports, added, keys, new_aops, review
 
 
@@ -1038,7 +1312,12 @@ def apply_all(state, collected, area, cfg, ledger, created=None, stamp=None, cha
 
 def empty_review():
     return {"skip_ticks": {}, "add_ticks": {}, "skip_outcomes": set(), "reword_outcomes": {},
-            "skip_new_aops": set(), "notes": {}}
+            "skip_new_aops": set(), "add_new_aops": {}, "notes": {}}
+
+
+def new_aop_adds(changes):
+    """{base name: name as given} for the new AOPs the person said to add in the review."""
+    return {base_name(n): n for n in (changes or {}).get("add_new_aops") or []}
 
 
 def outcome_text(line):
@@ -1054,17 +1333,19 @@ def new_aop_skips(changes, saved):
 def read_changes(path):
     """The changes file the person agreed to in the review. Names, as the dry run prints them:
     {"skip_ticks": [{"date", "aop"}], "add_ticks": [{"date", "aop"}], "skip_outcomes": [line],
-     "reword_outcomes": {line: new text}, "skip_new_aops": [name], "notes": {date: text}}"""
+     "reword_outcomes": {line: new text}, "skip_new_aops": [name], "add_new_aops": [name],
+     "notes": {date: text}}"""
     raw = read_json(path)
     if not isinstance(raw, dict):
         raise RuntimeError(f"{path} is not a JSON object. Nothing written.")
-    unknown = set(raw) - {"skip_ticks", "add_ticks", "skip_outcomes", "reword_outcomes", "skip_new_aops", "notes"}
+    unknown = set(raw) - {"skip_ticks", "add_ticks", "skip_outcomes", "reword_outcomes", "skip_new_aops",
+                          "add_new_aops", "notes"}
     if unknown:
         raise RuntimeError(f"{path}: unknown key(s) {', '.join(sorted(unknown))}. Nothing written.")
     return raw
 
 
-def resolve_review(state, changes, saved, area, cfg, dks):
+def resolve_review(state, changes, saved, area, cfg, dks, renames=None):
     """Changes from the review (names) plus earlier reviews (review.json, ids) -> what apply_* use.
     A name that matches no calendar AOP, or a date outside this run, stops the run before anything is written."""
     aops = calendar_aops(state)
@@ -1073,6 +1354,7 @@ def resolve_review(state, changes, saved, area, cfg, dks):
     for dk, ids in (saved.get("skip_ticks") or {}).items():
         review["skip_ticks"].setdefault(dk, set()).update(ids)
     review["skip_new_aops"] = new_aop_skips(changes, saved)
+    review["add_new_aops"] = new_aop_adds(changes)
     review["notes"].update(saved.get("notes") or {})
     changes = changes or {}
 
@@ -1080,11 +1362,11 @@ def resolve_review(state, changes, saved, area, cfg, dks):
         dk, name = (item or {}).get("date"), (item or {}).get("aop")
         if dk not in dks:
             raise RuntimeError(f"{what}: {dk!r} is not one of the days in this run ({', '.join(dks)}). Nothing written.")
-        aop_id = match_aop(name, aops, aliases, area)
+        aop_id = match_aop(name, aops, aliases, area, renames)
         if not aop_id:
-            if what == "skip_ticks" and base_name(aliases.get(name, name)) in review["skip_new_aops"]:
+            if what == "skip_ticks" and base_name(alias_for(name, aliases) or name) in review["skip_new_aops"]:
                 return dk, None  # its new AOP is skipped too, so there is nothing to tick
-            several = has_any_match(name, aops, aliases)
+            several = has_any_match(name, aops, aliases, renames)
             raise RuntimeError(f"{what}: {name!r} is {'in the calendar more than once' if several else 'not in the calendar'}"
                                f". Use the name the calendar shows. Nothing written.")
         return dk, aop_id
@@ -1320,8 +1602,9 @@ def _names(bucket, aops):
     return sorted({aops[e["aopId"]]["name"] for e in bucket or [] if isinstance(e, dict) and e.get("aopId") in aops})
 
 
-def plan_facts(state, cfg, area, month, commits):
-    """What a month's plan can build on, for one area. Reads only."""
+def plan_facts(state, cfg, area, month, commits, renames=None):
+    """What a month's plan can build on, for one area. Reads only. Publishes to production don't
+    count as commits (the edit commits do), and a renamed AOP file still finds its item."""
     aops = area_items(state, area)
     all_aops = calendar_aops(state)
     aliases = cfg.get("aliases") or {}
@@ -1362,12 +1645,12 @@ def plan_facts(state, cfg, area, month, commits):
 
     elsewhere = {}
     for c in commits:
-        if is_bulk(c):
+        if is_bulk(c) or c.get("publish"):
             continue
         for kind, name in c["items"]:
             if kind != "aop":
                 continue
-            aop_id = match_aop(name, aops, aliases)
+            aop_id = match_aop(name, aops, aliases, renames=renames)
             if not aop_id:
                 elsewhere.setdefault(name, set()).add(c["day"])
                 continue
@@ -1894,10 +2177,33 @@ def print_result(result, full=True):
             hint = f"  - maybe the same as: {', '.join(a['similar'][:3])}" if a["similar"] else ""
             print(f"    {a['color']} {a['name']}{hint}")
         print()
+    if new_aops.get("held"):
+        print(f"New AOPs not added, your call ({len(new_aops['held'])}):")
+        for a in new_aops["held"]:
+            why = []
+            if a["others"]:
+                why.append(f"also worked on by {', '.join(a['others'])}")
+            if a["similar"]:
+                why.append(f"maybe the same as: {', '.join(a['similar'][:3])}")
+            print(f"    {a['name']}  - {'; '.join(why)}")
+        print("  Add one to your area with add_new_aops in the review's changes file, or alias it to the\n"
+              "  calendar item it is (config.json), or skip it with skip_new_aops if it isn't yours.\n")
     for name in new_aops.get("removed_before") or []:
         print(f"    not added again, someone deleted or renamed it: {name}")
     for name in new_aops.get("skipped_in_review") or []:
         print(f"    not added, you skipped it in a review: {name}")
+    for file_name, alias in new_aops.get("stale_aliases") or []:
+        print(f"warning: config.json aliases {file_name!r} -> {alias!r}, but the calendar has no {alias!r} any more"
+              " (renamed or deleted there). Used the AOP's own name instead; fix or remove the alias.")
+    for mine, other in new_aops.get("duplicates") or []:
+        print(f"note: {mine!r} (yours, added by the sync) is a rename of {other}: one of the two is a duplicate"
+              " to clean up in the calendar.")
+    renamed = dict.fromkeys(pair for report in result["reports"] for pair in report.get("renamed", []))
+    if renamed:
+        print(f"Renamed in the repo, still the old name in the calendar ({len(renamed)}), matched by the old name:")
+        for file_name, calendar_name in renamed:
+            print(f"    {file_name}  ->  calendar: {clean_label(calendar_name)}")
+        print()
     for report in result["reports"]:
         ticked = len(report["ticked"]) + len(report.get("ticked_other_area", []))
         line = f"{report['date']}{' (weekend, note only)' if report['weekend'] else ''}: "
@@ -2146,7 +2452,7 @@ def cmd_plan_facts(args):
         first = dt.date.fromisoformat(f"{shift_month(month, -1)}-01")
         last = min(dt.date.today(), month_days(month)[-1])
         commits = collect_commits(source, first, last)
-    facts = plan_facts(state, source, area, month, commits)
+    facts = plan_facts(state, source, area, month, commits, build_rename_map(aop_renames(source)))
     facts["commits_by"] = source["author_emails"]
     text = json.dumps(facts, ensure_ascii=False, indent=2)
     if args.out:
@@ -2268,7 +2574,8 @@ def main():
     r.add_argument("--until", help="from the last saved day up to this day, not today (a review finished the next morning)")
     r.add_argument("--dry-run", action="store_true", help="read the live calendar, write nothing")
     r.add_argument("--changes", help="end-of-day review: JSON with skip_ticks, add_ticks, skip_outcomes, "
-                                     "reword_outcomes, skip_new_aops, notes (names as the dry run prints them)")
+                                     "reword_outcomes, skip_new_aops, add_new_aops, notes "
+                                     "(names as the dry run prints them)")
     r.set_defaults(fn=cmd_run)
 
     b = sub.add_parser("backfill", help="fill in a range of past days in one save")
@@ -2276,6 +2583,7 @@ def main():
     b.add_argument("--to", help="last day (default today)")
     b.add_argument("--dry-run", action="store_true", help="read the live calendar, write nothing")
     b.add_argument("--full", action="store_true", help="print each day's full day log")
+    b.add_argument("--changes", help="the same changes file as `run --changes`, e.g. add_new_aops for held AOPs")
     b.set_defaults(fn=cmd_backfill, date=None)
 
     f = sub.add_parser("plan-facts", help="what a month's plan can build on, as JSON (reads only)")
