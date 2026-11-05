@@ -1869,16 +1869,21 @@ def print_plan_report(report):
 
 # ----------------------------------------------------------------- commands
 
-def days_to_run(explicit):
+def days_to_run(explicit, until=None):
+    """--date: that day only. Otherwise from the last saved day to today, or to `until`
+    (a review finished the next morning saves up to yesterday and leaves today open)."""
     if explicit:
         d = dt.date.fromisoformat(explicit)
         return d, d
     today = dt.date.today()
+    end = dt.date.fromisoformat(until) if until else today
+    if end > today:
+        raise RuntimeError(f"--until {until} is after today. Nothing written.")
     last = (read_json(LAST_RUN_FILE) or {}).get("last_complete_day")
-    first = today
+    first = end
     if last:
-        first = max(dt.date.fromisoformat(last), today - dt.timedelta(days=MAX_CATCHUP_DAYS))
-    return first, today
+        first = min(end, max(dt.date.fromisoformat(last), today - dt.timedelta(days=MAX_CATCHUP_DAYS)))
+    return first, end
 
 
 def print_result(result, full=True):
@@ -2083,12 +2088,27 @@ def _live(args, first, last):
     return result
 
 
+def mark_saved(day):
+    """Move last_complete_day forward to `day`, never back and never past today. A review
+    finished the next morning saves yesterday with --date; that must count as saved too,
+    or the next run covers it again."""
+    day = min(day, dt.date.today())
+    last = (read_json(LAST_RUN_FILE) or {}).get("last_complete_day")
+    if last and dt.date.fromisoformat(last) >= day:
+        return False
+    write_json(LAST_RUN_FILE, {"last_complete_day": day.isoformat(), "at": now_iso()})
+    return True
+
+
 def cmd_run(args):
-    first, last = days_to_run(args.date)
+    if args.date and args.until:
+        raise RuntimeError("Use --date or --until, not both. Nothing written.")
+    first, last = days_to_run(args.date, args.until)
     _live(args, first, last)
-    if not args.dry_run and not args.date:
-        # Today stays open: the next run starts from today, so late work is picked up.
-        write_json(LAST_RUN_FILE, {"last_complete_day": dt.date.today().isoformat(), "at": now_iso()})
+    if not args.dry_run:
+        # Today stays open: the next run starts from the last saved day, so late work is picked up.
+        if mark_saved(last) and last < dt.date.today():
+            print(f"Last saved day is now {last.isoformat()}; the next run starts there.")
 
 
 def cmd_backfill(args):
@@ -2245,6 +2265,7 @@ def main():
 
     r = sub.add_parser("run", help="sync today (and missed days) into the shared calendar")
     r.add_argument("--date", help="only this day")
+    r.add_argument("--until", help="from the last saved day up to this day, not today (a review finished the next morning)")
     r.add_argument("--dry-run", action="store_true", help="read the live calendar, write nothing")
     r.add_argument("--changes", help="end-of-day review: JSON with skip_ticks, add_ticks, skip_outcomes, "
                                      "reword_outcomes, skip_new_aops, notes (names as the dry run prints them)")

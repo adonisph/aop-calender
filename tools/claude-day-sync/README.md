@@ -309,7 +309,9 @@ start it on weekdays at your time (the setup in Claude creates it; it's called
    Names as the dry run shows them; outcome lines with or without `✅` and the
    date. A note shows in the day log under *📝 My note*.
 3. Runs `run --dry-run --changes <file>` and shows you the result.
-4. Saves with `run --changes <file>` only when you say yes.
+4. Saves with `run --changes <file>` only when you say yes. If you answer the
+   next morning, it saves with `run --until <yesterday> --changes <file>`
+   instead, so today stays open for this evening's review.
 
 By hand:
 
