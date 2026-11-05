@@ -924,7 +924,39 @@ def _more(names, limit):
     return ", ".join(names[:limit]) + (f" +{rest} more" if rest > 0 else "")
 
 
-def render_block(activity, matches, area, cfg, note=None):
+def join_names(names):
+    names = list(names)
+    return names[0] if len(names) == 1 else f"{', '.join(names[:-1])} and {names[-1]}"
+
+
+def day_log_label(name, matches, area, cal_names=None, new_status=None):
+    """How an AOP is named in the day log, in words someone reading the calendar understands:
+      'New Name V2 → Old Calendar Name V2 (Name's AOP)'  renamed in the repo, a colleague's AOP
+      'Some AOP V4 (waiting for your yes; also worked on by Name and Name)'  held new AOP
+      'Some AOP (left out; you said it isn't yours)'  skipped in a review
+    The morning brief reads these back (team_brief.day_log_parts), so keep the shapes."""
+    new_status = new_status or {}
+    owner = matches.get(name)
+    label = name
+    if (cal_names or {}).get(name):
+        label = f"{name} → {clean_label(cal_names[name])}"
+    if owner == area:
+        return label
+    if owner == SEVERAL:
+        return f"{label} (in the calendar more than once)"
+    if owner is not None:
+        return f"{label} ({AREAS.get(owner, owner)}'s AOP)"
+    held = (new_status.get("held") or {}).get(name)
+    if held:
+        why = (f"also worked on by {join_names(held['others'])}" if held.get("others") else
+               f"looks like “{held['similar_names'][0]}”" if held.get("similar_names") else "not added yet")
+        return f"{label} (waiting for your yes; {why})"
+    if name in (new_status.get("skipped") or ()):
+        return f"{label} (left out; you said it isn't yours)"
+    return f"{label} (not in the calendar)"
+
+
+def render_block(activity, matches, area, cfg, note=None, cal_names=None, new_status=None):
     """The day log, grouped by where the work is: done, on a branch, or only edited.
     `note` is the person's own text from the end-of-day review, shown last."""
     sections = {"done": [], "branch": [], "edited": []}
@@ -933,14 +965,12 @@ def render_block(activity, matches, area, cfg, note=None):
         if not is_real_work(a):
             looked.append(a["name"])
             continue
-        owner = matches.get(a["name"])
-        tag = ("" if owner == area else " (not in the calendar)" if owner is None
-               else " (in the calendar more than once)" if owner == SEVERAL else f" ({AREAS.get(owner, owner)}'s AOP)")
+        shown = day_log_label(a["name"], matches, area, cal_names, new_status)
         by_state = {}
         for c in a["commits"]:
             by_state.setdefault(commit_state(c["where"]), []).append(c)
         if not a["commits"]:
-            sections["edited"].append(f"• {a['name']}{tag}")
+            sections["edited"].append(f"• {shown}")
         for state in ("done", "branch", "local"):
             commits = by_state.get(state)
             if not commits:
@@ -951,7 +981,7 @@ def render_block(activity, matches, area, cfg, note=None):
             if state != "done":
                 where = "  ⟶ " + ", ".join(sorted({short_branch(c["where"], cfg) for c in commits}))
             key = "done" if state == "done" else "branch"
-            sections[key].append(f"• {a['name']}{tag}: {subjects[0]}{where}")
+            sections[key].append(f"• {shown}: {subjects[0]}{where}")
             for s in subjects[1:MAX_SUBJECTS_PER_AOP]:
                 sections[key].append(f"   – {s}")
             if len(subjects) > MAX_SUBJECTS_PER_AOP:
@@ -1012,10 +1042,11 @@ def render_block(activity, matches, area, cfg, note=None):
     return "\n".join(lines)
 
 
-def apply_day(state, activity, area, cfg, stamp=None, review=None, renames=None):
+def apply_day(state, activity, area, cfg, stamp=None, review=None, renames=None, new_status=None):
     """Ticks and the day-log block for one day. Returns (new_state, report); never mutates `state`.
     `review` (see resolve_review) skips or adds ticks and adds the person's note. `renames` is
-    build_rename_map's map, so a renamed AOP file still finds its calendar item."""
+    build_rename_map's map, so a renamed AOP file still finds its calendar item. `new_status` says
+    which new AOPs are held for the person's yes or skipped by them, so the day log can say so."""
     stamp = stamp or now_iso()
     review = review or empty_review()
     st = copy.deepcopy(state)
@@ -1050,13 +1081,14 @@ def apply_day(state, activity, area, cfg, stamp=None, review=None, renames=None)
             entries[dk] = {**bucket, "planned": list(bucket.get("planned") or []), "actual": actual}
             report[done_key or ("ticked" if own else "ticked_other_area")].append(label)
 
-    matches = {}
+    matches, cal_names = {}, {}
     for a in activity["aops"]:
         aop_id = match_aop(a["name"], aops, aliases, area, renames)
         several = not aop_id and has_any_match(a["name"], aops, aliases, renames)
         matches[a["name"]] = aops[aop_id].get("area") if aop_id else SEVERAL if several else None
         if aop_id and via_rename(a["name"], aops[aop_id].get("name"), aliases):
             report["renamed"].append((a["name"], aops[aop_id].get("name")))
+            cal_names[a["name"]] = aops[aop_id].get("name")
         if not is_real_work(a):
             continue
         if not aop_id:
@@ -1081,7 +1113,7 @@ def apply_day(state, activity, area, cfg, stamp=None, review=None, renames=None)
         day_note = dict(day_note or {"text": "", "planned_text": "", "actual_text": "", "created_at": stamp, "updated_at": ""})
         area_notes = dict(day_note.get("area_notes") or {})
         current = area_notes.get(area) or {}
-        block = render_block(activity, matches, area, cfg, note)
+        block = render_block(activity, matches, area, cfg, note, cal_names, new_status)
         new_text = replace_block(current.get("text", ""), block)
         if new_text != (current.get("text") or "").strip():
             area_notes[area] = {"text": new_text, "created_at": current.get("created_at") or stamp, "updated_at": stamp}
@@ -1268,7 +1300,8 @@ def apply_new_aops(state, collected, area, cfg, created, stamp=None, review=None
         similar = similar_aops(name, aops)
         others = co_authors.get(name) or []
         if (others or similar) and base_name(name) not in wanted:
-            report["held"].append({"name": name, "others": others, "similar": with_owner(similar, aops, area)})
+            report["held"].append({"name": name, "others": others, "similar": with_owner(similar, aops, area),
+                                   "similar_names": similar})
             continue
         aop_id = str(uuid.uuid4())
         color = pick_new_color(a.get("color") for a in items.values() if isinstance(a, dict))
@@ -1301,8 +1334,9 @@ def apply_all(state, collected, area, cfg, ledger, created=None, stamp=None, cha
     st, new_aops = apply_new_aops(state, collected, area, cfg, created or {}, stamp, review, renames)
     review = resolve_review(st, changes, saved_review or {}, area, cfg, [d["date"] for d in collected["days"]], renames)
     reports = []
+    status = {"held": {h["name"]: h for h in new_aops["held"]}, "skipped": set(new_aops["skipped_in_review"])}
     for activity in collected["days"]:
-        st, report = apply_day(st, activity, area, cfg, stamp, review, renames)
+        st, report = apply_day(st, activity, area, cfg, stamp, review, renames, status)
         reports.append(report)
     st, added, keys = apply_achievements(st, collected["achievements"], area, cfg, ledger, stamp, review, renames)
     return st, reports, added, keys, new_aops, review
@@ -1998,6 +2032,128 @@ def print_migration(report):
         print("No copies found.")
 
 
+# ------------------------------------------------- rename-items (for Adonis)
+# The calendar page can't rename an item. When AOP files are renamed in the repo, this renames the
+# calendar items to match, so the calendar, the day logs and the morning brief use one name.
+
+VERSION_SUFFIX_RE = re.compile(r"\s*[(\[]?\b(?:v\d+(?:[.\s]\d+)*|voice|chat|live)\b[)\]]?\s*$", re.I)
+
+
+def strip_version(name):
+    """'Product Recalls (V2)' -> 'Product Recalls', keeping the spelling: for a calendar item without a version."""
+    out = str(name).strip()
+    while True:
+        cut = VERSION_SUFFIX_RE.sub("", out).strip()
+        if cut == out or not cut:
+            return out
+        out = cut
+
+
+def aop_names_on(cfg, ref):
+    """AOP names on a ref, from aops/generated/*.json only: that is what Decagon runs. The aops/*.py
+    files can lag behind (a dashboard rename leaves the .py under the old name)."""
+    repo = Path(cfg["power_repo"]).expanduser()
+    r = git(repo, "-c", "core.quotePath=false", "ls-tree", "-r", "--name-only", ref, "aops/generated", check=False)
+    return {m.group(1) for m in (re.match(r"aops/generated/([^/]+)\.json$", p) for p in r.stdout.splitlines()) if m}
+
+
+def plan_item_renames(state, renames, on_main):
+    """{"rename": [{id, area, old, new}], "left": [(name, why)]}: calendar items whose name is an AOP file
+    name (exactly or without versions) that git saw renamed, to the AOP's newest name. Only when that
+    newest name is on main and the old one isn't any more, and only when it is unambiguous."""
+    forward = {}
+    for old, new in renames or []:  # oldest first
+        forward.setdefault(norm_name(old), []).append(new)
+
+    def newest(name):
+        seen, cur = {norm_name(name)}, name
+        while forward.get(norm_name(cur)):
+            nxt = forward[norm_name(cur)][-1]
+            if norm_name(nxt) in seen:
+                break
+            seen.add(norm_name(nxt))
+            cur = nxt
+        return cur
+
+    main_norm = {norm_name(n) for n in on_main}
+    main_base = {}
+    for n in on_main:
+        main_base.setdefault(base_name(n), set()).add(norm_name(n))
+    items = calendar_aops(state)
+    wanted, left = {}, []
+    for i, a in items.items():
+        name = clean_label(a.get("name"))
+        if not name or norm_name(name) in main_norm:
+            continue  # its name is a file on main: nothing to follow
+        targets = {newest(old) for old, _ in renames or []
+                   if norm_name(old) not in main_norm and norm_name(newest(old)) in main_norm
+                   and (norm_name(name) == norm_name(old) or base_name(name) == base_name(old))}
+        if not targets:
+            continue
+        if len(targets) > 1:
+            left.append((name, f"matches more than one renamed AOP: {', '.join(sorted(targets))}"))
+            continue
+        target = targets.pop()
+        new = target if base_name(name) != norm_name(name) else strip_version(target)
+        others_on_main = main_base.get(base_name(name), set()) - {norm_name(target)}
+        if others_on_main:
+            left.append((name, "a file with this name is still on main"))
+            continue
+        wanted[i] = (name, new, a.get("area"))
+    claimed = {}
+    for i, (name, new, _) in wanted.items():
+        claimed.setdefault(norm_name(new), []).append(i)
+    out = []
+    for i, (name, new, area) in sorted(wanted.items(), key=lambda x: x[1][0].lower()):
+        if len(claimed[norm_name(new)]) > 1:
+            left.append((name, f"{len(claimed[norm_name(new)])} calendar items would get the name {new!r}"))
+            continue
+        clash = [b for j, b in items.items() if j != i and (norm_name(b.get("name")) == norm_name(new)
+                                                              or base_name(b.get("name")) == base_name(new))]
+        if clash:
+            left.append((name, f"the calendar already has {clean_label(clash[0].get('name'))!r} "
+                               f"({AREAS.get(clash[0].get('area'), clash[0].get('area'))}'s): one of the two is a duplicate"))
+            continue
+        if norm_name(new) == norm_name(name):
+            continue
+        out.append({"id": i, "area": area, "old": name, "new": new})
+    return {"rename": out, "left": left}
+
+
+def apply_item_renames(state, plan, stamp=None):
+    stamp = stamp or now_iso()
+    st = copy.deepcopy(state)
+    for r in plan["rename"]:
+        st["aops"][r["id"]] = {**st["aops"][r["id"]], "name": r["new"], "updated_at": stamp}
+    return st
+
+
+def check_item_renames(old, new, plan):
+    """Raise unless `new` equals `old` apart from the planned items' name and updated_at."""
+    check_app_version(old)
+    expected = copy.deepcopy(new)
+    for r in plan["rename"]:
+        before, after = (old.get("aops") or {}).get(r["id"]), (expected.get("aops") or {}).get(r["id"])
+        if not before or not after or after.get("name") != r["new"]:
+            raise RuntimeError("Guard: a planned rename is missing. Nothing written.")
+        expected["aops"][r["id"]] = {**after, "name": before.get("name"), "updated_at": before.get("updated_at")}
+        if "updated_at" not in before:
+            expected["aops"][r["id"]].pop("updated_at")
+    if expected != old:
+        raise RuntimeError("Guard: something besides the planned item names would change. Nothing written.")
+
+
+def print_item_renames(plan):
+    if plan["rename"]:
+        print(f"Rename in the calendar ({len(plan['rename'])}), to the AOP's current name in the repo:")
+        for r in plan["rename"]:
+            print(f"    {r['old']} ({AREAS.get(r['area'], r['area'])}'s)  ->  {r['new']}")
+    for name, why in plan["left"]:
+        print(f"left alone: {name}: {why}")
+    if not plan["rename"] and not plan["left"]:
+        print("Every calendar name already matches the repo.")
+
+
 # ---------------------------------------------------------------- Supabase
 
 class Workspace:
@@ -2203,7 +2359,8 @@ def print_result(result, full=True):
         print(f"Renamed in the repo, still the old name in the calendar ({len(renamed)}), matched by the old name:")
         for file_name, calendar_name in renamed:
             print(f"    {file_name}  ->  calendar: {clean_label(calendar_name)}")
-        print()
+        print("  The ticks went to the right item. The calendar page can't rename items; Adonis renames them\n"
+              "  for everyone with `rename-items` once the new names are on main.\n")
     for report in result["reports"]:
         ticked = len(report["ticked"]) + len(report.get("ticked_other_area", []))
         line = f"{report['date']}{' (weekend, note only)' if report['weekend'] else ''}: "
@@ -2500,6 +2657,47 @@ def cmd_migrate_copies(args):
     raise RuntimeError("The workspace kept changing while writing; gave up after 5 tries. Nothing lost - run again.")
 
 
+def cmd_rename_items(args):
+    """Dry run unless --write. With --state it works on an exported file and never touches the calendar."""
+    cfg = load_config()
+    if not args.no_fetch:
+        for w in fetch_repo(cfg):
+            print(f"warning: {w}")
+    renames = aop_renames(cfg)
+    on_main = aop_names_on(cfg, cfg.get("main_ref", "origin/main"))
+    if args.state:
+        raw = read_json(args.state)
+        old = raw.get("state", raw)
+        plan = plan_item_renames(old, renames, on_main)
+        new = apply_item_renames(old, plan)
+        check_item_renames(old, new, plan)
+        print_item_renames(plan)
+        print("Guard: only the planned names change - OK")
+        if args.out:
+            write_json(args.out, {**raw, "state": new} if "state" in raw else new)
+            print(f"Wrote {args.out}")
+        return
+    ws = _signed_in(cfg)
+    for _ in range(5):
+        row = ws.fetch()
+        old = row["state"]
+        plan = plan_item_renames(old, renames, on_main)
+        new = apply_item_renames(old, plan)
+        check_item_renames(old, new, plan)
+        print_item_renames(plan)
+        if not args.write or new == old:
+            print("\nDry run, nothing saved. Add --write to save." if not args.write else "\nNothing to rename.")
+            return
+        if not ws.write_if_unchanged(new, row["updated_at"]):
+            print("Someone saved in between; reading again.\n")
+            continue
+        after = calendar_aops(ws.fetch()["state"])
+        done = all((after.get(r["id"]) or {}).get("name") == r["new"] for r in plan["rename"])
+        print("\nSaved." if done else "\nwarning: saved, but a re-read doesn't show every new name")
+        return
+    raise RuntimeError("The workspace kept changing while writing; gave up after 5 tries. Nothing lost - run again.")
+
+
 def cmd_plan(args):
     cfg = load_config()
     plan = read_json(args.file)
@@ -2598,6 +2796,14 @@ def main():
     n.add_argument("--file", required=True, help="plan JSON: month, aops{name: goal, goals[]}, days{date: [AOP names]}")
     n.add_argument("--dry-run", action="store_true", help="read the live calendar, write nothing")
     n.set_defaults(fn=cmd_plan)
+
+    ri = sub.add_parser("rename-items", help="for Adonis: rename calendar items to their AOP's current name after "
+                                              "AOP files were renamed in the repo (dry run unless --write)")
+    ri.add_argument("--write", action="store_true", help="save to the live calendar (default: dry run)")
+    ri.add_argument("--state", help="work on an exported state file instead of the live calendar")
+    ri.add_argument("--out", help="with --state: write the renamed state here")
+    ri.add_argument("--no-fetch", action="store_true")
+    ri.set_defaults(fn=cmd_rename_items)
 
     m = sub.add_parser("migrate-copies", help="one-off: move '<AOP> (Name)' copies onto the originals as ticks by that person")
     m.add_argument("--suffix", required=True, help='the copies\' name ending, e.g. "(Erik)"')

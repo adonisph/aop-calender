@@ -219,8 +219,12 @@ Unregister-ScheduledTask -TaskName "AI Calender day sync" -Confirm:$false
   the names the AOP had before (and after). So *"Recycling and RePOWER
   Trade-in V2"* still finds *"Assist Customer with Recycling via RePOWER
   Program V2"*, and nothing new is added. The run lists these under
-  *"Renamed in the repo, still the old name in the calendar"*: rename them in
-  the calendar whenever you like.
+  *"Renamed in the repo, still the old name in the calendar"*, and the day log
+  shows both names: *"B2B Business Purchases and Contact V2 → Assist Business
+  Customers in Contacting the B2B Team V2"*. The calendar page can't rename
+  items, so Adonis renames them for everyone with `rename-items` (see
+  [Renaming calendar items](#renaming-calendar-items-after-a-repo-rename-for-adonis))
+  once the new names are on main.
 - Only AOPs that are on main or live in Decagon. Test AOPs, deleted AOPs and
   AOPs that only exist on a branch are left out until they land.
 - Each new AOP gets its own color, one that no other AOP or status in the
@@ -305,8 +309,20 @@ Claude sessions (1): "Insurance V4 for chat"
 ```
 
 - The work is grouped by where it is: done (on main or live in Decagon), on a
-  branch that isn't live yet, or edited in Claude without a commit. Another
-  person's AOP says whose it is: *"Price match AOP (Joona's AOP)"*.
+  branch that isn't live yet, or edited in Claude without a commit.
+- Each line says whose AOP it is and how it's named, so anyone reading the
+  calendar can follow it:
+  - *"Price match AOP (Name's AOP)"*: another person's AOP; the tick is yours.
+  - *"New name → Calendar name"*: renamed in the repo, still the old name in
+    the calendar.
+  - *"(waiting for your yes; also worked on by Name)"* or *"(waiting for your
+    yes; looks like “…”)"*: a new AOP held for the review, so it isn't in the
+    calendar yet.
+  - *"(left out; you said it isn't yours)"*: skipped in a review.
+  - *"(not in the calendar)"*: not on main or live yet.
+  - *"🚀 Published to production"*: publishes; they aren't counted as your work
+    on the AOPs they carried.
+- The team's morning brief reads these lines, with the same rules.
 - On the Notes page the marker lines are hidden and the log keeps its line
   breaks.
 - Write your own text above or below the markers. A new run only replaces the
@@ -467,6 +483,7 @@ the calendar):
 | `warning: config.json aliases 'X' -> 'Y', but the calendar has no 'Y' any more` | The calendar item was renamed or deleted. Fix the alias to the new calendar name, or remove it. Until then the file name is used. |
 | `note: '…' (yours, added by the sync) is a rename of …` | An earlier run added a renamed AOP as new. One of the two is a duplicate: move what you need and delete one in the calendar. |
 | A renamed AOP shows as *"not in the calendar"* | Git didn't see it as a rename (deleted and created in separate commits, or changed a lot at the same time). Add an alias from the new file name to the calendar name. |
+| `Renamed in the repo, still the old name in the calendar` | Nothing is wrong: the tick went to the right item. Adonis renames the items with `rename-items`. |
 
 Other commands:
 
@@ -516,6 +533,35 @@ The script has the same check the other way round: `KNOWN_APP_VERSION` at the
 top of `claude_day_sync.py` is the highest `APP_VERSION` it understands. When a
 change to what the calendar stores also changes the script, raise both and ask
 everyone to update their script.
+
+## Renaming calendar items after a repo rename (for Adonis)
+
+The calendar page can't rename an item. When AOP files are renamed in the repo
+(in the dashboard or in git), the sync still finds the old calendar item, but
+the calendar, the day logs and the morning brief then show two names for one
+AOP. `rename-items` renames the calendar items to the AOP's current name, for
+every area at once:
+
+```powershell
+python "$HOME\aop-calendar-sync\claude_day_sync.py" rename-items           # dry run: what would be renamed, and what is left alone
+python "$HOME\aop-calendar-sync\claude_day_sync.py" rename-items --write   # saves
+```
+
+- It follows git's rename history and renames an item only when its name is an
+  old file name (exactly, or without the version) and the newest name is on
+  main (`aops/generated/*.json`; the `.py` files can lag behind) while the old
+  one isn't.
+- An item without a version in its name keeps that style: *"Product Recall
+  Inquiry and Escalation"* becomes *"Product Recalls"*, not *"Product Recalls
+  (V2)"*.
+- It leaves an item alone, and says why, when the new name is already in the
+  calendar (a duplicate to clean up first), when two items would get the same
+  name, or when a file with the item's name is still on main.
+- Only the names change: ticks, notes, goals and colours stay, and a guard
+  refuses to save anything else. Run it again after each batch of renames
+  lands on main.
+- An alias that pointed at an old calendar name is then ignored with a warning;
+  the person can remove it.
 
 ## Ticks for a person, not an area (APP_VERSION 2, for Adonis)
 
