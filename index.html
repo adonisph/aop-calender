@@ -2770,6 +2770,7 @@
           <div>
             <label>View</label>
             <select id="aopNewArea">
+              <option value="shared">Team AOPs</option>
               <option value="pool">Erik</option>
               <option value="sales">Joona</option>
               <option value="delivery">Emma</option>
@@ -3030,9 +3031,13 @@ const AREA_VIEWS = [
 ];
 const AREA_VIEW_COLORS = {
   pool:"#22c55e", sales:"#38bdf8", delivery:"#f59e0b",
-  aftersales:"#fb7185", others_some:"#a78bfa", adonis:"#2dd4bf", special_events:"#facc15"
+  aftersales:"#fb7185", others_some:"#a78bfa", adonis:"#2dd4bf", special_events:"#facc15", shared:"#e5e7eb"
 };
 const MASTER_VIEW_ID = "master";
+// The team AOP list (APP_VERSION 3): one item per AOP Decagon runs, owned by nobody. It shows in every
+// person's view; ticks on it carry the person who did the work (`by`). People keep their own items.
+const SHARED_AREA_ID = "shared";
+const SHARED_AREA_LABEL = "Team AOPs";
 const DEFAULT_AREA_VIEW = "pool";
 const DEFAULT_THEME = "ember";
 const DAY_NOTE_AUTOSAVE_MS = 700;
@@ -3121,7 +3126,7 @@ const TEAM_SYNC_SAVE_DEBOUNCE_MS = 450;
 // Bump APP_VERSION whenever a change alters what the shared state may hold (a new area, a
 // new field). A page that sees a higher appVersion in the shared state stops saving, so an
 // old open tab can't fold data it doesn't understand back into the workspace.
-const APP_VERSION = 2;
+const APP_VERSION = 3;
 const VERSION_CHECK_MS = 2 * 60 * 1000;
 let appOutdated = false;
 let pageFingerprint = "";
@@ -3295,6 +3300,7 @@ function currentThemeId(){
 }
 function normalizeAreaId(raw){
   const id = String(raw || "").trim().toLowerCase();
+  if(id === SHARED_AREA_ID) return SHARED_AREA_ID;
   return AREA_VIEWS.some(v => v.id === id) ? id : DEFAULT_AREA_VIEW;
 }
 function normalizeAreaViewId(raw){
@@ -3316,6 +3322,7 @@ function normalizeDashboardSort(raw){
 function areaLabel(areaId){
   const safe = normalizeAreaViewId(areaId);
   if(safe === MASTER_VIEW_ID) return "Master (All)";
+  if(safe === SHARED_AREA_ID) return SHARED_AREA_LABEL;
   const found = AREA_VIEWS.find(v => v.id === safe);
   return found ? found.label : "Erik";
 }
@@ -3370,6 +3377,7 @@ function isAopInArea(aopId, areaId){
   if(!a) return false;
   const viewId = normalizeAreaViewId(areaId || currentAreaViewId());
   if(viewId === MASTER_VIEW_ID) return true;
+  if(aopAreaId(a) === SHARED_AREA_ID) return true;  // a team AOP is in everyone's list
   return aopAreaId(a) === viewId;
 }
 function visibleAopOrder(areaId){
@@ -3507,7 +3515,9 @@ function isEntryInArea(entry, areaId){
 // Who a new tick of `aopId` is for: the area being viewed, or in Master view the AOP's area.
 function tickOwnerFor(aopId){
   const viewId = currentAreaViewId();
-  return viewId === MASTER_VIEW_ID ? aopAreaId(view.state.aops?.[aopId]) : viewId;
+  if(viewId !== MASTER_VIEW_ID) return viewId;
+  const area = aopAreaId(view.state.aops?.[aopId]);
+  return area === SHARED_AREA_ID ? "" : area;  // a team AOP has no owner: tick it in a person's view
 }
 function hasTickBy(entries, aopId, owner){
   return (entries || []).some(e => e.aopId === aopId && entryOwner(e) === owner);
@@ -3536,13 +3546,14 @@ function calendarAreaMarkGroups(entries){
   }
   return [...groups.values()].map(group=>({ ...group, count:group.ids.size }));
 }
-function suggestedAreaForNewAop(){
+function suggestedAreaForNewAop(kind = currentLibraryKind()){
+  if(kind !== "custom") return SHARED_AREA_ID;  // AOPs go to the team list; custom items stay the person's own
   const current = currentAreaViewId();
   return current === MASTER_VIEW_ID ? DEFAULT_AREA_VIEW : normalizeAreaId(current);
 }
 function areaOptionsHtml(selectedId){
   const safe = normalizeAreaId(selectedId);
-  return AREA_VIEWS.map(v => `<option value="${v.id}" ${v.id === safe ? "selected" : ""}>${v.label}</option>`).join("");
+  return [...AREA_VIEWS, { id: SHARED_AREA_ID, label: SHARED_AREA_LABEL }].map(v => `<option value="${v.id}" ${v.id === safe ? "selected" : ""}>${v.label}</option>`).join("");
 }
 function ensureActiveAopInView(){
   const order = visibleAopOrder();
@@ -4463,6 +4474,7 @@ function addActualFromDayNotes(){
   ensureDateKey(dateKey);
   const actualArr = view.state.entries[dateKey].actual;
   const owner = tickOwnerFor(aopId);
+  if(!owner){ setActualLinkState("Open a person's view to tick a team AOP"); return; }
   if(hasTickBy(actualArr, aopId, owner)){
     setActualLinkState("Already marked");
     return;
@@ -7453,6 +7465,7 @@ function markSelectedDay(aopIdOverride){
 
   const dates = selectedDateKeys();
   const owner = tickOwnerFor(aopId);
+  if(!owner){ alert("Open a person's view to mark a team AOP."); return; }
   const targets = [];
   let weekends = 0;
   let already = 0;
@@ -7848,7 +7861,10 @@ function renderDashboard(){
     : "No planned marks in MTD range";
 
   const singleAreaView = currentAreaViewId() !== MASTER_VIEW_ID;
-  const allRows = (st.areaOrder || []).map(id=>{
+  // In a person's view a team AOP gets a row only when that person planned or ticked it this month.
+  const shownOrder = (st.areaOrder || []).filter(id => !(singleAreaView && aopAreaId(view.state.aops[id]) === SHARED_AREA_ID)
+    || !!(st.perAop[id] && (st.perAop[id].planned || st.perAop[id].actual)));
+  const allRows = shownOrder.map(id=>{
     const a = view.state.aops[id];
     const sMonth = st.perAop[id];
     const sMtd = st.mtdPerAop[id] || { planned:0, actual:0, matched:0 };

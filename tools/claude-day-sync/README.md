@@ -198,6 +198,27 @@ Unregister-ScheduledTask -TaskName "AI Calender day sync" -Confirm:$false
 
 ## What ends up in the calendar
 
+**The team AOP list (calendar version 3).** Once Adonis has moved the calendar
+to it (see [Moving to the team AOP list](#moving-to-the-team-aop-list-for-adonis-once)),
+nobody owns an AOP:
+
+- There is one list of AOPs, *Team AOPs*: exactly the AOPs Decagon runs (the
+  `aops/generated/*.json` files on main or production). It shows in everyone's
+  view. Your own area keeps only your own items: Cleanup, Vacation, Articles…
+- The sync ticks every team AOP you worked on, marked as yours, and your day
+  log says what you did. Two people can tick the same AOP on the same day.
+- A new AOP in Decagon is added to the team list by whoever's sync sees it
+  first; nobody claims it, so nothing waits for a *"your call"*. A renamed AOP
+  is renamed in the list by the sync itself.
+- Sprint outcomes go on the team AOP with your name: *"✅ Fixed X (5 Nov,
+  Name)"*. Monthly goals you plan go on it the same way: *"- Name: …"*.
+- In the calendar page, tick a team AOP from your own view (Master view asks you
+  to switch). A new AOP you add by hand goes to *Team AOPs*; a new custom item
+  stays yours.
+
+The rest of this section describes the version 2 calendar, where AOPs belong to
+a person's area; it still applies to people's own items.
+
 **New AOPs**, in your area:
 
 - One for each AOP you committed or edited that isn't in the calendar yet, in
@@ -483,7 +504,8 @@ the calendar):
 | `warning: config.json aliases 'X' -> 'Y', but the calendar has no 'Y' any more` | The calendar item was renamed or deleted. Fix the alias to the new calendar name, or remove it. Until then the file name is used. |
 | `note: '…' (yours, added by the sync) is a rename of …` | An earlier run added a renamed AOP as new. One of the two is a duplicate: move what you need and delete one in the calendar. |
 | A renamed AOP shows as *"not in the calendar"* | Git didn't see it as a rename (deleted and created in separate commits, or changed a lot at the same time). Add an alias from the new file name to the calendar name. |
-| `Renamed in the repo, still the old name in the calendar` | Nothing is wrong: the tick went to the right item. Adonis renames the items with `rename-items`. |
+| `Renamed in the repo, still the old name in the calendar` | Nothing is wrong: the tick went to the right item. Adonis renames the items with `rename-items` (in the team list the sync renames them itself). |
+| *"Open a person's view to tick a team AOP"* | Team AOPs have no owner, so Master view doesn't know whose the tick is. Pick your own view and tick it there. |
 
 Other commands:
 
@@ -533,6 +555,43 @@ The script has the same check the other way round: `KNOWN_APP_VERSION` at the
 top of `claude_day_sync.py` is the highest `APP_VERSION` it understands. When a
 change to what the calendar stores also changes the script, raise both and ask
 everyone to update their script.
+
+## Moving to the team AOP list (for Adonis, once)
+
+`migrate-to-shared` moves the calendar from people's AOP lists to one team list
+(calendar version 3):
+
+- each person's item for a repo AOP is merged into the one team item, named as
+  in the repo; every tick keeps whose it is (written out as `by`), and the month
+  notes of merged items are kept under *"From <Name>'s list:"*;
+- items that aren't AOPs (Cleanup, Vacation, ADHOC …) become that person's own
+  items; AOPs Decagon runs that the calendar lacked are added;
+- a mapping file settles what git can't: hand-written names (*"Sales and Product
+  Inquiries"* → the sales AOP), items to keep personal, and empty duplicates to
+  remove (only items without ticks can be removed):
+
+```json
+{
+  "map": {"Sales and Product Inquiries": "Assist customers with sales and product inquiries V2.2"},
+  "personal": ["Cleanup", "Vacation"],
+  "remove": ["Transport Damaged Product"]
+}
+```
+
+Keep it as `C:\Users\<you>\.aop-calendar-sync\shared-mapping.json` (it names
+people's items, so it isn't in this repo). Then:
+
+```powershell
+python "$HOME\aop-calendar-sync\claude_day_sync.py" migrate-to-shared           # dry run: the whole move, one line per AOP
+python "$HOME\aop-calendar-sync\claude_day_sync.py" migrate-to-shared --write   # saves, after a backup
+```
+
+A guard refuses the save unless every tick is still there with the same
+person on the same day (only exact duplicates of one person on one team AOP
+merge into one). Order of the rollout: everyone updates their script (it knows
+version 3), take a backup, run the move, then publish the version 3 page; an
+open old tab shows **Reload**. Until the move has run, a version 3 page or
+script works exactly as before.
 
 ## Renaming calendar items after a repo rename (for Adonis)
 

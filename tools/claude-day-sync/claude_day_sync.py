@@ -86,17 +86,25 @@ AREAS = {
     "others_some": "Christel",
     "adonis": "Adonis",
     "special_events": "Special Events",
+    "shared": "Team AOPs",
 }
+# The team's AOP list (calendar version 3): one item per AOP Decagon runs, owned by nobody. Ticks on
+# them carry the person's `by`; people's own areas keep only their own items (Cleanup, Vacation …).
+SHARED = "shared"
+NOT_A_PERSON = {SHARED, "special_events"}
 BLOCK_START = "── Claude day log (auto) ──"
 BLOCK_END = "── end of Claude day log ──"
 ENTRY_SOURCE = "claude-sync"
 PLAN_SOURCE = "claude-plan"
 # The app's APP_VERSION this script knows. A workspace saved by a newer page is refused, so an
 # old copy of this script never writes into a data shape it doesn't understand.
-KNOWN_APP_VERSION = 2
+KNOWN_APP_VERSION = 3
 # From this APP_VERSION on, a tick's `by` says whose work it is; before it, the AOP's area did.
 # Ticks on another person's AOP wait until a page this new has saved the workspace.
 BY_APP_VERSION = 2
+# From this APP_VERSION on, AOPs live in the team list (area "shared"): the sync keeps that list equal
+# to the AOPs on main and production, and never adds an AOP to a person's area.
+SHARED_APP_VERSION = 3
 ACHIEVED_HEADER = "Achieved during Sprint:"
 GOAL_HEADER = "Goal:"  # the app's own notation template starts with this
 MAX_CATCHUP_DAYS = 7
@@ -138,7 +146,9 @@ NOT_A_PERSON_RE = re.compile(r"\[bot\]|@decagon\.ai$", re.I)
 # A publish whose description is a release note (a numbered list, "Live since the last run ...") publishes
 # other people's changes, even where the publisher also edited something.
 RELEASE_NOTE_RE = re.compile(r"^(?:\[Dashboard\]\s*)?(?:\d+\.\s+\S|Live since the last run\b)", re.I)
-ACHIEVED_LINE_RE = re.compile(r"^✅ .+ \(\d{1,2} [A-Z][a-z]{2}\)$|^✅ \+\d+ more changes \(\d{1,2} [A-Z][a-z]{2}\)$")
+# "✅ <change> (5 Nov)", or on a team AOP "✅ <change> (5 Nov, Name)": whose change it was.
+ACHIEVED_LINE_RE = re.compile(r"^✅ .+ \(\d{1,2} [A-Z][a-z]{2}(?:, [^()]+)?\)$"
+                              r"|^✅ \+\d+ more changes \(\d{1,2} [A-Z][a-z]{2}(?:, [^()]+)?\)$")
 NOTATION_SECTION_RE = re.compile(r"^(goal|achieved\s*during\s*sprint|existing\s*blockers?)\b", re.I)
 GOAL_SECTION_RE = re.compile(r"^goals?\s*:", re.I)
 # AOPs that mark a day off, not work. A day planned with one of these gets no planned ticks.
@@ -206,9 +216,16 @@ def load_config():
     cfg = read_json(CONFIG_FILE)
     if not cfg:
         sys.exit(f"No config at {CONFIG_FILE}. Run `python {Path(__file__).name} setup` first.")
-    if cfg.get("area") not in AREAS:
-        sys.exit(f"Config area {cfg.get('area')!r} is not one of {', '.join(AREAS)}.")
+    if cfg.get("area") not in AREAS or cfg.get("area") == SHARED:
+        sys.exit(f"Config area {cfg.get('area')!r} is not one of {', '.join(a for a in AREAS if a != SHARED)}.")
     return cfg
+
+
+def shared_mode(state):
+    """True once the calendar keeps AOPs in the team list: version 3 AND the team list exists. A version-3
+    page can save before migrate-to-shared has run; until the move, everything works as before."""
+    return app_version(state) >= SHARED_APP_VERSION and any(
+        isinstance(a, dict) and a.get("area") == SHARED for a in (state or {}).get("aops", {}).values())
 
 
 # ------------------------------------------------------------ git activity
@@ -745,8 +762,12 @@ def collect(cfg, first, last, fetch=True):
         d = day.isoformat()
         days.append(build_activity(d, [c for c in commits if c["day"] == d], sessions.get(d, {})))
     worked = {a["name"] for d in days for a in d["aops"] if is_real_work(a)}
+    on_main = aop_names_on(cfg, cfg.get("main_ref", "origin/main"))
+    on_live = aop_names_on(cfg, cfg.get("live_ref", "origin/production"))
     return {"days": days, "achievements": build_achievements(commits), "landed_aops": sorted(landed_aop_names(cfg)),
             "renames": renames, "co_authors": aop_coauthors(cfg, worked, build_rename_map(renames)),
+            # the team list: every AOP Decagon runs (aops/generated/*.json on main or production)
+            "catalogue": sorted(on_main | on_live), "on_main": sorted(on_main),
             "warnings": warnings}
 
 
@@ -940,7 +961,7 @@ def day_log_label(name, matches, area, cal_names=None, new_status=None):
     label = name
     if (cal_names or {}).get(name):
         label = f"{name} → {clean_label(cal_names[name])}"
-    if owner == area:
+    if owner in (area, SHARED):  # your own item, or a team AOP: nobody else's
         return label
     if owner == SEVERAL:
         return f"{label} (in the calendar more than once)"
@@ -1062,7 +1083,7 @@ def apply_day(state, activity, area, cfg, stamp=None, review=None, renames=None,
 
     def tick(aop_id, done_key):
         label = aops[aop_id].get("name")
-        own = aops[aop_id].get("area") == area
+        own = aops[aop_id].get("area") in (area, SHARED)  # a team AOP is everyone's to tick
         if not own and not tick_others:
             report["other_area"].append(label)
             return
@@ -1137,25 +1158,32 @@ def insert_achieved(notation, new_lines):
 
 
 def apply_achievements(state, items, area, cfg, ledger, stamp=None, review=None, renames=None):
-    """Sprint-outcome lines into each own-area AOP's monthly notation. Returns (new_state, added, keys).
-    `review` drops or rewords lines; a dropped line's key still goes to the ledger, so it never comes back."""
+    """Sprint-outcome lines into the monthly notation of each AOP of the person's own area and, in the
+    team list (calendar version 3), of each team AOP, there with the person's name: "✅ X (5 Nov, Name)".
+    Returns (new_state, added, keys). `review` drops or rewords lines; a dropped line's key still goes to
+    the ledger, so it never comes back."""
     stamp = stamp or now_iso()
     review = review or empty_review()
     st = copy.deepcopy(state)
     aops = calendar_aops(st)
     aliases = cfg.get("aliases") or {}
+    who = (cfg.get("name") or AREAS.get(area, area)).strip()
     pending = {}
     for item in items:
         if item["key"] in ledger:
             continue
         aop_id = match_aop(item["aop"], aops, aliases, area, renames)
-        if not aop_id or aops[aop_id].get("area") != area:
+        team = bool(aop_id) and aops[aop_id].get("area") == SHARED and shared_mode(st)
+        if not aop_id or (aops[aop_id].get("area") != area and not team):
             continue
+        when = f"{short_date(item['day'])}, {who}" if team else short_date(item["day"])
+        if team:
+            item = {**item, "line": re.sub(r"\((\d{1,2} [A-Z][a-z]{2})\)$", f"({when})", item["line"])}
         text = outcome_text(item["line"])
         if text in review["skip_outcomes"]:
             item = {**item, "line": None, "skipped": item["line"]}
         elif text in review["reword_outcomes"]:
-            item = {**item, "line": f"✅ {review['reword_outcomes'][text]} ({short_date(item['day'])})", "was": item["line"]}
+            item = {**item, "line": f"✅ {review['reword_outcomes'][text]} ({when})", "was": item["line"]}
         pending.setdefault((aop_id, item["month"]), []).append(item)
     added, keys = [], []
     for (aop_id, month), group in sorted(pending.items()):
@@ -1273,6 +1301,8 @@ def apply_new_aops(state, collected, area, cfg, created, stamp=None, review=None
     landed = set(collected["landed_aops"]) if "landed_aops" in collected else None  # None: an --activity file from before
     real = list(dict.fromkeys(a["name"] for day in collected["days"] for a in day["aops"] if is_real_work(a)))
     worked = [n for n in real if landed is None or n in landed]
+    if shared_mode(state) and "catalogue" in collected:
+        return apply_team_list(state, collected, aliases, real, stamp, renames, report)
     unknown = sorted(wanted[b] for b in set(wanted) - {base_name(n) for n in worked})
     if unknown:
         raise RuntimeError(f"add_new_aops: {', '.join(repr(n) for n in unknown)} isn't one of this run's new AOPs. "
@@ -1323,6 +1353,43 @@ def apply_new_aops(state, collected, area, cfg, created, stamp=None, review=None
     return st, report
 
 
+def in_team_list(name, aops, renames=None):
+    """True if the team list has this AOP file: its exact name, or a name it had before or after a rename.
+    Exact on purpose: V2 and V4 of an AOP are two AOPs in Decagon, so two items in the list."""
+    names = {norm_name(n) for n in [name] + list((renames or {}).get(norm_name(name), []))}
+    return any(a.get("area") == SHARED and norm_name(a.get("name")) in names for a in aops.values())
+
+
+def apply_team_list(state, collected, aliases, real, stamp, renames, report):
+    """Calendar version 3: add every AOP Decagon runs (main or production) that the team list lacks, to
+    the team list, never to a person's area. Nobody claims anything, so nothing is held for a review."""
+    stamp = stamp or now_iso()
+    st = copy.deepcopy(state)
+    report["stale_aliases"] = stale_aliases(real, calendar_aops(state), aliases)
+    for name in collected.get("catalogue") or []:
+        items = st.setdefault("aops", {})
+        if in_team_list(name, calendar_aops(st), renames):
+            continue
+        aop_id = str(uuid.uuid4())
+        color = pick_new_color(a.get("color") for a in items.values() if isinstance(a, dict))
+        items[aop_id] = {"id": aop_id, "name": name, "color": color, "area": SHARED, "kind": "aop",
+                         "created_at": stamp, "updated_at": stamp, "source": ENTRY_SOURCE}
+        st["aopOrder"] = list(st.get("aopOrder") or []) + [aop_id]
+        report["created"].append({"name": name, "id": aop_id, "color": color, "similar": [], "team": True})
+    return st, report
+
+
+def team_list_renames(state, collected):
+    """Calendar version 3: the team list follows renames in the repo by itself (rename-items, team list only)."""
+    if not shared_mode(state) or "on_main" not in collected:
+        return {"rename": [], "left": []}
+    plan = plan_item_renames(state, collected.get("renames"), collected["on_main"])
+    aops = calendar_aops(state)
+    plan["rename"] = [r for r in plan["rename"] if (aops.get(r["id"]) or {}).get("area") == SHARED]
+    plan["left"] = []
+    return plan
+
+
 def apply_all(state, collected, area, cfg, ledger, created=None, stamp=None, changes=None, saved_review=None):
     """Returns (new_state, reports, added, keys, new_aops, review). The review's names are matched after
     this run's new AOPs are added, so a tick on an AOP that is new today can be skipped too."""
@@ -1355,9 +1422,9 @@ def new_aop_adds(changes):
 
 
 def outcome_text(line):
-    """An outcome line as the person refers to it: no ✅, no "(4 Nov)", any case or spacing."""
+    """An outcome line as the person refers to it: no ✅, no "(4 Nov)" or "(4 Nov, Name)", any case or spacing."""
     text = re.sub(r"^\s*✅\s*", "", str(line or ""))
-    return norm_name(re.sub(r"\s*\(\d{1,2} [A-Z][a-z]{2}\)\s*$", "", text))
+    return norm_name(re.sub(r"\s*\(\d{1,2} [A-Z][a-z]{2}(?:, [^()]+)?\)\s*$", "", text))
 
 
 def new_aop_skips(changes, saved):
@@ -1481,10 +1548,11 @@ def check_only_additions(old, new, area, dks):
     new_aops = calendar_aops(new)
     old_aops = old.get("aops") or {}
     new_ids = [i for i in (expected.get("aops") or {}) if i not in old_aops]
+    team = shared_mode(old)  # calendar version 3: new AOPs go to the team list, never to a person's area
     for i in new_ids:
         a = expected["aops"].pop(i)
         if not (isinstance(a, dict) and set(a) == NEW_AOP_KEYS and a["id"] == i and a["source"] == ENTRY_SOURCE
-                and a["area"] == area and a["kind"] == "aop" and _rgb(a["color"])):
+                and a["area"] == (SHARED if team else area) and a["kind"] == "aop" and _rgb(a["color"])):
             raise RuntimeError("Guard: an unexpected AOP would be added. Nothing written.")
     if new_ids:
         if list(expected.get("aopOrder") or []) != list(old.get("aopOrder") or []) + new_ids:
@@ -1541,7 +1609,8 @@ def check_only_additions(old, new, area, dks):
                 new_notes[dk] = note
     old_monthly = old.get("aopMonthly") or {}
     new_monthly = expected.get("aopMonthly") or {}
-    own = {i for i, a in old_aops.items() if isinstance(a, dict) and a.get("area") == area} | set(new_ids)
+    own = {i for i, a in old_aops.items() if isinstance(a, dict)
+           and (a.get("area") == area or (team and a.get("area") == SHARED))} | set(new_ids)
     for aop_id, months in list(new_monthly.items()):
         for month, record in list(months.items()):
             before = (old_monthly.get(aop_id) or {}).get(month)
@@ -1636,17 +1705,41 @@ def _names(bucket, aops):
     return sorted({aops[e["aopId"]]["name"] for e in bucket or [] if isinstance(e, dict) and e.get("aopId") in aops})
 
 
+def plannable_items(state, area):
+    """What a person can plan: their own items, and in calendar version 3 also the team list."""
+    items = area_items(state, area)
+    if shared_mode(state):
+        items.update({i: a for i, a in calendar_aops(state).items() if a.get("area") == SHARED})
+    return items
+
+
+def team_goal_prefix(cfg, area):
+    return f"{(cfg.get('name') or AREAS.get(area, area)).strip()}: "
+
+
 def plan_facts(state, cfg, area, month, commits, renames=None):
     """What a month's plan can build on, for one area. Reads only. Publishes to production don't
-    count as commits (the edit commits do), and a renamed AOP file still finds its item."""
-    aops = area_items(state, area)
+    count as commits (the edit commits do), and a renamed AOP file still finds its item. In calendar
+    version 3 it covers the team AOPs the person ticked, planned or committed to, with only their own
+    goal and outcome lines."""
+    aops = plannable_items(state, area)
     all_aops = calendar_aops(state)
     aliases = cfg.get("aliases") or {}
     prev = shift_month(month, -1)
     entries = state.get("entries") or {}
+    who = team_goal_prefix(cfg, area)[:-2]
 
     def mine(bucket):  # this person's ticks only, not another person's tick on one of their AOPs
         return [e for e in bucket or [] if isinstance(e, dict) and entry_owner(e, all_aops) == area]
+
+    touched = set()
+    for dk, bucket in entries.items():
+        if dk.startswith(prev) or dk.startswith(month):
+            for kind in ("planned", "actual"):
+                touched.update(e.get("aopId") for e in mine((bucket or {}).get(kind)))
+    for c in commits:
+        if not is_bulk(c) and not c.get("publish"):
+            touched.update(match_aop(n, aops, aliases, renames=renames) for k, n in c["items"] if k == "aop")
 
     days, days_off = [], []
     for day in month_days(month):
@@ -1661,14 +1754,21 @@ def plan_facts(state, cfg, area, month, commits, renames=None):
 
     per_aop = {}
     for aop_id, a in sorted(aops.items(), key=lambda x: x[1]["name"].lower()):
-        if is_absence(a["name"]):
+        team = a.get("area") == SHARED
+        if is_absence(a["name"]) or (team and aop_id not in touched):
             continue
         monthly = (state.get("aopMonthly") or {}).get(aop_id) or {}
-        info = {"kind": a.get("kind", "aop"), "required": bool((monthly.get(month) or {}).get("required"))}
+        info = {"kind": a.get("kind", "aop"), "team": team,
+                "required": bool((monthly.get(month) or {}).get("required"))}
         for key, m in (("last_month", prev), ("this_month", month)):
             rec = monthly.get(m) or {}
             notes = parse_notation(rec.get("notation"))
-            info[key] = {"goal_field": rec.get("goal", ""), "goals": notes["goals"], "achieved": notes["achieved"],
+            goals, achieved, goal_field = notes["goals"], notes["achieved"], rec.get("goal", "")
+            if team:  # a team AOP's notes hold everyone's lines: keep this person's
+                goals = [g[len(who) + 1:].strip() for g in goals if g.lower().startswith(who.lower() + ":")]
+                achieved = [x for x in achieved if x.endswith(f", {who})")]
+                goal_field = ""
+            info[key] = {"goal_field": goal_field, "goals": goals, "achieved": achieved,
                          "planned_days": 0, "actual_days": 0}
             for dk, bucket in entries.items():
                 if dk.startswith(m):
@@ -1714,37 +1814,47 @@ def plan_facts(state, cfg, area, month, commits, renames=None):
 
 
 def apply_plan(state, plan, area, cfg, today=None, stamp=None):
-    """Goals and planned ticks from an agreed plan, own area only. Returns (new_state, report)."""
+    """Goals and planned ticks from an agreed plan: own area, and in calendar version 3 the team list too.
+    On a team AOP each goal line carries the person's name ("- Name: …") and the shared one-line goal
+    field is left alone. Returns (new_state, report)."""
     stamp = stamp or now_iso()
     today = today or dt.date.today()
     month = str(plan.get("month") or "")
     if not re.fullmatch(r"\d{4}-\d{2}", month):
         raise RuntimeError("The plan file needs \"month\": \"YYYY-MM\".")
     st = copy.deepcopy(state)
-    aops = area_items(st, area)
+    aops = plannable_items(st, area)
     aliases = cfg.get("aliases") or {}
     tombstones = st.get("entryTombstones") or {}
     report = {"month": month, "goals": [], "goal_field": [], "ticked": [], "skipped": []}
+    where = f"{AREAS.get(area, area)}'s area" + (" or the team list" if shared_mode(st) else "")
+    prefix = team_goal_prefix(cfg, area)
 
     for name, spec in (plan.get("aops") or {}).items():
-        aop_id = match_aop(name, aops, aliases)
+        aop_id = match_aop(name, aops, aliases, area)
         if not aop_id:
-            report["skipped"].append(f"{name}: not an AOP in {AREAS.get(area, area)}'s area")
+            report["skipped"].append(f"{name}: not an AOP in {where}")
             continue
         label = aops[aop_id]["name"]
+        team = aops[aop_id].get("area") == SHARED
         monthly = (st.get("aopMonthly") or {}).get(aop_id) or {}
         record = dict(monthly.get(month) or new_monthly_record(monthly, month, stamp))
         before = dict(record)
         goal = " ".join(str(spec.get("goal") or "").split())
-        if goal and not (record.get("goal") or "").strip():
+        wanted_goals = list(spec.get("goals") or [])
+        if team:
+            wanted_goals = ([goal] if goal else []) + wanted_goals  # the one-line field is everyone's: not touched
+        elif goal and not (record.get("goal") or "").strip():
             record.update(goal=goal, goal_updated_at=stamp, goal_created_at=record.get("goal_created_at") or stamp)
             report["goal_field"].append(f"{label}: {goal}")
         elif goal and record.get("goal", "").strip() != goal:
             report["skipped"].append(f"{label}: goal field already says {record['goal'][:60]!r}, left as it is")
         have = {norm_name(g) for g in parse_notation(record.get("notation"))["goals"]}
         new = []
-        for g in spec.get("goals") or []:
+        for g in wanted_goals:
             g = re.sub(r"^[-*•]\s*", "", " ".join(str(g).split()))
+            if g and team and not g.lower().startswith(prefix.lower()):
+                g = prefix + g
             if g and norm_name(g) not in have:
                 have.add(norm_name(g))
                 new.append(g)
@@ -1772,12 +1882,13 @@ def apply_plan(state, plan, area, cfg, today=None, stamp=None):
             continue
         added = False
         for name in names or []:
-            aop_id = match_aop(name, aops, aliases)
+            aop_id = match_aop(name, aops, aliases, area)
             if not aop_id:
-                report["skipped"].append(f"{dk} {name}: not an AOP in {AREAS.get(area, area)}'s area")
+                report["skipped"].append(f"{dk} {name}: not an AOP in {where}")
                 continue
             label = aops[aop_id]["name"]
-            entry_id = f"{PLAN_SOURCE}:{dk}:{aop_id}"
+            # several people can plan one team AOP on the same day: their planned ticks get their area on the end
+            entry_id = tick_id(PLAN_SOURCE, dk, aop_id, aops[aop_id].get("area"), area)
             if entry_id in tombstones:
                 report["skipped"].append(f"{dk} {label}: someone deleted this planned tick before")
             elif has_tick_by(planned, aop_id, area, calendar_aops(st)):
@@ -1798,7 +1909,7 @@ def check_plan_additions(old, new, area, month):
     check_app_version(old)
     expected = copy.deepcopy(new)
     old_entries = old.get("entries") or {}
-    own = {i for i, a in (old.get("aops") or {}).items() if isinstance(a, dict) and a.get("area") == area}
+    own = set(plannable_items(old, area))
     for dk, bucket in list((expected.get("entries") or {}).items()):
         before = old_entries.get(dk)
         if bucket == before:
@@ -2154,6 +2265,338 @@ def print_item_renames(plan):
         print("Every calendar name already matches the repo.")
 
 
+# ------------------------------------------- migrate-to-shared (for Adonis, once)
+# Moves the calendar to the team list (APP_VERSION 3): one item per AOP Decagon runs, owned by nobody.
+# Each person's item for a repo AOP is merged into that one team item; every tick keeps whose it is (`by`),
+# month notes are kept under the person's name, and items that aren't AOPs (Cleanup, Vacation …) become
+# that person's own items. A mapping file settles the names git can't (hand-written AOP names).
+
+MIGRATION_NOTE_HEADER = "From {person}'s list:"
+MAPPING_KEYS = {"map", "personal", "remove"}
+
+
+def read_mapping(path):
+    """{"map": {calendar name: repo AOP name}, "personal": [calendar names], "remove": [calendar names]}"""
+    if not path:
+        return {"map": {}, "personal": [], "remove": []}
+    raw = read_json(path)
+    if not isinstance(raw, dict) or set(raw) - MAPPING_KEYS - {"_notes"}:
+        raise RuntimeError(f"{path}: expected the keys {', '.join(sorted(MAPPING_KEYS))}. Nothing written.")
+    return {"map": dict(raw.get("map") or {}), "personal": list(raw.get("personal") or []),
+            "remove": list(raw.get("remove") or [])}
+
+
+def match_catalogue(name, catalogue, renames=None):
+    """The repo AOP a calendar name stands for: exact, then without versions (the main file of the family
+    over its voice/chat copies), then near spelling, each also through git renames. None when unsure."""
+    targets = [name] + list((renames or {}).get(norm_name(name), []))
+    for key in MATCH_KEYS:
+        found = sorted({c for c in catalogue for t in targets if key(c) == key(t)})
+        if len(found) > 1 and key is not norm_name:
+            plain = [c for c in found if not re.search(r"\b(voice|chat)\b", c, re.I)]
+            found = plain if len(plain) == 1 else found
+        if len(found) == 1:
+            return found[0]
+        if found:
+            return None
+    return None
+
+
+def _tick_counts(state):
+    out = {}
+    for bucket in (state.get("entries") or {}).values():
+        for kind in ("planned", "actual"):
+            for e in (bucket or {}).get(kind) or []:
+                if isinstance(e, dict):
+                    out[e.get("aopId")] = out.get(e.get("aopId"), 0) + 1
+    return out
+
+
+def plan_shared_migration(state, catalogue, renames, mapping):
+    """What the move would do. Reads only. {"groups": {repo name: {"keeper", "merge": [ids]}}, "new": [repo names],
+    "personal": [ids], "remove": [ids], "unsure": [ids]}"""
+    rmap = build_rename_map(renames)
+    catalogue = sorted(set(catalogue))
+    items = calendar_aops(state)
+    ticks = _tick_counts(state)
+    by_norm = {norm_name(k): v for k, v in mapping["map"].items()}
+    personal_names = {norm_name(n) for n in mapping["personal"]}
+    remove_names = {norm_name(n) for n in mapping["remove"]}
+    bad = sorted(v for v in mapping["map"].values() if v not in catalogue)
+    if bad:
+        raise RuntimeError(f"mapping: {', '.join(map(repr, bad))} isn't an AOP on main or production. Nothing written.")
+    known = {norm_name(clean_label(a.get("name"))) for a in items.values()}
+    for label, names in (("map", by_norm), ("personal", personal_names), ("remove", remove_names)):
+        missing = sorted(n for n in names if n not in known)
+        if missing:
+            raise RuntimeError(f"mapping {label}: {', '.join(map(repr, missing))} isn't in the calendar. Nothing written.")
+    target_of, personal, remove, unsure = {}, [], [], []
+    order = {i: n for n, i in enumerate(state.get("aopOrder") or [])}
+    for i, a in sorted(items.items(), key=lambda x: order.get(x[0], 10 ** 6)):
+        name = clean_label(a.get("name"))
+        key = norm_name(name)
+        if key in remove_names:
+            if ticks.get(i):
+                raise RuntimeError(f"mapping remove: {name!r} has {ticks[i]} tick(s); map it or keep it personal. Nothing written.")
+            remove.append(i)
+        elif key in personal_names:
+            personal.append(i)
+        elif key in by_norm:
+            target_of[i] = by_norm[key]
+        elif a.get("area") == SHARED:
+            target_of[i] = match_catalogue(name, catalogue, rmap) or name
+        elif a.get("kind") == "custom":
+            continue  # already a person's own item
+        else:
+            hit = match_catalogue(name, catalogue, rmap)
+            if hit:
+                target_of[i] = hit
+            else:
+                unsure.append(i)  # no AOP in the repo: kept as the person's own item
+    groups = {}
+    for i, target in target_of.items():
+        groups.setdefault(target, []).append(i)
+    plan = {"groups": {}, "new": [], "personal": personal + unsure, "remove": remove, "unsure": unsure}
+    for target, ids in sorted(groups.items()):
+        keeper = max(ids, key=lambda i: (items[i].get("area") == SHARED, ticks.get(i, 0),
+                                         norm_name(items[i].get("name")) == norm_name(target), -order.get(i, 10 ** 6)))
+        plan["groups"][target] = {"keeper": keeper, "merge": [i for i in ids if i != keeper]}
+    plan["new"] = [n for n in catalogue if n not in groups]
+    return plan
+
+
+def _owner_before(e, items):
+    """Whose a tick is before the move, the way the page reads it: `by`, else the AOP's area. Every view
+    the page has counts (Special Events too); only the team list itself never owns a tick."""
+    if e.get("by") in AREAS and e.get("by") != SHARED:
+        return e["by"]
+    area = (items.get(e.get("aopId")) or {}).get("area")
+    return area if area in AREAS else "pool"
+
+
+def apply_shared_migration(state, plan, stamp=None):
+    """The move itself, on a copy. Returns (new_state, report)."""
+    stamp = stamp or now_iso()
+    st = copy.deepcopy(state)
+    items = st.setdefault("aops", {})
+    old_items = copy.deepcopy(items)
+    monthly = st.setdefault("aopMonthly", {})
+    tomb = st.setdefault("entryTombstones", {})
+    remap = {i: g["keeper"] for g in plan["groups"].values() for i in g["merge"]}
+    moving = set(remap) | {g["keeper"] for g in plan["groups"].values()} | set(plan["personal"])
+    report = {"given_by": 0, "moved": 0, "dropped": 0}
+    for dk, bucket in sorted((st.get("entries") or {}).items()):
+        for kind in ("planned", "actual"):
+            if kind not in (bucket or {}):
+                continue
+            # first every tick on a moving item gets its person written out, then merged ones move
+            rows = []
+            for e in bucket.get(kind) or []:
+                if not (isinstance(e, dict) and e.get("aopId") in moving):
+                    rows.append((e, None))
+                    continue
+                owner = _owner_before(e, old_items)
+                e2 = dict(e)
+                if e2.get("by") != owner:
+                    e2["by"] = owner
+                    report["given_by"] += 1
+                rows.append((e2, remap.get(e.get("aopId"))))
+            present = {(x.get("aopId"), x.get("by")) for x, target in rows if target is None and isinstance(x, dict)}
+            out = []
+            for x, target in rows:
+                if target is None:
+                    out.append(x)
+                    continue
+                tomb[x["id"]] = {"deleted_at": stamp, "dateKey": dk, "type": kind}
+                if (target, x["by"]) in present:
+                    report["dropped"] += 1  # that person already has this tick on the team AOP that day
+                    continue
+                source = x.get("source")
+                new_id = (tick_id(source, dk, target, SHARED, x["by"]) if source in (ENTRY_SOURCE, PLAN_SOURCE)
+                          else str(uuid.uuid4()))
+                if new_id in tomb:
+                    new_id = str(uuid.uuid4())
+                x.update(id=new_id, aopId=target)
+                present.add((target, x["by"]))
+                report["moved"] += 1
+                out.append(x)
+            bucket[kind] = out
+    for target, g in plan["groups"].items():
+        keeper = g["keeper"]
+        for i in g["merge"]:
+            person = AREAS.get(old_items[i].get("area"), old_items[i].get("area"))
+            for month, record in sorted((monthly.get(i) or {}).items()):
+                lines = _copy_note_lines(record or {})
+                if not lines:
+                    continue
+                months = monthly.setdefault(keeper, {})
+                rec = dict(months.get(month) or new_monthly_record(months, month, stamp))
+                block = [MIGRATION_NOTE_HEADER.format(person=person)] + lines
+                rec["notation"] = "\n".join(l for l in [(rec.get("notation") or "").rstrip()] + block if l)
+                rec["notation_updated_at"] = stamp
+                months[month] = rec
+            monthly.pop(i, None)
+            items.pop(i, None)
+            st.setdefault("aopTombstones", {})[i] = {"deleted_at": stamp}
+        items[keeper] = {**items[keeper], "name": target, "area": SHARED, "kind": "aop", "updated_at": stamp}
+    for i in plan["personal"]:
+        items[i] = {**items[i], "kind": "custom", "updated_at": stamp}
+    for i in plan["remove"]:
+        items.pop(i, None)
+        monthly.pop(i, None)
+        st.setdefault("aopTombstones", {})[i] = {"deleted_at": stamp}
+    gone = set(remap) | set(plan["remove"])
+    order = [i for i in st.get("aopOrder") or [] if i not in gone]
+    for name in plan["new"]:
+        aop_id = str(uuid.uuid4())
+        color = pick_new_color(a.get("color") for a in items.values() if isinstance(a, dict))
+        items[aop_id] = {"id": aop_id, "name": name, "color": color, "area": SHARED, "kind": "aop",
+                         "created_at": stamp, "updated_at": stamp, "source": ENTRY_SOURCE}
+        order.append(aop_id)
+    st["aopOrder"] = order
+    st["appVersion"] = SHARED_APP_VERSION
+    return st, report
+
+
+def check_shared_migration(old, new, plan, report):
+    """Raise unless `new` is `old` moved to the team list exactly as planned: no tick lost or changing person."""
+    check_app_version(old)
+    if shared_mode(old):
+        raise RuntimeError("The calendar already has the team list. Nothing written.")
+    if new.get("appVersion") != SHARED_APP_VERSION:
+        raise RuntimeError("Guard: the new state isn't marked version 3. Nothing written.")
+    old_items, new_items = old.get("aops") or {}, new.get("aops") or {}
+    remap = {i: g["keeper"] for g in plan["groups"].values() for i in g["merge"]}
+    keepers = {g["keeper"]: t for t, g in plan["groups"].items()}
+    gone = set(remap) | set(plan["remove"])
+    for i, a in old_items.items():
+        b = new_items.get(i)
+        if i in gone:
+            if b is not None:
+                raise RuntimeError("Guard: a merged or removed item would stay. Nothing written.")
+            continue
+        if b is None:
+            raise RuntimeError("Guard: an item would disappear. Nothing written.")
+        allowed = {"updated_at"} | ({"name", "area", "kind"} if i in keepers else {"kind"} if i in plan["personal"] else set())
+        if {k for k in set(a) | set(b) if a.get(k) != b.get(k)} - allowed:
+            raise RuntimeError(f"Guard: item {clean_label(a.get('name'))!r} would change beyond the plan. Nothing written.")
+        if i in keepers and (b.get("area") != SHARED or b.get("name") != keepers[i]):
+            raise RuntimeError("Guard: a team AOP would get the wrong name or area. Nothing written.")
+    added = set(new_items) - set(old_items)
+    if len(added) != len(plan["new"]) or any(new_items[i].get("area") != SHARED or set(new_items[i]) != NEW_AOP_KEYS
+                                             for i in added):
+        raise RuntimeError("Guard: unexpected new items. Nothing written.")
+
+    def ledger(state, items, after):
+        out = {}
+        for dk, bucket in (state.get("entries") or {}).items():
+            for kind in ("planned", "actual"):
+                for e in (bucket or {}).get(kind) or []:
+                    if not isinstance(e, dict):
+                        continue
+                    aop = e.get("aopId") if after else remap.get(e.get("aopId"), e.get("aopId"))
+                    who = e.get("by") if after and e.get("by") else _owner_before(e, items)
+                    key = (dk, kind, who, aop)
+                    out[key] = out.get(key, 0) + 1
+        return out
+
+    before, after = ledger(old, old_items, False), ledger(new, new_items, True)
+    lost = {k: n - after.get(k, 0) for k, n in before.items() if n > after.get(k, 0)}
+    extra = {k: n - before.get(k, 0) for k, n in after.items() if n > before.get(k, 0)}
+    if extra:
+        raise RuntimeError(f"Guard: {sum(extra.values())} tick(s) would appear from nowhere. Nothing written.")
+    if sum(lost.values()) != report["dropped"]:
+        raise RuntimeError(f"Guard: {sum(lost.values())} tick(s) would be lost, {report['dropped']} expected "
+                           "(same person, same team AOP, same day). Nothing written.")
+    for k, n in lost.items():  # a dropped tick must have a twin by the same person on the same team AOP that day
+        if after.get(k, 0) < 1:
+            raise RuntimeError("Guard: a person's tick for a day would disappear completely. Nothing written.")
+    om, nm = old.get("aopMonthly") or {}, new.get("aopMonthly") or {}
+    for i, months in om.items():
+        if i in gone:
+            continue
+        for month, rec in months.items():
+            after_rec = (nm.get(i) or {}).get(month) or {}
+            old_lines = [l.rstrip() for l in (rec.get("notation") or "").replace("\r\n", "\n").split("\n") if l.strip()]
+            new_lines = [l.rstrip() for l in (after_rec.get("notation") or "").replace("\r\n", "\n").split("\n") if l.strip()]
+            if new_lines[:len(old_lines)] != old_lines:
+                raise RuntimeError("Guard: an AOP's month notes would lose text. Nothing written.")
+    for i in remap:
+        for month, rec in (om.get(i) or {}).items():
+            for line in _copy_note_lines(rec or {}):
+                keeper_lines = ((nm.get(remap[i]) or {}).get(month) or {}).get("notation") or ""
+                if line not in keeper_lines:
+                    raise RuntimeError("Guard: a merged item's month notes would be lost. Nothing written.")
+    rest_old = {k: v for k, v in old.items() if k not in ("aops", "aopOrder", "aopMonthly", "entries",
+                                                         "entryTombstones", "aopTombstones", "appVersion")}
+    rest_new = {k: v for k, v in new.items() if k not in ("aops", "aopOrder", "aopMonthly", "entries",
+                                                         "entryTombstones", "aopTombstones", "appVersion")}
+    if rest_old != rest_new:
+        raise RuntimeError("Guard: day notes, settings or other data would change. Nothing written.")
+
+
+def print_shared_migration(state, plan, report, after):
+    items = calendar_aops(state)
+    ticks = _tick_counts(state)
+    label = lambda i: f"{clean_label(items[i].get('name'))} [{AREAS.get(items[i].get('area'), items[i].get('area'))}, {ticks.get(i, 0)} ticks]"  # noqa: E731
+    team = [a for a in calendar_aops(after).values() if a.get("area") == SHARED]
+    print(f"Team list after the move: {len(team)} AOPs (the AOPs on main or production).")
+    print(f"\nFrom people's lists into the team list ({len(plan['groups'])}):")
+    for target, g in plan["groups"].items():
+        merged = "; merged in: " + ", ".join(label(i) for i in g["merge"]) if g["merge"] else ""
+        print(f"    {target}  <-  {label(g['keeper'])}{merged}")
+    if plan["new"]:
+        print(f"\nNew in the team list, no calendar item before ({len(plan['new'])}): {', '.join(plan['new'])}")
+    print(f"\nKept as the person's own items, not AOPs ({len(plan['personal'])}):")
+    for i in plan["personal"]:
+        print(f"    {label(i)}{'   <- no AOP in the repo matches: map it if it is one' if i in plan['unsure'] else ''}")
+    if plan["remove"]:
+        print(f"\nRemoved, no ticks ({len(plan['remove'])}): " + ", ".join(label(i) for i in plan["remove"]))
+    print(f"\nTicks: {report['given_by']} given their person explicitly, {report['moved']} moved onto team AOPs, "
+          f"{report['dropped']} dropped as duplicates (same person, same team AOP, same day).")
+
+
+def cmd_migrate_to_shared(args):
+    """Dry run unless --write. With --state it works on an exported file and never touches the calendar."""
+    cfg = load_config()
+    if not args.no_fetch:
+        for w in fetch_repo(cfg):
+            print(f"warning: {w}")
+    mapping = read_mapping(args.mapping or (HOME_DIR / "shared-mapping.json" if (HOME_DIR / "shared-mapping.json").exists() else None))
+    catalogue = aop_names_on(cfg, cfg.get("main_ref", "origin/main")) | aop_names_on(cfg, cfg.get("live_ref", "origin/production"))
+    renames = aop_renames(cfg)
+
+    def run_once(old):
+        plan = plan_shared_migration(old, catalogue, renames, mapping)
+        new, report = apply_shared_migration(old, plan)
+        check_shared_migration(old, new, plan, report)
+        print_shared_migration(old, plan, report, new)
+        print("Guard: every tick kept with its person - OK")
+        return new
+
+    if args.state:
+        raw = read_json(args.state)
+        new = run_once(raw.get("state", raw))
+        if args.out:
+            write_json(args.out, {**raw, "state": new} if "state" in raw else new)
+            print(f"Wrote {args.out}")
+        return
+    ws = _signed_in(cfg)
+    for _ in range(5):
+        row = ws.fetch()
+        new = run_once(row["state"])
+        if not args.write:
+            print("\nDry run, nothing saved. Add --write to save.")
+            return
+        if not ws.write_if_unchanged(new, row["updated_at"]):
+            print("Someone saved in between; reading again.\n")
+            continue
+        after = ws.fetch()["state"]
+        print("\nSaved." if after.get("appVersion") == SHARED_APP_VERSION else "\nwarning: saved, but a re-read isn't version 3")
+        return
+    raise RuntimeError("The workspace kept changing while writing; gave up after 5 tries. Nothing lost - run again.")
+
+
 # ---------------------------------------------------------------- Supabase
 
 class Workspace:
@@ -2223,10 +2666,16 @@ def sync_live(ws, cfg, collected, dry_run, changes=None):
     for _ in range(5):
         row = ws.fetch()
         old = row["state"]
-        new, reports, added, keys, new_aops, review = apply_all(old, collected, area, cfg, ledger, created,
+        # Calendar version 3: the team list first follows renames in the repo (only names change, own guard) ...
+        team_renames = team_list_renames(old, collected)
+        mid = apply_item_renames(old, team_renames) if team_renames["rename"] else old
+        check_item_renames(old, mid, team_renames)
+        # ... then everything else is additions only
+        new, reports, added, keys, new_aops, review = apply_all(mid, collected, area, cfg, ledger, created,
                                                                 changes=changes, saved_review=saved_review)
-        check_only_additions(old, new, area, dks)
-        result = {"reports": reports, "added": added, "new_aops": new_aops, "written": False}
+        check_only_additions(mid, new, area, dks)
+        result = {"reports": reports, "added": added, "new_aops": new_aops, "written": False,
+                  "team_renames": team_renames["rename"]}
         if dry_run:
             return result
         if new != old and not ws.write_if_unchanged(new, row["updated_at"]):
@@ -2327,8 +2776,14 @@ def days_to_run(explicit, until=None):
 
 def print_result(result, full=True):
     new_aops = result.get("new_aops") or {}
+    if result.get("team_renames"):
+        print(f"Renamed in the team list, as in the repo ({len(result['team_renames'])}):")
+        for r in result["team_renames"]:
+            print(f"    {r['old']}  ->  {r['new']}")
+        print()
     if new_aops.get("created"):
-        print(f"New AOPs in your area ({len(new_aops['created'])}):")
+        team = all(a.get("team") for a in new_aops["created"])
+        print(f"New AOPs {'in the team list, new in Decagon' if team else 'in your area'} ({len(new_aops['created'])}):")
         for a in new_aops["created"]:
             hint = f"  - maybe the same as: {', '.join(a['similar'][:3])}" if a["similar"] else ""
             print(f"    {a['color']} {a['name']}{hint}")
@@ -2446,8 +2901,8 @@ def cmd_setup(args):
     ask("supabase_anon_key", "Supabase anon key (starts with sb_publishable_)", check=check_anon_key)
     ask("workspace_id", "Workspace ID", "nordics-team", check=lambda v: None if v else "It can't be empty.")
     ask("email", "Your calendar login email", check=lambda v: None if re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", v) else "That isn't an email address.")
-    print("Areas: " + ", ".join(f"{k} = {v}" for k, v in AREAS.items()))
-    ask("area", "Your area id", check=lambda v: None if v in AREAS else "That isn't one of the area ids above.")
+    print("Areas: " + ", ".join(f"{k} = {v}" for k, v in AREAS.items() if k != SHARED))
+    ask("area", "Your area id", check=lambda v: None if v in AREAS and v != SHARED else "That isn't one of the area ids above.")
     ask("name", "Your first name, as dashboard commits write it", AREAS[cfg["area"]])
     ask("power_repo", "Path to your power repo clone", str(Path.home() / "NCS AI" / "power"))
     emails = cfg.get("author_emails") or [cfg["email"]]
@@ -2804,6 +3259,16 @@ def main():
     ri.add_argument("--out", help="with --state: write the renamed state here")
     ri.add_argument("--no-fetch", action="store_true")
     ri.set_defaults(fn=cmd_rename_items)
+
+    ms = sub.add_parser("migrate-to-shared", help="for Adonis, once: move the calendar to the team AOP list "
+                                                   "(version 3); dry run unless --write")
+    ms.add_argument("--mapping", help="names git can't settle: {map: {calendar name: repo AOP}, personal: [...], "
+                                      "remove: [...]} (default ~/.aop-calendar-sync/shared-mapping.json)")
+    ms.add_argument("--write", action="store_true", help="save to the live calendar (default: dry run)")
+    ms.add_argument("--state", help="work on an exported state file instead of the live calendar")
+    ms.add_argument("--out", help="with --state: write the moved state here")
+    ms.add_argument("--no-fetch", action="store_true")
+    ms.set_defaults(fn=cmd_migrate_to_shared)
 
     m = sub.add_parser("migrate-copies", help="one-off: move '<AOP> (Name)' copies onto the originals as ticks by that person")
     m.add_argument("--suffix", required=True, help='the copies\' name ending, e.g. "(Erik)"')
