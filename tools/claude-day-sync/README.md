@@ -285,14 +285,17 @@ Claude sessions (1): "Insurance V4 for chat"
 ## End-of-day review (with Claude)
 
 Say **end my day** in Claude Code, or let a Claude Desktop scheduled task
-start it on weekdays at your time (the setup in Claude creates it; it's called
-*AI Calender: review my day*). Claude then:
+start it 30 minutes before you finish work (the setup in Claude asks when you
+finish, and a weekday that ends at another time gets its own task; it's
+called *AI Calender: review my day*). Claude then:
 
 1. Runs `run --dry-run` (today plus any day not saved yet, up to a week back)
-   and shows you what would be added: new AOPs, ticks, sprint outcomes and the
-   day log. It points out what looks off, such as an outcome that belongs to
+   and gives you a short summary: new AOPs, ticks, sprint outcomes, and a
+   numbered list of suggested fixes, such as an outcome that belongs to
    another AOP or a vague commit subject.
-2. Asks if you want to change anything, and writes your changes to
+2. Asks with buttons, in one go: save with the suggested fixes or as it is,
+   your note on what you did (with a draft), and whether a "maybe the same
+   as" AOP is a duplicate. It writes your answers to
    `C:\Users\<you>\.aop-calendar-sync\changes-YYYY-MM-DD.json`:
 
    ```json
@@ -308,8 +311,9 @@ start it on weekdays at your time (the setup in Claude creates it; it's called
 
    Names as the dry run shows them; outcome lines with or without `✅` and the
    date. A note shows in the day log under *📝 My note*.
-3. Runs `run --dry-run --changes <file>` and shows you the result.
-4. Saves with `run --changes <file>` only when you say yes. If you answer the
+3. Runs `run --dry-run --changes <file>`. If it shows what you agreed to, it
+   saves; if anything differs, it shows you and asks again.
+4. Saves with `run --changes <file>`, never before your answer. If you answer the
    next morning, it saves with `run --until <yesterday> --changes <file>`
    instead, so today stays open for this evening's review.
 
